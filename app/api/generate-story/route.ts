@@ -6,6 +6,8 @@ import { KindProfil as KindProfilType, StoryConfig } from "@/lib/types";
 
 const anthropic = new Anthropic();
 
+export const maxDuration = 120;
+
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,6 +24,20 @@ export async function POST(request: Request) {
     });
     if (!dbProfil) return Response.json({ error: "Profil nicht gefunden" }, { status: 404 });
 
+    // Fetch previous stories for Koala memory
+    const previousStories = await prisma.geschichte.findMany({
+      where: { kindProfilId: profilId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        createdAt: true,
+        format: true,
+        ziel: true,
+        besonderesThema: true,
+        zusammenfassung: true,
+      },
+    });
+
     // Map DB profile to type
     const profil: KindProfilType = {
       id: dbProfil.id,
@@ -35,7 +51,7 @@ export async function POST(request: Request) {
       herausforderungen: dbProfil.herausforderungen.length > 0 ? dbProfil.herausforderungen : undefined,
     };
 
-    const { system, user } = buildStoryPrompt(profil, config);
+    const { system, user } = buildStoryPrompt(profil, config, previousStories);
 
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-20250514",
@@ -60,7 +76,9 @@ export async function POST(request: Request) {
           }
         }
 
-        // Save story to DB
+        // Save story to DB with a basic summary for future Koala memory
+        const zusammenfassung = fullText.slice(0, 200).replace(/\[.*?\]/g, "").trim() + "...";
+
         const geschichte = await prisma.geschichte.create({
           data: {
             kindProfilId: profilId,
@@ -70,6 +88,7 @@ export async function POST(request: Request) {
             dauer: config.dauer,
             besonderesThema: config.besonderesThema || null,
             text: fullText,
+            zusammenfassung,
           },
         });
 

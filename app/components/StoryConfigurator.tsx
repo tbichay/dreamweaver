@@ -39,10 +39,11 @@ export default function StoryConfigurator({ kindProfilId, kindName, onGenerate }
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
       <div className="text-center">
+        <div className="text-4xl mb-2">🐨</div>
         <h1 className="text-3xl font-bold mb-2">
           Geschichte für {kindName}
         </h1>
-        <p className="text-white/60">Wähle aus, was für eine Geschichte heute Nacht erzählt werden soll.</p>
+        <p className="text-white/60">Was soll der weise Koala heute Nacht erzählen?</p>
       </div>
 
       {/* Format */}
@@ -105,13 +106,14 @@ export default function StoryConfigurator({ kindProfilId, kindName, onGenerate }
 
       {/* Besonderes Thema */}
       <div>
-        <h2 className="text-lg font-semibold mb-2">Besonderer Anlass (optional)</h2>
+        <h2 className="text-lg font-semibold mb-2">Worum soll es gehen? (optional)</h2>
         <input
           type="text"
           value={besonderesThema}
           onChange={(e) => setBesonderesThema(e.target.value)}
-          placeholder="z.B. Erster Schultag, Umzug, Geschwisterchen..."
+          placeholder="z.B. Erster Schultag, Streit mit Freund, neues Geschwisterchen..."
         />
+        <p className="text-xs text-white/30 mt-1">Der Koala merkt sich das für zukünftige Geschichten</p>
       </div>
 
       {/* Generate Button */}
@@ -121,7 +123,7 @@ export default function StoryConfigurator({ kindProfilId, kindName, onGenerate }
           disabled={!canGenerate}
           onClick={handleGenerate}
         >
-          Geschichte erzeugen ✨
+          Der Koala soll erzählen 🐨
         </button>
       </div>
     </div>

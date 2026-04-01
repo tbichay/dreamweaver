@@ -6,10 +6,11 @@ export default function SignInPage() {
     <main className="relative flex-1 flex flex-col items-center justify-center px-4 py-12">
       <Stars />
       <div className="relative z-10 text-center mb-8">
-        <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-          DreamWeaver
+        <div className="text-5xl mb-3">🐨</div>
+        <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-amber-200 via-green-200 to-amber-200 bg-clip-text text-transparent">
+          KoalaTree
         </h1>
-        <p className="text-white/60">Melde dich an, um Geschichten zu erstellen</p>
+        <p className="text-white/60">Melde dich an, um Geschichten zu hören</p>
       </div>
       <div className="relative z-10">
         <SignIn />

@@ -10,9 +10,9 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "DreamWeaver — Gute-Nacht-Geschichten",
+  title: "KoalaTree — Dein weiser Freund im magischen Baum",
   description:
-    "Personalisierte, pädagogisch wertvolle Gute-Nacht-Geschichten für dein Kind",
+    "Personalisierte Gute-Nacht-Geschichten, erzählt vom weisen Koala",
 };
 
 export default function RootLayout({

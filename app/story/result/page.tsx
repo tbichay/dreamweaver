@@ -1,26 +1,57 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { StoryConfig, STORY_FORMATE, PAEDAGOGISCHE_ZIELE } from "@/lib/types";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { StoryConfig, StoryFormat, PaedagogischesZiel, STORY_FORMATE, PAEDAGOGISCHE_ZIELE } from "@/lib/types";
 import Stars from "../../components/Stars";
 import StoryPreview from "../../components/StoryPreview";
 import AudioPlayer from "../../components/AudioPlayer";
 
-type Phase = "generating-text" | "text-done" | "generating-audio" | "done" | "error";
+type Phase = "loading" | "generating-text" | "text-done" | "generating-audio" | "done" | "error";
 
-export default function ResultPage() {
+function ResultContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const existingId = searchParams.get("id");
+
   const [profilId, setProfilId] = useState<string | null>(null);
   const [kindName, setKindName] = useState("");
   const [config, setConfig] = useState<StoryConfig | null>(null);
   const [storyText, setStoryText] = useState("");
-  const [geschichteId, setGeschichteId] = useState<string | null>(null);
+  const [geschichteId, setGeschichteId] = useState<string | null>(existingId);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [phase, setPhase] = useState<Phase>("generating-text");
+  const [phase, setPhase] = useState<Phase>(existingId ? "loading" : "generating-text");
   const [error, setError] = useState("");
+  const [format, setFormat] = useState<StoryFormat | null>(null);
+  const [ziel, setZiel] = useState<PaedagogischesZiel | null>(null);
   const initialized = useRef(false);
 
+  // Load existing story from DB
+  const loadExisting = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/geschichten/${id}`);
+      if (!res.ok) throw new Error("Geschichte nicht gefunden");
+      const data = await res.json();
+      setStoryText(data.text);
+      setProfilId(data.kindProfil.id);
+      setKindName(data.kindProfil.name);
+      setFormat(data.format as StoryFormat);
+      setZiel(data.ziel as PaedagogischesZiel);
+      setGeschichteId(data.id);
+      setConfig({ kindProfilId: data.kindProfil.id, format: data.format, ziel: data.ziel, dauer: data.dauer });
+      if (data.audioUrl && data.audioUrl !== "local") {
+        setAudioUrl(data.audioUrl);
+        setPhase("done");
+      } else {
+        setPhase("text-done");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fehler beim Laden");
+      setPhase("error");
+    }
+  }, []);
+
+  // Generate new story via streaming
   const generateStory = useCallback(async (pId: string, c: StoryConfig) => {
     try {
       setPhase("generating-text");
@@ -58,6 +89,8 @@ export default function ResultPage() {
               }
               if (data.done && data.geschichteId) {
                 setGeschichteId(data.geschichteId);
+                // Update URL so it's bookmarkable
+                window.history.replaceState(null, "", `/story/result?id=${data.geschichteId}`);
               }
             } catch {
               // skip malformed chunks
@@ -83,7 +116,10 @@ export default function ResultPage() {
         body: JSON.stringify({ text: storyText, geschichteId }),
       });
 
-      if (!response.ok) throw new Error("Audio-Generierung fehlgeschlagen");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ error: "Audio-Fehler" }));
+        throw new Error(errData.error || "Audio-Generierung fehlgeschlagen");
+      }
 
       const contentType = response.headers.get("Content-Type");
       if (contentType?.includes("application/json")) {
@@ -104,9 +140,16 @@ export default function ResultPage() {
     if (initialized.current) return;
     initialized.current = true;
 
-    const configData = sessionStorage.getItem("dreamweaver-config");
-    const pId = sessionStorage.getItem("dreamweaver-profilId");
-    const name = sessionStorage.getItem("dreamweaver-kindName");
+    // Mode 1: Load existing story by ID
+    if (existingId) {
+      loadExisting(existingId);
+      return;
+    }
+
+    // Mode 2: Generate new story from sessionStorage config
+    const configData = sessionStorage.getItem("koalatree-config");
+    const pId = sessionStorage.getItem("koalatree-profilId");
+    const name = sessionStorage.getItem("koalatree-kindName");
 
     if (!configData || !pId || !name) {
       router.push("/");
@@ -117,41 +160,59 @@ export default function ResultPage() {
     setProfilId(pId);
     setKindName(name);
     setConfig(c);
+    setFormat(c.format);
+    setZiel(c.ziel);
     generateStory(pId, c);
-  }, [router, generateStory]);
+  }, [router, generateStory, loadExisting, existingId]);
 
-  if (!profilId || !config) return null;
+  if (phase === "loading") {
+    return (
+      <main className="flex-1 flex items-center justify-center">
+        <p className="text-white/40">Geschichte wird geladen...</p>
+      </main>
+    );
+  }
 
-  const formatInfo = STORY_FORMATE[config.format];
-  const zielInfo = PAEDAGOGISCHE_ZIELE[config.ziel];
+  const formatInfo = format ? STORY_FORMATE[format] : null;
+  const zielInfo = ziel ? PAEDAGOGISCHE_ZIELE[ziel] : null;
 
   return (
     <main className="relative flex-1 flex flex-col items-center px-4 py-12">
       <Stars />
       <div className="relative z-10 w-full max-w-2xl space-y-6">
-        <button
-          className="text-white/40 hover:text-white/60 text-sm transition-colors"
-          onClick={() => router.push(`/story?profilId=${profilId}`)}
-        >
-          ← Zurück zum Konfigurator
-        </button>
+        <div className="flex items-center justify-between">
+          <button
+            className="text-white/40 hover:text-white/60 text-sm transition-colors"
+            onClick={() => profilId ? router.push(`/story?profilId=${profilId}`) : router.push("/")}
+          >
+            ← Zurück
+          </button>
+          <button
+            className="text-white/40 hover:text-white/60 text-sm transition-colors"
+            onClick={() => router.push("/geschichten")}
+          >
+            Alle Geschichten →
+          </button>
+        </div>
 
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">
-            {formatInfo.emoji} Geschichte für {kindName}
+            {formatInfo?.emoji || "📖"} Geschichte für {kindName}
           </h1>
-          <div className="flex items-center justify-center gap-3 text-white/50 text-sm">
-            <span>{formatInfo.label}</span>
-            <span>·</span>
-            <span>{zielInfo.emoji} {zielInfo.label}</span>
-          </div>
+          {formatInfo && zielInfo && (
+            <div className="flex items-center justify-center gap-3 text-white/50 text-sm">
+              <span>{formatInfo.label}</span>
+              <span>·</span>
+              <span>{zielInfo.emoji} {zielInfo.label}</span>
+            </div>
+          )}
         </div>
 
         {phase === "generating-text" && storyText.length === 0 && (
           <div className="card p-12 text-center">
-            <div className="text-4xl mb-4 float">✨</div>
-            <p className="text-white/60 text-lg">Die Geschichte wird gewoben...</p>
-            <p className="text-white/40 text-sm mt-2">Das dauert nur einen Moment</p>
+            <div className="text-4xl mb-4 float">🐨</div>
+            <p className="text-white/60 text-lg">Der weise Koala denkt nach...</p>
+            <p className="text-white/40 text-sm mt-2">Gleich beginnt deine Geschichte</p>
           </div>
         )}
 
@@ -163,7 +224,7 @@ export default function ResultPage() {
               Audio-Hörspiel erzeugen 🎧
             </button>
             <p className="text-white/40 text-sm mt-2">
-              Wandelt die Geschichte in eine Erzählstimme um
+              Der Koala liest die Geschichte vor
             </p>
           </div>
         )}
@@ -177,22 +238,21 @@ export default function ResultPage() {
         )}
 
         {phase === "done" && audioUrl && (
-          <AudioPlayer audioUrl={audioUrl} title={`Gute-Nacht-Geschichte für ${kindName}`} />
+          <AudioPlayer audioUrl={audioUrl} title={`Geschichte für ${kindName}`} />
         )}
 
         {phase === "error" && (
           <div className="card p-6 border-red-500/30 bg-red-500/10 text-center">
             <p className="text-red-300 mb-3">{error}</p>
-            <button
-              className="btn-primary"
-              onClick={() => generateStory(profilId, config)}
-            >
-              Nochmal versuchen
-            </button>
+            {profilId && config && (
+              <button className="btn-primary" onClick={() => generateStory(profilId, config)}>
+                Nochmal versuchen
+              </button>
+            )}
           </div>
         )}
 
-        {(phase === "text-done" || phase === "done") && (
+        {(phase === "text-done" || phase === "done") && profilId && (
           <div className="text-center pt-4">
             <button
               className="text-indigo-300 hover:text-indigo-200 text-sm transition-colors"
@@ -204,5 +264,13 @@ export default function ResultPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense>
+      <ResultContent />
+    </Suspense>
   );
 }

@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
-import { put } from "@vercel/blob";
 import { prisma } from "@/lib/db";
 import { generateAudio } from "@/lib/elevenlabs";
+
+export const maxDuration = 120; // Allow up to 2 minutes for audio generation
 
 export async function POST(request: Request) {
   const { userId } = await auth();
@@ -19,32 +20,44 @@ export async function POST(request: Request) {
 
     const audioBuffer = await generateAudio(text);
 
-    // Upload to Vercel Blob if available, otherwise return directly
+    // Try Vercel Blob upload if configured
     let audioUrl: string | undefined;
-    try {
-      const blob = await put(
-        `audio/${geschichteId || Date.now()}.mp3`,
-        Buffer.from(audioBuffer),
-        { access: "public", contentType: "audio/mpeg" }
-      );
-      audioUrl = blob.url;
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        const { put } = await import("@vercel/blob");
+        const blob = await put(
+          `audio/${geschichteId || Date.now()}.mp3`,
+          Buffer.from(audioBuffer),
+          { access: "public", contentType: "audio/mpeg" }
+        );
+        audioUrl = blob.url;
+        console.log(`[Blob] Uploaded: ${blob.url}`);
 
-      // Update story record with audio URL
-      if (geschichteId) {
-        await prisma.geschichte.update({
-          where: { id: geschichteId },
-          data: { audioUrl: blob.url },
-        });
+        if (geschichteId) {
+          await prisma.geschichte.update({
+            where: { id: geschichteId },
+            data: { audioUrl: blob.url },
+          });
+        }
+      } catch (blobError) {
+        console.error("[Blob] Upload failed, returning raw audio:", blobError);
+        // Fall through to raw audio response
       }
-    } catch {
-      // Vercel Blob not configured — return audio directly
     }
 
     if (audioUrl) {
       return Response.json({ audioUrl });
     }
 
-    // Fallback: return raw audio
+    // Fallback: return raw audio directly
+    // Also save geschichteId marker so frontend knows audio exists
+    if (geschichteId) {
+      await prisma.geschichte.update({
+        where: { id: geschichteId },
+        data: { audioUrl: "local" },
+      });
+    }
+
     return new Response(audioBuffer, {
       headers: {
         "Content-Type": "audio/mpeg",
@@ -53,8 +66,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Audio generation error:", error);
+    const message = error instanceof Error ? error.message : "Unbekannter Fehler";
     return Response.json(
-      { error: "Fehler bei der Audio-Generierung" },
+      { error: `Audio-Generierung fehlgeschlagen: ${message}` },
       { status: 500 }
     );
   }

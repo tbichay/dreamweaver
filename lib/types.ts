@@ -42,24 +42,24 @@ export interface Geschichte {
 
 export const STORY_FORMATE: Record<StoryFormat, { label: string; beschreibung: string; emoji: string }> = {
   traumreise: {
-    label: "Meditative Traumreise",
-    beschreibung: "Eine geführte Meditation verpackt als magisches Abenteuer",
-    emoji: "🌙",
+    label: "Traumreise",
+    beschreibung: "Der Koala nimmt dein Kind mit auf eine Reise durch den magischen Wald",
+    emoji: "🌿",
   },
   fabel: {
-    label: "Philosophische Fabel",
-    beschreibung: "Eine Tiergeschichte mit tiefgründiger Botschaft",
-    emoji: "🦊",
+    label: "Weisheitsgeschichte",
+    beschreibung: "Der Koala erzählt eine Geschichte, die er selbst erlebt hat",
+    emoji: "🦉",
   },
   held: {
-    label: "Magische Ich-Geschichte",
-    beschreibung: "Dein Kind wird zum Helden seiner eigenen Geschichte",
-    emoji: "⭐",
+    label: "Dein Abenteuer",
+    beschreibung: "Dein Kind ist der Held — der Koala erzählt seine Geschichte",
+    emoji: "🌟",
   },
   dankbarkeit: {
-    label: "Dankbarkeits-Ritual",
-    beschreibung: "Eine Geschichte die in eine Dankbarkeitsübung mündet",
-    emoji: "🙏",
+    label: "Dankbarkeits-Moment",
+    beschreibung: "Der Koala und dein Kind schauen gemeinsam auf den Tag zurück",
+    emoji: "🍃",
   },
 };
 

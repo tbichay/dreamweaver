@@ -36,6 +36,7 @@ model Geschichte {
   besonderesThema String?
   text           String
   audioUrl       String?    // Vercel Blob URL
+  zusammenfassung String?   // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
   createdAt      DateTime   @default(now())
 
   @@index([userId])

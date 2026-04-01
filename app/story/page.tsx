@@ -27,9 +27,9 @@ function StoryPageContent() {
   }, [profilId, router]);
 
   const handleGenerate = (config: StoryConfig) => {
-    sessionStorage.setItem("dreamweaver-config", JSON.stringify(config));
-    sessionStorage.setItem("dreamweaver-profilId", profilId!);
-    sessionStorage.setItem("dreamweaver-kindName", profil!.name);
+    sessionStorage.setItem("koalatree-config", JSON.stringify(config));
+    sessionStorage.setItem("koalatree-profilId", profilId!);
+    sessionStorage.setItem("koalatree-kindName", profil!.name);
     router.push("/story/result");
   };
 
