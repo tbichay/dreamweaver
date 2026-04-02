@@ -32,9 +32,8 @@ export default async function LandingPage() {
 
         {/* Nav */}
         <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <Image src="/icons/favicon-32.png" alt="KoalaTree" width={28} height={28} className="rounded-md drop-shadow-md" />
-            <span className="text-white/80 font-bold text-lg drop-shadow-md">KoalaTree</span>
+          <div className="h-8 w-auto relative">
+            <Image src="/logo.png" alt="KoalaTree" height={32} width={54} className="object-contain drop-shadow-md" />
           </div>
           <div className="flex items-center gap-3">
             <Link
