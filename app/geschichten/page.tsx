@@ -247,34 +247,21 @@ export default function GeschichtenPage() {
                   const zielInfo = PAEDAGOGISCHE_ZIELE[g.ziel as PaedagogischesZiel];
                   const isExpanded = expandedId === g.id;
                   const title = getTitle(g);
+                  const playable = hasPlayableAudio(g.audioUrl);
 
                   return (
                     <div key={g.id} className="card overflow-hidden">
-                      {/* Main row — always visible */}
-                      <div
-                        className="p-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
-                        onClick={() => setExpandedId(isExpanded ? null : g.id)}
-                      >
+                      {/* Header: Title + Meta — always visible */}
+                      <div className="p-4 pb-2">
                         <div className="flex items-start gap-3">
-                          {/* Play button or format icon */}
-                          <div className="shrink-0 mt-0.5">
-                            {hasPlayableAudio(g.audioUrl) ? (
-                              <div className="w-10 h-10 rounded-full bg-[#3d6b4a]/20 flex items-center justify-center text-lg">
-                                🎧
-                              </div>
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-lg">
-                                {formatInfo?.emoji || "📖"}
-                              </div>
-                            )}
+                          <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center text-base shrink-0">
+                            {formatInfo?.emoji || "📖"}
                           </div>
-
-                          {/* Title + meta */}
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-[#f5eed6] text-sm leading-tight truncate">
+                            <h3 className="font-medium text-[#f5eed6] text-sm leading-tight">
                               {title}
                             </h3>
-                            <div className="flex items-center gap-2 mt-1 text-xs text-white/40">
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-white/35">
                               <span>{g.kindProfil.name}</span>
                               <span>·</span>
                               <span>{formatInfo?.label}</span>
@@ -282,44 +269,71 @@ export default function GeschichtenPage() {
                               <span>{new Date(g.createdAt).toLocaleDateString("de-DE")}</span>
                             </div>
                           </div>
+                        </div>
+                      </div>
 
-                          {/* Expand chevron */}
+                      {/* Player — always visible at title level */}
+                      <div className="px-4 pb-3">
+                        {playable ? (
+                          <AudioPlayer
+                            audioUrl={g.audioUrl!}
+                            title={title}
+                            compact
+                          />
+                        ) : (
+                          <button
+                            className="w-full btn-primary text-sm py-2 disabled:opacity-50"
+                            disabled={generatingAudioId === g.id}
+                            onClick={() => regenerateAudio(g)}
+                          >
+                            {generatingAudioId === g.id
+                              ? "Audio wird erzeugt..."
+                              : "🎧 Audio-Hörspiel erzeugen"}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Expand toggle — text + actions */}
+                      <div className="px-4 pb-3 flex items-center gap-3 border-t border-white/5 pt-2">
+                        <button
+                          className="text-xs text-white/30 hover:text-white/50 transition-colors flex items-center gap-1"
+                          onClick={() => setExpandedId(isExpanded ? null : g.id)}
+                        >
                           <svg
-                            className={`w-4 h-4 text-white/20 shrink-0 mt-1 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                             fill="none" stroke="currentColor" viewBox="0 0 24 24"
                           >
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
-                        </div>
+                          {isExpanded ? "Text ausblenden" : "Text lesen"}
+                        </button>
+
+                        <span className="text-white/10">·</span>
+
+                        <button
+                          className="text-xs text-white/30 hover:text-white/50 transition-colors"
+                          onClick={() => router.push(`/story/result?id=${g.id}`)}
+                        >
+                          Vollansicht
+                        </button>
+
+                        <button
+                          className="text-xs text-white/30 hover:text-white/50 transition-colors ml-auto"
+                          onClick={() => {
+                            if (confirm("Geschichte neu generieren? Der aktuelle Text wird ersetzt.")) {
+                              router.push(`/story/result?regenerate=${g.id}`);
+                            }
+                          }}
+                        >
+                          Neu generieren
+                        </button>
                       </div>
 
-                      {/* Expanded: Player + Text */}
+                      {/* Expanded: Text + meta */}
                       {isExpanded && (
-                        <div className="px-4 pb-4 space-y-3">
-                          {/* Audio Player — prominent */}
-                          {hasPlayableAudio(g.audioUrl) ? (
-                            <AudioPlayer
-                              audioUrl={g.audioUrl!}
-                              title={title}
-                              compact
-                            />
-                          ) : (
-                            <button
-                              className="w-full btn-primary text-sm py-2.5 disabled:opacity-50"
-                              disabled={generatingAudioId === g.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                regenerateAudio(g);
-                              }}
-                            >
-                              {generatingAudioId === g.id
-                                ? "Audio wird erzeugt..."
-                                : "🎧 Audio-Hörspiel erzeugen"}
-                            </button>
-                          )}
-
+                        <div className="px-4 pb-4 space-y-3 border-t border-white/5">
                           {/* Meta tags */}
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap pt-3">
                             <span className="px-2 py-0.5 bg-white/5 rounded text-xs text-white/40">
                               {zielInfo?.emoji} {zielInfo?.label}
                             </span>
@@ -330,31 +344,13 @@ export default function GeschichtenPage() {
                             )}
                           </div>
 
-                          {/* Collapsible text */}
-                          <details className="group">
-                            <summary className="text-xs text-[#a8d5b8] cursor-pointer hover:text-[#c8e5d0] transition-colors">
-                              Geschichte lesen
-                            </summary>
-                            <div className="mt-3 text-sm text-white/60 leading-relaxed max-h-60 overflow-y-auto pr-2">
-                              {cleanText(g.text)
-                                .split("\n\n")
-                                .map((p, i) => (
-                                  <p key={i} className="mb-2">{p}</p>
-                                ))}
-                            </div>
-                          </details>
-
-                          {/* Actions */}
-                          <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                            <button
-                              className="text-xs text-white/30 hover:text-white/50 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/story/result?id=${g.id}`);
-                              }}
-                            >
-                              Vollansicht
-                            </button>
+                          {/* Story text */}
+                          <div className="text-sm text-white/60 leading-relaxed max-h-72 overflow-y-auto pr-2">
+                            {cleanText(g.text)
+                              .split("\n\n")
+                              .map((p, i) => (
+                                <p key={i} className="mb-2">{p}</p>
+                              ))}
                           </div>
                         </div>
                       )}

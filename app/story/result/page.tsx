@@ -15,6 +15,7 @@ function ResultContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const existingId = searchParams.get("id");
+  const regenerateId = searchParams.get("regenerate");
 
   const [profilId, setProfilId] = useState<string | null>(null);
   const [kindName, setKindName] = useState("");
@@ -23,7 +24,7 @@ function ResultContent() {
   const [geschichteId, setGeschichteId] = useState<string | null>(existingId);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [titel, setTitel] = useState("");
-  const [phase, setPhase] = useState<Phase>(existingId ? "loading" : "generating-text");
+  const [phase, setPhase] = useState<Phase>(existingId || regenerateId ? "loading" : "generating-text");
   const [error, setError] = useState("");
   const [format, setFormat] = useState<StoryFormat | null>(null);
   const [ziel, setZiel] = useState<PaedagogischesZiel | null>(null);
@@ -138,6 +139,29 @@ function ResultContent() {
     if (initialized.current) return;
     initialized.current = true;
 
+    // Mode 0: Regenerate — load old story config, then generate new
+    if (regenerateId) {
+      (async () => {
+        try {
+          const res = await fetch(`/api/geschichten/${regenerateId}`);
+          if (!res.ok) throw new Error("Geschichte nicht gefunden");
+          const data = await res.json();
+          const pId = data.kindProfil.id;
+          const c: StoryConfig = { kindProfilId: pId, format: data.format, ziel: data.ziel, dauer: data.dauer, besonderesThema: data.besonderesThema };
+          setProfilId(pId);
+          setKindName(data.kindProfil.name);
+          setConfig(c);
+          setFormat(data.format as StoryFormat);
+          setZiel(data.ziel as PaedagogischesZiel);
+          generateStory(pId, c);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Fehler");
+          setPhase("error");
+        }
+      })();
+      return;
+    }
+
     // Mode 1: Load existing story by ID
     if (existingId) {
       loadExisting(existingId);
@@ -161,7 +185,7 @@ function ResultContent() {
     setFormat(c.format);
     setZiel(c.ziel);
     generateStory(pId, c);
-  }, [router, generateStory, loadExisting, existingId]);
+  }, [router, generateStory, loadExisting, existingId, regenerateId]);
 
   if (phase === "loading") {
     return (
