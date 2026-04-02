@@ -8,7 +8,7 @@ export default function SignInPage() {
       <Stars />
       <div className="relative z-10 text-center mb-8">
         <div className="mx-auto mb-4 w-24 h-24 relative">
-          <Image src="/koda-portrait.png" alt="Koda" fill className="object-contain rounded-2xl" />
+          <Image src="/logo.png" alt="KoalaTree" fill className="object-contain" />
         </div>
         <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-[#f4c078] via-[#a8d5b8] to-[#f4c078] bg-clip-text text-transparent">
           KoalaTree

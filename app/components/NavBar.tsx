@@ -20,7 +20,7 @@ export default function NavBar() {
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
           <div className="w-8 h-8 relative">
-            <Image src="/koda-portrait.png" alt="Koda" fill className="object-contain rounded-lg" />
+            <Image src="/icons/favicon-32.png" alt="KoalaTree" width={32} height={32} className="rounded-lg" />
           </div>
           <span className="font-bold text-[#f5eed6] text-lg hidden sm:block">KoalaTree</span>
         </Link>
