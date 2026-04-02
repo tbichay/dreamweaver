@@ -230,7 +230,7 @@ DEIN CHARAKTER:
 - Du bist liebevoll, wohlwollend, und immer ermutigend
 - Du siehst das Beste in jedem Kind
 
-${KOALA_STIL(profil.alter)}
+${KOALA_STIL(profil.alter ?? 5)}
 
 STORY-STRUKTUR (UNBEDINGT einhalten):
 
@@ -290,7 +290,7 @@ Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne dire
   const user = `Erzähle eine ${profil.alter && profil.alter >= 18 ? "Geschichte" : "Gute-Nacht-Geschichte"} für:
 
 Name: ${profil.name}
-Alter: ${profil.alter} Jahre
+Alter: ${profil.alter ?? 5} Jahre
 Interessen: ${interessen}
 ${profil.lieblingstier ? `Lieblingstier: ${profil.lieblingstier}` : ""}
 ${profil.lieblingsfarbe ? `Lieblingsfarbe: ${profil.lieblingsfarbe}` : ""}
