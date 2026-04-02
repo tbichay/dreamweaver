@@ -153,7 +153,7 @@ function ResultContent() {
     const name = sessionStorage.getItem("koalatree-kindName");
 
     if (!configData || !pId || !name) {
-      router.push("/");
+      router.push("/dashboard");
       return;
     }
 
@@ -184,7 +184,7 @@ function ResultContent() {
         <div className="flex items-center justify-between">
           <button
             className="text-white/40 hover:text-white/60 text-sm transition-colors"
-            onClick={() => profilId ? router.push(`/story?profilId=${profilId}`) : router.push("/")}
+            onClick={() => profilId ? router.push(`/story?profilId=${profilId}`) : router.push("/dashboard")}
           >
             ← Zurück
           </button>

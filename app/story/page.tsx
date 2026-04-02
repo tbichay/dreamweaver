@@ -14,7 +14,7 @@ function StoryPageContent() {
 
   useEffect(() => {
     if (!profilId) {
-      router.push("/");
+      router.push("/dashboard");
       return;
     }
     fetch(`/api/profile/${profilId}`)
@@ -23,7 +23,7 @@ function StoryPageContent() {
         return res.json();
       })
       .then(setProfil)
-      .catch(() => router.push("/"));
+      .catch(() => router.push("/dashboard"));
   }, [profilId, router]);
 
   const handleGenerate = (config: StoryConfig) => {
@@ -41,7 +41,7 @@ function StoryPageContent() {
       <div className="relative z-10 w-full max-w-2xl">
         <button
           className="text-white/40 hover:text-white/60 text-sm transition-colors mb-6"
-          onClick={() => router.push("/")}
+          onClick={() => router.push("/dashboard")}
         >
           ← Zurück zur Profilauswahl
         </button>

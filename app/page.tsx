@@ -1,153 +1,250 @@
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
-import { KindProfil } from "@/lib/types";
-import Stars from "./components/Stars";
-import ProfilForm from "./components/ProfilForm";
-import ProfilCard from "./components/ProfilCard";
 import Image from "next/image";
+import Link from "next/link";
+import Stars from "./components/Stars";
 
-export default function Home() {
-  const router = useRouter();
-  const [profile, setProfile] = useState<KindProfil[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const fetchProfile = useCallback(async () => {
-    const res = await fetch("/api/profile");
-    if (res.ok) {
-      setProfile(await res.json());
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
-
-  const handleSave = async (profil: KindProfil) => {
-    await fetch("/api/profile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(profil),
-    });
-    await fetchProfile();
-    setShowForm(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    await fetch(`/api/profile?id=${id}`, { method: "DELETE" });
-    await fetchProfile();
-  };
-
-  const handleSelect = (profil: KindProfil) => {
-    router.push(`/story?profilId=${profil.id}`);
-  };
-
-  if (loading) {
-    return (
-      <main className="relative flex-1 flex flex-col items-center justify-center">
-        <Stars />
-        <div className="text-white/40 text-lg">Laden...</div>
-      </main>
-    );
-  }
-
+export default function LandingPage() {
   return (
-    <main className="relative flex-1 flex flex-col items-center min-h-screen">
-      {/* Full-bleed hero image as page background top */}
-      <div className="absolute inset-0 w-full h-[70vh] z-0">
-        <Image
-          src="/hero.png"
-          alt="KoalaTree — Der magische Eukalyptusbaum"
-          fill
-          className="object-cover object-top"
-          priority
-        />
-        {/* Smooth gradient fade from hero image into page background */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#1a2e1a] via-[#1a2e1a]/80 to-transparent" />
-      </div>
-
-      {/* Fireflies overlay on everything */}
+    <main className="relative flex flex-col min-h-screen overflow-hidden">
       <Stars />
 
-      {/* Navigation */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-4">
-        <button
-          className="text-white/60 hover:text-white/80 text-sm transition-colors backdrop-blur-sm bg-black/10 rounded-full px-3 py-1"
-          onClick={() => router.push("/geschichten")}
-        >
-          Geschichten-Bibliothek
-        </button>
-        <UserButton />
-      </div>
+      {/* ═══════════════════════════════════════════════
+          SECTION 1: HERO — Full viewport, immersive
+          ═══════════════════════════════════════════════ */}
+      <section className="relative w-full h-screen flex flex-col items-center justify-center">
+        {/* Hero background image */}
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/hero.png"
+            alt="KoalaTree — Der magische Eukalyptusbaum"
+            fill
+            className="object-cover object-center"
+            priority
+          />
+          {/* Bottom fade into next section */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1a2e1a] via-transparent to-transparent" />
+          {/* Subtle top vignette */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent" />
+        </div>
 
-      {/* Title overlay on hero */}
-      <div className="relative z-10 w-full text-center pt-[30vh]">
-        <h1 className="text-6xl md:text-7xl font-bold mb-3 text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
-          KoalaTree
-        </h1>
-        <p className="text-xl md:text-2xl text-white/80 drop-shadow-[0_1px_6px_rgba(0,0,0,0.4)]">
-          Dein weiser Freund im magischen Baum
-        </p>
-      </div>
+        {/* Nav */}
+        <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-4">
+          <span className="text-white/80 font-bold text-lg drop-shadow-md">KoalaTree</span>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/sign-in"
+              className="text-white/70 hover:text-white text-sm transition-colors"
+            >
+              Anmelden
+            </Link>
+            <Link
+              href="/sign-up"
+              className="btn-primary text-sm px-4 py-2"
+            >
+              Kostenlos starten
+            </Link>
+          </div>
+        </nav>
 
-      {/* Content area — flows seamlessly from hero */}
-      <div className="relative z-10 w-full max-w-2xl px-4 pt-12 pb-16">
-        <p className="text-center text-white/50 text-sm mb-10">
-          Personalisierte Gute-Nacht-Geschichten, erzählt vom weisen Koala Koda
-        </p>
+        {/* Hero content */}
+        <div className="relative z-10 text-center px-4 mt-[-5vh]">
+          <h1 className="text-6xl md:text-8xl font-bold mb-4 text-white drop-shadow-[0_3px_12px_rgba(0,0,0,0.6)]">
+            KoalaTree
+          </h1>
+          <p className="text-xl md:text-2xl text-white/90 mb-8 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] max-w-xl mx-auto">
+            Dein weiser Freund im magischen Baum
+          </p>
+          <Link
+            href="/sign-up"
+            className="btn-primary text-lg px-10 py-4 inline-block shadow-[0_4px_30px_rgba(74,124,89,0.5)]"
+          >
+            Jetzt kostenlos starten
+          </Link>
+        </div>
 
-        {showForm ? (
-          <>
-            <ProfilForm onSave={handleSave} />
-            <div className="text-center mt-4">
-              <button
-                className="text-white/40 hover:text-white/60 text-sm transition-colors"
-                onClick={() => setShowForm(false)}
-              >
-                Abbrechen
-              </button>
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 z-10 animate-bounce">
+          <svg className="w-6 h-6 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          SECTION 2: Was ist KoalaTree?
+          ═══════════════════════════════════════════════ */}
+      <section className="relative z-10 py-24 px-6">
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-12">
+          <div className="w-40 h-40 md:w-56 md:h-56 relative shrink-0">
+            <Image
+              src="/koda-portrait.png"
+              alt="Koda — der weise Koala"
+              fill
+              className="object-contain rounded-3xl"
+            />
+          </div>
+          <div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-[#f5eed6]">
+              Stell dir vor...
+            </h2>
+            <p className="text-lg text-white/70 leading-relaxed mb-4">
+              ...dein Kind hätte einen weisen Freund, der jede Nacht eine Geschichte erzählt.
+              Nicht irgendeine Geschichte — <span className="text-[#d4a853]">eine Geschichte nur für dein Kind</span>.
+              Mit seinem Namen, seinen Interessen, seinen Herausforderungen.
+            </p>
+            <p className="text-lg text-white/70 leading-relaxed mb-4">
+              KoalaTree ist dieser Freund. Ein alter, weiser Koala namens <span className="text-[#a8d5b8] font-semibold">Koda</span> sitzt
+              in einem magischen Eukalyptusbaum und erzählt Geschichten, die dein Kind unterbewusst stärken —
+              Selbstbewusstsein, Mut, Dankbarkeit.
+            </p>
+            <p className="text-lg text-white/60 italic">
+              Verpackt in ein persönliches Audio-Hörspiel. Jeden Abend neu.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          SECTION 3: So funktioniert's
+          ═══════════════════════════════════════════════ */}
+      <section className="relative z-10 py-24 px-6">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-[#f5eed6]">
+            So einfach geht&apos;s
+          </h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Step 1 */}
+            <div className="text-center">
+              <div className="w-24 h-24 mx-auto mb-6 relative">
+                <Image src="/koda-welcome.png" alt="Profil erstellen" fill className="object-contain rounded-2xl" />
+              </div>
+              <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 1</div>
+              <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Profil erstellen</h3>
+              <p className="text-white/60 text-sm leading-relaxed">
+                Erzähl Koda von deinem Kind — Name, Alter, Interessen, Charakter. Je mehr er weiß, desto persönlicher wird die Geschichte.
+              </p>
             </div>
-          </>
-        ) : (
-          <>
-            {profile.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-lg font-semibold text-white/70 mb-4">
-                  Für wen soll Koda heute erzählen?
-                </h2>
-                <div className="grid gap-3">
-                  {profile.map((p) => (
-                    <ProfilCard
-                      key={p.id}
-                      profil={p}
-                      onSelect={handleSelect}
-                      onDelete={handleDelete}
-                    />
-                  ))}
+            {/* Step 2 */}
+            <div className="text-center">
+              <div className="w-24 h-24 mx-auto mb-6 relative">
+                <Image src="/koda-thinking.png" alt="Thema wählen" fill className="object-contain rounded-2xl" />
+              </div>
+              <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 2</div>
+              <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Thema wählen</h3>
+              <p className="text-white/60 text-sm leading-relaxed">
+                Wähle ein Format und ein pädagogisches Ziel — Traumreise, Abenteuer, Weisheitsgeschichte. Koda passt alles an.
+              </p>
+            </div>
+            {/* Step 3 */}
+            <div className="text-center">
+              <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center text-5xl">
+                🎧
+              </div>
+              <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 3</div>
+              <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Zuhören & Entspannen</h3>
+              <p className="text-white/60 text-sm leading-relaxed">
+                Koda erzählt die Geschichte als professionelles Audio-Hörspiel. Persönlich, warm, und mit einer weisen Botschaft am Ende.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          SECTION 4: Die Koala-Familie
+          ═══════════════════════════════════════════════ */}
+      <section className="relative z-10 py-24 px-6">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-[#f5eed6]">
+            Die Koala-Familie
+          </h2>
+          <p className="text-center text-white/60 mb-16 max-w-2xl mx-auto">
+            Fünf einzigartige Charaktere bewohnen den KoalaTree. Jeder hat seine eigene Persönlichkeit und erzählt andere Geschichten.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+            {[
+              { name: "Koda", role: "Der Weise", desc: "Haupterzähler. Warm, weise, wie ein Großvater.", emoji: "🐨", color: "#a8d5b8" },
+              { name: "Mika", role: "Der Mutige", desc: "Abenteuer & Herausforderungen meistern.", emoji: "💪", color: "#7cb87c" },
+              { name: "Luna", role: "Die Träumerin", desc: "Meditation, Schlaf & sanfte Traumreisen.", emoji: "🌙", color: "#b8a0d5" },
+              { name: "Pip", role: "Der Entdecker", desc: "Kreativität, Staunen & Fantasie.", emoji: "⭐", color: "#d4a853" },
+              { name: "Sage", role: "Der Stille", desc: "Achtsamkeit & Reflexion für Ältere.", emoji: "🍃", color: "#8b9fad" },
+            ].map((koala) => (
+              <div key={koala.name} className="text-center">
+                <div className="w-20 h-20 mx-auto mb-3 rounded-2xl bg-white/5 flex items-center justify-center text-4xl">
+                  {koala.emoji}
+                </div>
+                <h3 className="font-bold text-lg" style={{ color: koala.color }}>{koala.name}</h3>
+                <p className="text-white/50 text-xs font-medium mb-1">{koala.role}</p>
+                <p className="text-white/40 text-xs leading-relaxed">{koala.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          SECTION 5: Warum KoalaTree?
+          ═══════════════════════════════════════════════ */}
+      <section className="relative z-10 py-24 px-6">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-[#f5eed6]">
+            Warum KoalaTree?
+          </h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            {[
+              { icon: "✨", title: "100% persönlich", desc: "Jede Geschichte ist einzigartig — mit dem Namen, den Interessen und den Themen deines Kindes." },
+              { icon: "🧠", title: "Pädagogisch wertvoll", desc: "Unterbewusste positive Botschaften stärken Selbstbewusstsein, Mut und Dankbarkeit." },
+              { icon: "💾", title: "Koda erinnert sich", desc: "Der weise Koala kennt die Geschichte deines Kindes und referenziert vergangene Erlebnisse." },
+              { icon: "📈", title: "Wächst mit", desc: "Von 3 bis 99 — Koda passt Ton, Sprache und Tiefe an jedes Alter an." },
+              { icon: "🎧", title: "Echtes Hörspiel", desc: "Professionelle Audio-Generierung mit warmer Erzählstimme. Nicht robotisch — lebendig." },
+              { icon: "🌙", title: "Perfekt zum Einschlafen", desc: "Meditative Strukturen, sanfte Übergänge und ein liebevolles Fazit am Ende jeder Geschichte." },
+            ].map((feature) => (
+              <div key={feature.title} className="card p-6 flex gap-4">
+                <div className="text-3xl shrink-0">{feature.icon}</div>
+                <div>
+                  <h3 className="font-bold text-lg mb-1 text-[#f5eed6]">{feature.title}</h3>
+                  <p className="text-white/60 text-sm leading-relaxed">{feature.desc}</p>
                 </div>
               </div>
-            )}
+            ))}
+          </div>
+        </div>
+      </section>
 
-            <div className="text-center">
-              <button
-                className="btn-primary text-lg px-8 py-3"
-                onClick={() => setShowForm(true)}
-              >
-                {profile.length > 0 ? "Neues Kind vorstellen" : "Los geht's — Stell dein Kind dem Koala vor"}
-              </button>
-              {profile.length === 0 && (
-                <p className="text-white/40 text-sm mt-4">
-                  Der weise Koala Koda möchte dein Kind kennenlernen, damit er die perfekte Geschichte erzählen kann.
-                </p>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+      {/* ═══════════════════════════════════════════════
+          SECTION 6: CTA Footer
+          ═══════════════════════════════════════════════ */}
+      <section className="relative z-10 py-24 px-6 text-center">
+        <div className="max-w-2xl mx-auto">
+          <div className="w-28 h-28 mx-auto mb-8 relative">
+            <Image src="/koda-portrait.png" alt="Koda" fill className="object-contain rounded-3xl" />
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-[#f5eed6]">
+            Koda wartet auf dich
+          </h2>
+          <p className="text-lg text-white/60 mb-8">
+            Erstelle jetzt ein kostenloses Profil und lass den weisen Koala die erste Geschichte für dein Kind erzählen.
+          </p>
+          <Link
+            href="/sign-up"
+            className="btn-primary text-lg px-10 py-4 inline-block shadow-[0_4px_30px_rgba(74,124,89,0.5)] mb-4"
+          >
+            Kostenlos starten
+          </Link>
+          <p className="text-white/40 text-sm">
+            Schon dabei?{" "}
+            <Link href="/sign-in" className="text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors">
+              Hier anmelden
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="relative z-10 py-8 px-6 text-center border-t border-white/5">
+        <p className="text-white/30 text-xs">
+          KoalaTree — Personalisierte Geschichten für Kinder und Erwachsene
+        </p>
+      </footer>
     </main>
   );
 }

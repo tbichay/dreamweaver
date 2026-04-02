@@ -61,7 +61,7 @@ export default function GeschichtenPage() {
       <div className="w-full max-w-2xl">
         <button
           className="text-white/40 hover:text-white/60 text-sm transition-colors mb-6"
-          onClick={() => router.push("/")}
+          onClick={() => router.push("/dashboard")}
         >
           ← Zurück
         </button>
@@ -75,7 +75,7 @@ export default function GeschichtenPage() {
             </div>
             <p className="text-white/50 text-lg mb-4">Noch keine Geschichten erstellt</p>
             <p className="text-white/40 text-sm mb-6">Koda wartet schon gespannt darauf, dir eine Geschichte zu erzählen!</p>
-            <button className="btn-primary" onClick={() => router.push("/")}>
+            <button className="btn-primary" onClick={() => router.push("/dashboard")}>
               Erste Geschichte erstellen
             </button>
           </div>
