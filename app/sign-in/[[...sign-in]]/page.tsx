@@ -16,7 +16,7 @@ export default function SignInPage() {
         <p className="text-white/60">Melde dich an, um Geschichten zu hören</p>
       </div>
       <div className="relative z-10">
-        <SignIn />
+        <SignIn forceRedirectUrl="/dashboard" />
       </div>
     </main>
   );

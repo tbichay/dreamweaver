@@ -16,7 +16,7 @@ export default function SignUpPage() {
         <p className="text-white/60">Erstelle ein Konto für magische Geschichten</p>
       </div>
       <div className="relative z-10">
-        <SignUp />
+        <SignUp forceRedirectUrl="/dashboard" />
       </div>
     </main>
   );
