@@ -13,29 +13,29 @@ const KODA_STIL = (alter: number) => {
 Koda spricht sehr sanft und einfach, wie ein liebevoller Großvater.
 Kurze, einfache Sätze. Viele Wiederholungen. Konkrete, greifbare Bilder.
 Keine abstrakten Konzepte. Warm, beschützend, voller Liebe.
-"Weißt du was, kleiner Schatz..." / "Und dann, stell dir vor..."`;
+"Hmm... weißt du was, kleiner Schatz... ich erinnere mich da an etwas..." / "Und dann... stell dir vor..."`;
 
   if (alter <= 8) return `KODAS STIL FÜR 6-8 JAHRE:
 Koda spricht klar und bildhaft. Er stellt kleine Fragen und regt zum Nachdenken an.
 Einfache Metaphern. Behandelt das Kind mit Respekt und Neugierde.
-"Was glaubst du, was dann passiert ist?" / "Der alte Koda schmunzelte..."`;
+"Also... was glaubst du, was dann passiert ist?" / "Hmm... der alte Koda schmunzelte leise..."`;
 
   if (alter <= 12) return `KODAS STIL FÜR 9-12 JAHRE:
 Koda ist philosophischer. Behandelt den Hörer als "jungen Denker".
 Reichere Sprache. Tiefgründige Gedanken natürlich eingeflochten.
-"Manchmal im Leben..." / "Es gibt da etwas, das ich gelernt habe..."`;
+"Weißt du... manchmal im Leben..." / "Hmm, es gibt da etwas... das ich vor langer Zeit gelernt habe..."`;
 
   return `KODAS STIL FÜR 13+ JAHRE:
 Koda ist ein weiser Mentor auf Augenhöhe. Teilt Lebensweisheiten respektvoll.
 Keine kindliche Sprache, aber immer warm und wohlwollend.
-"Du bist alt genug zu verstehen..." / "Das Leben hat mir gezeigt..."`;
+"Also... du bist alt genug, um das zu verstehen..." / "Hmm... das Leben hat mir da etwas gezeigt..."`;
 };
 
 // --- Kiki: altersadaptiver Sprachstil ---
 const KIKI_STIL = (alter: number) => {
   if (alter <= 5) return `KIKIS STIL FÜR 3-5 JAHRE:
-Kiki ist albern und macht lustige Tiergeräusche. Kurze Ausrufe.
-"Hihi! Kuckuck!" / "Kiki flattert aufgeregt!" / "*flatter flatter*"
+Kiki ist albern und macht lustige Ausrufe. Kurze, begeisterte Sätze.
+"Hihi! Kuckuck!" / "Ohhh, das ist ja toll!" / "Boah, schau mal!"
 Sie kichert viel, macht Quatsch, ist übertrieben begeistert von allem.`;
 
   if (alter <= 8) return `KIKIS STIL FÜR 6-8 JAHRE:
@@ -302,10 +302,10 @@ So entsteht Dynamik:
    - Sie macht Geräusche und Ausrufe
 
 3. Natürliche Reaktionen:
-   - Koda schmunzelt über Kiki: "Ach Kiki..." / "*lacht leise*"
+   - Koda schmunzelt über Kiki: "Ach Kiki... hihi... du bist wirklich etwas Besonderes."
    - Kiki staunt: "Nein! Wirklich?!" / "Das ist ja unglaublich!"
-   - Beide lachen zusammen
-   - Koda gibt Kiki liebevoll Recht: "Da hat Kiki ausnahmsweise mal Recht..."
+   - Beide lachen zusammen: "Hihi!" "Haha, ja genau!"
+   - Koda gibt Kiki liebevoll Recht: "Da hat Kiki... ausnahmsweise mal Recht."
    - Kiki gibt Koda die Bühne zurück: "Okay okay, erzähl weiter Koda!"
 
 4. Kiki taucht ${config.dauer === "kurz" ? "3-4" : config.dauer === "mittel" ? "4-6" : "6-8"} Mal auf.
@@ -343,6 +343,41 @@ REGELN für SFX:
 - Kurz und beschreibend (3-8 Wörter)
 - KEINE beängstigenden Sounds (kein Donner, Schreien, Explosionen)
 - SFX sollen Geborgenheit und Atmosphäre erzeugen
+- Nach JEDEM [SFX:...] MUSS ein [KODA] oder [KIKI] Marker kommen — NIEMALS zwei SFX hintereinander
+- SFX-Beschreibungen dürfen NIE als gesprochener Text im Dialog vorkommen
+
+═══════════════════════════
+NATÜRLICHE SPRACHE (SEHR WICHTIG!)
+═══════════════════════════
+
+Die Geschichte wird von einer TTS-Engine vorgelesen. Damit sie LEBENDIG klingt und nicht wie ein Roboter,
+musst du natürliche Sprechmuster direkt in den Text schreiben:
+
+1. FÜLLWÖRTER einbauen (machen den Text menschlich):
+   - Koda: "Hmm...", "Also...", "Weißt du...", "Ach...", "Nun ja...", "Tja..."
+   - Kiki: "Ähm...", "Boah!", "Hihi!", "Oh mann!", "Also echt jetzt!", "Moment mal..."
+
+2. PAUSEN über Zeichensetzung steuern:
+   - Dreipunkte (...) erzeugen eine nachdenkliche, natürliche Pause
+   - Gedankenstriche (—) erzeugen leichte Zögerung oder Unterbrechung
+   - Mehr Kommas = natürlicherer, fließenderer Sprachrhythmus
+   - "Und dann... stell dir vor..." ist VIEL BESSER als "Und dann stell dir vor"
+
+3. TEMPO-VARIATION:
+   - Spannende Stellen: kürzere Sätze, mehr Ausrufe! Schnelleres Tempo!
+   - Ruhige Stellen: längere, fließende Sätze, mit vielen Kommas, die sanft dahingleiten
+   - Vor wichtigen Momenten: "Und dann..." (Dreipunkte = Spannung vor der Enthüllung)
+
+4. EMOTIONALE WÄRME im Text:
+   - Koda schmunzelt: "Hmm... weißt du was?" (nicht "*schmunzelt*")
+   - Kiki lacht: "Hihi! Das ist ja..." (natürliches Lachen über Text, nicht über Aktions-Marker)
+   - Staunen: "Oh... das ist... wunderschön."
+   - Verwende [PAUSE] für längere Stille an emotionalen Höhepunkten
+
+5. VERBOTENE MUSTER:
+   - KEINE *Sternchen-Aktionen* wie *lacht*, *flattert*, *schmunzelt* — diese werden vorgelesen!
+   - KEINE (Klammer-Aktionen) wie (lacht) oder (kichert) — werden auch vorgelesen!
+   - Stattdessen: Emotionen DURCH den Text selbst ausdrücken
 
 ═══════════════════════════
 STORY-STRUKTUR

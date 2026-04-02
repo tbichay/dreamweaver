@@ -48,9 +48,9 @@ Jeder Mensch der zum Baum kommt, sitzt in seiner eigenen **leuchtenden Blase** �
 
 ---
 
-## 3. Die Koala-Familie
+## 3. Die KoalaTree-Familie
 
-Fuenf Charaktere bewohnen den KoalaTree. Jeder hat eine eigene Persoenlichkeit und deckt andere Themen ab. Langfristig koennen Nutzer waehlen, welcher Koala die Geschichte erzaehlt.
+Sechs Charaktere bewohnen den KoalaTree. Jeder hat eine eigene Persoenlichkeit und deckt andere Themen ab.
 
 ### Koda — Der Weise Erzaehler (Hauptcharakter)
 
@@ -112,6 +112,19 @@ Pip macht alles zum Abenteuer. Seine Geschichten sprühen vor Fantasie und Leben
 | **Erkennbar an** | Minimalistisch, keine Accessoires, geerdete Meditationshaltung |
 
 Sage redet wenig, aber jedes Wort sitzt. Er ist fuer die Momente, in denen man nicht unterhalten, sondern verstanden werden will.
+
+### Kiki — Der Freche Kookaburra (NEU)
+
+| | |
+|---|---|
+| **Rolle** | Kodas beste Freundin, Comic Relief, Sidekick |
+| **Fuer** | Alle Altersgruppen |
+| **Themen** | Humor, Lebensfreude, Begeisterung, andere Perspektive |
+| **Visuell** | Golden-braunes und weisses Gefieder, freches Grinsen, gruenes Blatt hinter dem Ohr |
+| **Stimme** | Hell, energisch, enthusiastisch — wie eine lustige beste Freundin |
+| **Erkennbar an** | Sitzt neben Koda, flattert aufgeregt, lacht viel |
+
+Kiki ist ein Kookaburra (Lachvogel) und lebt im KoalaTree. Sie unterbricht Koda spielerisch, uebernimmt aufregende Teile der Erzaehlung und bringt Humor ohne jemals gemein zu sein. Zusammen mit Koda modelliert sie eine gesunde Freundschaft — verschiedene Persoenlichkeiten die sich ergaenzen.
 
 ---
 
@@ -218,10 +231,12 @@ Das wichtigste Differenzierungsmerkmal: **Der Koala erinnert sich.**
 | **Auth** | Clerk |
 | **Datenbank** | Neon (PostgreSQL) via Prisma |
 | **KI-Geschichten** | Anthropic Claude API |
-| **Audio/TTS** | ElevenLabs API |
+| **Audio/TTS** | ElevenLabs API (eleven_multilingual_v2, Multi-Voice) |
+| **Sound Effects** | ElevenLabs Sound Generation API |
 | **Audio-Speicher** | Vercel Blob |
-| **Hosting** | Vercel |
-| **Domain** | koalatree.com (vorhanden) |
+| **Hosting** | Vercel (Auto-Deploy via GitHub) |
+| **Domain** | koalatree.ai |
+| **PWA** | Manifest + Media Session API (Background-Audio) |
 
 ### Datenmodell (vereinfacht)
 
@@ -278,57 +293,58 @@ User (Clerk)
 ## 8. MVP-Status (aktuell)
 
 ### Was funktioniert
-- [x] Clerk-Authentifizierung (Sign-in / Sign-up)
-- [x] Kindprofil erstellen (Name, Alter, Interessen, Eigenheiten)
+- [x] Clerk-Authentifizierung (Sign-in / Sign-up) mit KoalaTree-Branding
+- [x] Hoerer-Profil erstellen (Name, Alter, Interessen, Eigenschaften, dynamische Tags)
 - [x] Story-Konfiguration (Format, Ziel, Laenge, Thema)
-- [x] KI-Geschichten-Generierung via Claude
-- [x] Grundlegendes KoalaTree-Rebranding
-- [x] Neon DB + Prisma fuer Persistenz
-- [x] Vercel Deployment
+- [x] KI-Geschichten-Generierung via Claude (Streaming SSE)
+- [x] Multi-Charakter Hoerspiel-System (Koda + Kiki mit zwei Stimmen)
+- [x] Echte Soundeffekte via ElevenLabs Sound Generation API
+- [x] Audio-Generierung + Vercel Blob Speicherung
+- [x] Geschichten-Bibliothek mit AudioPlayer
+- [x] Koala-Gedaechtnis (Referenz auf fruehere Geschichten)
+- [x] Altersangepasste Sprache (3-5, 6-8, 9-12, 13+)
+- [x] 6 Charakter-Portraits auf Landing Page
+- [x] PWA-Setup (Background-Audio, Lockscreen-Controls)
+- [x] Vercel Deployment mit GitHub Auto-Deploy
+- [x] koalatree.ai Domain
 
-### Was noch nicht funktioniert / fehlt
-- [ ] Audio-Generierung (ElevenLabs API Quota-Problem — Key-Limit muss erhoeht werden)
-- [ ] Geschichten-Bibliothek (gespeicherte Geschichten wieder aufrufen)
-- [ ] Koala-Gedaechtnis (Referenz auf fruehere Geschichten)
-- [ ] Koala-Erzaehler-Rahmen im Prompt (Intro + Outro)
-- [ ] Altersangepasste Sprache
+### Was noch fehlt / geplant
+- [ ] Custom Voices ueber ElevenLabs Voice Design API (Script vorhanden)
 - [ ] Charakter-Auswahl (welcher Koala erzaehlt)
+- [ ] Offline-Modus (heruntergeladene Geschichten)
+- [ ] Freemium-Modell / Abo
 
 ---
 
 ## 9. Roadmap & Next Steps
 
-### Phase 1: MVP fertigstellen (aktuell)
+### Phase 1: MVP ✅ ERLEDIGT
 
-**Prio 1 — Kritische Bugs:**
-- [ ] ElevenLabs API Key Quota fixen (Key-Limit im Dashboard erhoehen)
-- [ ] Audio-Generierung End-to-End testen
-- [ ] Geschichten-Persistenz: URL-basiert statt sessionStorage
+- [x] ElevenLabs Audio-Generierung End-to-End
+- [x] Geschichten-Persistenz (URL-basiert, Vercel Blob)
+- [x] Geschichten-Bibliothek mit AudioPlayer
+- [x] Koala-Erzaehler-Prompt (Koda-Intro + Koda-Outro)
+- [x] Zusammenfassung pro Geschichte (Koala-Gedaechtnis)
+- [x] Hero Image + Charakter-Portraits
+- [x] Wald-Farbpalette + Clerk-Branding
 
-**Prio 2 — Kern-Features:**
-- [ ] Geschichten-Bibliothek (alle Geschichten pro Kind abrufbar)
-- [ ] Koala-Erzaehler-Prompt (Koda-Intro + Koda-Outro bei jeder Geschichte)
-- [ ] Zusammenfassung pro Geschichte speichern (Basis fuer Gedaechtnis)
+### Phase 2: Koala-Gedaechtnis & Tiefe ✅ ERLEDIGT
 
-**Prio 3 — Polish:**
-- [ ] Hero Image generieren und einbauen
-- [ ] Logo/Icon generieren und einbauen
-- [ ] Wald-Farbpalette vollstaendig umsetzen
-- [ ] Gluehwuermchen-Animation statt Sterne
-
-### Phase 2: Koala-Gedaechtnis & Tiefe
-
-- [ ] Koala-Gedaechtnis implementieren (letzte 10 Geschichten als Kontext)
-- [ ] Altersangepasste Sprache im Prompt-System
-- [ ] Verschiedene Story-Formate mit dedizierten Prompts
+- [x] Koala-Gedaechtnis (letzte 10 Geschichten als Kontext)
+- [x] Altersangepasste Sprache im Prompt-System (4 Altersstufen)
+- [x] 8 verschiedene Story-Formate mit dedizierten Prompts
 - [ ] Re-Generierung von Audio fuer existierende Geschichten
 - [ ] Fortschritts-Ansicht fuer Eltern (Themen, Entwicklung)
 
-### Phase 3: Koala-Familie & Charakter-Auswahl
+### Phase 3: Multi-Charakter Hoerspiel ✅ ERLEDIGT
 
-- [ ] Mika, Luna, Pip als waehlbare Erzaehler
-- [ ] Eigene Stimmen pro Koala (verschiedene ElevenLabs Voices)
-- [ ] Charakter-spezifische Prompts und Story-Stile
+- [x] Kiki als zweiter aktiver Charakter mit eigener Stimme
+- [x] Multi-Voice Audio-Pipeline (parallele TTS-Generierung)
+- [x] Echte Soundeffekte via ElevenLabs SFX API
+- [x] Natuerliche Sprachmuster (Fuellwoerter, Pausen, Emotionen)
+- [x] 6 Charakter-Portraits (Koda, Kiki, Mika, Luna, Pip, Sage)
+- [ ] Custom Voices ueber Voice Design API (Script vorhanden)
+- [ ] Mika, Luna, Pip, Sage als waehlbare Erzaehler
 - [ ] Koala-Profil-Seiten (lerne deinen Erzaehler kennen)
 
 ### Phase 4: Erwachsenen-Erweiterung

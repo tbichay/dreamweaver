@@ -121,10 +121,43 @@ async function generateTTS(
 // --- ElevenLabs Sound Effects API ---
 
 async function generateSoundEffect(prompt: string): Promise<ArrayBuffer | null> {
-  // SFX API gibt WAV/PCM zurück — kann nicht mit MP3-TTS-Segmenten konkateniert werden.
-  // TODO: SFX-Support mit serverseitigem Transcoding (ffmpeg) oder separatem Audio-Layer
-  console.log(`[SFX] Skipping "${prompt}" — SFX-Format nicht kompatibel mit MP3-Konkatenierung`);
-  return null;
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) {
+    console.warn("[SFX] ELEVENLABS_API_KEY nicht gesetzt, überspringe SFX");
+    return null;
+  }
+
+  console.log(`[SFX] Generating: "${prompt}"`);
+
+  try {
+    const response = await fetch(
+      "https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128",
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: prompt,
+          duration_seconds: 3,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.warn(`[SFX] API Error ${response.status}: ${errorBody} — skipping effect`);
+      return null;
+    }
+
+    const buffer = await response.arrayBuffer();
+    console.log(`[SFX] Generated: ${buffer.byteLength} bytes`);
+    return buffer;
+  } catch (err) {
+    console.warn(`[SFX] Failed to generate "${prompt}":`, err);
+    return null;
+  }
 }
 
 // --- Audio Buffer Utilities ---

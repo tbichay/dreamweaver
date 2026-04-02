@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import NavBar from "../components/NavBar";
+import AudioPlayer from "../components/AudioPlayer";
 import { STORY_FORMATE, PAEDAGOGISCHE_ZIELE, StoryFormat, PaedagogischesZiel } from "@/lib/types";
 
 interface GeschichteWithProfil {
@@ -53,7 +54,8 @@ export default function GeschichtenPage() {
 
   const cleanPreview = (text: string) =>
     text
-      .replace(/\[(?:ATEMPAUSE|PAUSE|LANGSAM|DANKBARKEIT|KOALA)\]/g, "")
+      .replace(/\[(?:ATEMPAUSE|PAUSE|LANGSAM|DANKBARKEIT|KOALA|KODA|KIKI)\]/g, "")
+      .replace(/\[SFX:[^\]]+\]/g, "")
       .slice(0, 150)
       .trim() + "...";
 
@@ -122,14 +124,21 @@ export default function GeschichtenPage() {
                         <div className="mt-4 pt-4 border-t border-white/10">
                           <div className="text-sm text-white/70 leading-relaxed max-h-60 overflow-y-auto mb-4">
                             {g.text
-                              .replace(/\[(?:ATEMPAUSE|PAUSE|LANGSAM|DANKBARKEIT|KOALA)\]/g, "")
+                              .replace(/\[(?:ATEMPAUSE|PAUSE|LANGSAM|DANKBARKEIT|KOALA|KODA|KIKI)\]/g, "")
+                              .replace(/\[SFX:[^\]]+\]/g, "")
                               .split("\n\n")
                               .map((p, i) => (
                                 <p key={i} className="mb-2">{p}</p>
                               ))}
                           </div>
                           {g.audioUrl && g.audioUrl !== "local" && (
-                            <audio controls className="w-full mb-3" src={g.audioUrl} />
+                            <div className="mb-3">
+                              <AudioPlayer
+                                audioUrl={g.audioUrl}
+                                title={`${formatInfo?.emoji || "📖"} ${formatInfo?.label || g.format} für ${name}`}
+                                compact
+                              />
+                            </div>
                           )}
                           <button
                             className="text-sm text-[#a8d5b8] hover:text-[#c8e5d0]"

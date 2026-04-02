@@ -32,9 +32,9 @@ export const CHARACTERS: Record<string, Character> = {
     portrait: "/koda-portrait.png",
     voiceId: process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "nZpMT2RjIpaat0IaA7Sd",
     voiceSettings: {
-      stability: 0.80,
+      stability: 0.45,
       similarity_boost: 0.75,
-      style: 0.3,
+      style: 0.55,
       use_speaker_boost: true,
     },
   },
@@ -49,9 +49,9 @@ export const CHARACTERS: Record<string, Character> = {
     portrait: "/kiki-portrait.png",
     voiceId: process.env.ELEVENLABS_VOICE_KIKI || "LRpNiUBlcqgIsKUzcrlN",
     voiceSettings: {
-      stability: 0.55,
+      stability: 0.35,
       similarity_boost: 0.75,
-      style: 0.6,
+      style: 0.70,
       use_speaker_boost: true,
     },
   },

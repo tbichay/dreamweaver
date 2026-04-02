@@ -74,12 +74,14 @@ export function parseStorySegments(rawText: string): StorySegment[] {
         sfxPrompt: marker.value,
         text: marker.value,
       });
-      // SFX-Marker verbrauchen keinen nachfolgenden Text als eigenes Segment,
-      // es sei denn es kommt kein weiterer Character-Marker
+      // Text nach SFX ohne folgenden Character-Marker:
+      // Nur als Speech übernehmen wenn es echter deutscher Text ist (nicht geleakte SFX-Beschreibung)
       if (text && (!nextMarker || nextMarker.type === "sfx")) {
-        // Text nach SFX ohne folgenden Character-Marker → gehört zum letzten Sprecher
-        const lastSpeaker = findLastSpeaker(segments);
-        segments.push({ type: "speech", characterId: lastSpeaker, text });
+        const isLikelyGermanText = text.length > 10 && /[äöüßÄÖÜ]/.test(text);
+        if (isLikelyGermanText) {
+          const lastSpeaker = findLastSpeaker(segments);
+          segments.push({ type: "speech", characterId: lastSpeaker, text });
+        }
       }
     } else {
       // Speech marker
@@ -118,6 +120,9 @@ export function cleanSegmentForTTS(text: string): string {
     .replace(/\[KOALA\]/g, "")
     .replace(/\[(KODA|KIKI)\]/g, "")
     .replace(/\[SFX:[^\]]+\]/g, "")
+    .replace(/\*[^*]+\*/g, "")          // *action descriptions* entfernen
+    .replace(/\([^)]*lacht[^)]*\)/gi, "") // (lacht), (kichert) etc. entfernen
+    .replace(/\([^)]*kicher[^)]*\)/gi, "")
     .trim();
 }
 
