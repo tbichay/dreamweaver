@@ -22,49 +22,32 @@ export async function POST(request: Request) {
     const audioBuffer = await generateAudio(text);
     console.log(`[Audio] Generated ${audioBuffer.byteLength} bytes`);
 
-    // Upload to Vercel Blob (required for persistent storage)
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      try {
-        const { put } = await import("@vercel/blob");
-        const blob = await put(
-          `audio/${geschichteId || Date.now()}.wav`,
-          Buffer.from(audioBuffer),
-          { access: "public", contentType: "audio/wav" }
-        );
-        console.log(`[Blob] Uploaded successfully: ${blob.url}`);
-
-        if (geschichteId) {
-          await prisma.geschichte.update({
-            where: { id: geschichteId },
-            data: { audioUrl: blob.url },
-          });
-          console.log(`[DB] Updated story ${geschichteId} with audioUrl`);
-        }
-
-        return Response.json({ audioUrl: blob.url });
-      } catch (blobError) {
-        console.error("[Blob] Upload failed:", blobError);
-        // Fall through to base64 fallback
-      }
-    } else {
-      console.warn("[Blob] BLOB_READ_WRITE_TOKEN not set — using base64 fallback");
+    // Upload to Vercel Blob — required for WAV files (too large for base64)
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error("[Blob] BLOB_READ_WRITE_TOKEN not set — cannot store WAV audio");
+      return Response.json(
+        { error: "Audio-Speicher nicht konfiguriert. Bitte BLOB_READ_WRITE_TOKEN setzen." },
+        { status: 500 }
+      );
     }
 
-    // Fallback: Return audio as base64 data URL (works without Blob storage)
-    // This ensures audio plays even without Blob, and can be downloaded
-    const base64 = Buffer.from(audioBuffer).toString("base64");
-    const dataUrl = `data:audio/wav;base64,${base64}`;
+    const { put } = await import("@vercel/blob");
+    const blob = await put(
+      `audio/${geschichteId || Date.now()}.wav`,
+      Buffer.from(audioBuffer),
+      { access: "public", contentType: "audio/wav" }
+    );
+    console.log(`[Blob] Uploaded successfully: ${blob.url}`);
 
-    // Save data URL to DB so it persists in the library
     if (geschichteId) {
       await prisma.geschichte.update({
         where: { id: geschichteId },
-        data: { audioUrl: dataUrl },
+        data: { audioUrl: blob.url },
       });
-      console.log(`[DB] Saved base64 audio for story ${geschichteId} (${base64.length} chars)`);
+      console.log(`[DB] Updated story ${geschichteId} with audioUrl`);
     }
 
-    return Response.json({ audioUrl: dataUrl });
+    return Response.json({ audioUrl: blob.url });
   } catch (error) {
     console.error("Audio generation error:", error);
     const message = error instanceof Error ? error.message : "Unbekannter Fehler";

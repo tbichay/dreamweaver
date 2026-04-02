@@ -32,6 +32,7 @@ export default function GeschichtenPage() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [generatingAudioId, setGeneratingAudioId] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterKind, setFilterKind] = useState<string>("all");
   const [filterFormat, setFilterFormat] = useState<string>("all");
@@ -99,20 +100,25 @@ export default function GeschichtenPage() {
 
   const regenerateAudio = async (g: GeschichteWithProfil) => {
     setGeneratingAudioId(g.id);
+    setAudioError(null);
     try {
       const response = await fetch("/api/generate-audio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: g.text, geschichteId: g.id }),
       });
-      if (!response.ok) throw new Error("Audio-Fehler");
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Audio-Fehler");
+      }
       setGeschichten((prev) =>
         prev.map((story) =>
           story.id === g.id ? { ...story, audioUrl: data.audioUrl } : story
         )
       );
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Audio-Generierung fehlgeschlagen";
+      setAudioError(msg);
       console.error("Audio regeneration failed:", err);
     } finally {
       setGeneratingAudioId(null);
@@ -238,6 +244,14 @@ export default function GeschichtenPage() {
                 <p className="text-white/30 text-xs mb-3">
                   {filtered.length} von {geschichten.length} Geschichten
                 </p>
+              )}
+
+              {/* Error display */}
+              {audioError && (
+                <div className="mb-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-300 flex items-center justify-between">
+                  <span>{audioError}</span>
+                  <button onClick={() => setAudioError(null)} className="text-red-400 hover:text-red-200 ml-3 shrink-0">✕</button>
+                </div>
               )}
 
               {/* Story list */}
