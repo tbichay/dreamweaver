@@ -230,17 +230,22 @@ function ResultContent() {
               Audio-Hörspiel erzeugen 🎧
             </button>
             <p className="text-white/40 text-sm mt-2">
-              Der Koala liest die Geschichte vor
+              Koda und Kiki erwecken die Geschichte zum Leben
             </p>
           </div>
         )}
 
         {phase === "generating-audio" && (
           <div className="card p-8 text-center">
-            <div className="float mx-auto mb-3 w-24 h-24 relative">
-              <Image src="/koda-thinking.png" alt="Koda bereitet Audio vor" fill className="object-contain rounded-2xl" />
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <div className="float w-20 h-20 relative">
+                <Image src="/koda-thinking.png" alt="Koda" fill className="object-contain rounded-2xl" />
+              </div>
+              <div className="float w-20 h-20 relative" style={{ animationDelay: "0.5s" }}>
+                <Image src="/kiki-portrait.png" alt="Kiki" fill className="object-contain rounded-2xl" />
+              </div>
             </div>
-            <p className="text-white/60">Koda liest die Geschichte vor...</p>
+            <p className="text-white/60">Koda und Kiki bereiten das Hörspiel vor...</p>
             <p className="text-white/40 text-sm mt-1">Das kann bis zu einer Minute dauern</p>
           </div>
         )}

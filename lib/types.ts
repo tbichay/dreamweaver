@@ -1,3 +1,71 @@
+// --- Character System ---
+
+export interface CharacterVoiceSettings {
+  stability: number;
+  similarity_boost: number;
+  style: number;
+  use_speaker_boost: boolean;
+}
+
+export interface Character {
+  id: string;
+  name: string;
+  species: string;
+  role: string;
+  description: string;
+  color: string;
+  emoji: string;
+  portrait: string;
+  voiceId: string;
+  voiceSettings: CharacterVoiceSettings;
+}
+
+export const CHARACTERS: Record<string, Character> = {
+  koda: {
+    id: "koda",
+    name: "Koda",
+    species: "Koala",
+    role: "Der Weise",
+    description: "Der weise Erzähler vom KoalaTree — warm, geduldig und voller Liebe",
+    color: "#a8d5b8",
+    emoji: "🐨",
+    portrait: "/koda-portrait.png",
+    voiceId: process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "nZpMT2RjIpaat0IaA7Sd",
+    voiceSettings: {
+      stability: 0.80,
+      similarity_boost: 0.75,
+      style: 0.3,
+      use_speaker_boost: true,
+    },
+  },
+  kiki: {
+    id: "kiki",
+    name: "Kiki",
+    species: "Kookaburra",
+    role: "Die Lustige",
+    description: "Der freche Kookaburra bringt Humor und gute Laune in jede Geschichte",
+    color: "#e8c547",
+    emoji: "🐦",
+    portrait: "/kiki-portrait.png",
+    voiceId: process.env.ELEVENLABS_VOICE_KIKI || "LRpNiUBlcqgIsKUzcrlN",
+    voiceSettings: {
+      stability: 0.55,
+      similarity_boost: 0.75,
+      style: 0.6,
+      use_speaker_boost: true,
+    },
+  },
+};
+
+export interface StorySegment {
+  type: "speech" | "sfx";
+  characterId?: string;
+  sfxPrompt?: string;
+  text: string;
+}
+
+// --- Listener Profile ---
+
 export interface HoererProfil {
   id: string;
   name: string;

@@ -22,6 +22,8 @@ export default function ProfilForm({ onSave, initial }: Props) {
   const [charakter, setCharakter] = useState<string[]>(initial?.charaktereigenschaften || []);
   const [tags, setTags] = useState<string[]>(initial?.tags || []);
   const [tagInput, setTagInput] = useState("");
+  const [interesseInput, setInteresseInput] = useState("");
+  const [charakterInput, setCharakterInput] = useState("");
   const [herausforderungen, setHerausforderungen] = useState(initial?.herausforderungen?.join(", ") || "");
 
   const alter = geburtsdatum ? berechneAlter(geburtsdatum) : 5;
@@ -32,18 +34,29 @@ export default function ProfilForm({ onSave, initial }: Props) {
     setList(list.includes(item) ? list.filter((i) => i !== item) : [...list, item]);
   };
 
-  const addTag = () => {
-    const trimmed = tagInput.trim();
-    if (trimmed && !tags.includes(trimmed)) {
-      setTags([...tags, trimmed]);
+  const addToList = (
+    value: string,
+    list: string[],
+    setList: (v: string[]) => void,
+    setInput: (v: string) => void
+  ) => {
+    const trimmed = value.trim();
+    if (trimmed && !list.includes(trimmed)) {
+      setList([...list, trimmed]);
     }
-    setTagInput("");
+    setInput("");
   };
 
-  const handleTagKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleListKeyDown = (
+    e: KeyboardEvent<HTMLInputElement>,
+    value: string,
+    list: string[],
+    setList: (v: string[]) => void,
+    setInput: (v: string) => void
+  ) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      addTag();
+      addToList(value, list, setList, setInput);
     }
   };
 
@@ -148,6 +161,42 @@ export default function ProfilForm({ onSave, initial }: Props) {
           </button>
         ))}
       </div>
+      {/* Custom interests */}
+      {interessen.filter((i) => !interessenVorschlaege.includes(i)).length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {interessen.filter((i) => !interessenVorschlaege.includes(i)).map((interesse) => (
+            <span
+              key={interesse}
+              className="text-xs bg-[#3d6b4a]/20 text-[#a8d5b8] rounded-full px-2.5 py-1 flex items-center gap-1"
+            >
+              {interesse}
+              <button
+                onClick={() => setInteressen(interessen.filter((i) => i !== interesse))}
+                className="hover:text-red-400 transition-colors ml-0.5"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={interesseInput}
+          onChange={(e) => setInteresseInput(e.target.value)}
+          onKeyDown={(e) => handleListKeyDown(e, interesseInput, interessen, setInteressen, setInteresseInput)}
+          placeholder="Eigenes Interesse hinzufügen..."
+          className="flex-1"
+        />
+        <button
+          className="chip chip-selected px-4"
+          onClick={() => addToList(interesseInput, interessen, setInteressen, setInteresseInput)}
+          type="button"
+        >
+          +
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
           <label className="block text-sm font-medium text-white/70 mb-1">Lieblingstier</label>
@@ -189,6 +238,42 @@ export default function ProfilForm({ onSave, initial }: Props) {
           </button>
         ))}
       </div>
+      {/* Custom characteristics */}
+      {charakter.filter((c) => !charakterVorschlaege.includes(c)).length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {charakter.filter((c) => !charakterVorschlaege.includes(c)).map((eigenschaft) => (
+            <span
+              key={eigenschaft}
+              className="text-xs bg-[#3d6b4a]/20 text-[#a8d5b8] rounded-full px-2.5 py-1 flex items-center gap-1"
+            >
+              {eigenschaft}
+              <button
+                onClick={() => setCharakter(charakter.filter((c) => c !== eigenschaft))}
+                className="hover:text-red-400 transition-colors ml-0.5"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={charakterInput}
+          onChange={(e) => setCharakterInput(e.target.value)}
+          onKeyDown={(e) => handleListKeyDown(e, charakterInput, charakter, setCharakter, setCharakterInput)}
+          placeholder="Eigene Eigenschaft hinzufügen..."
+          className="flex-1"
+        />
+        <button
+          className="chip chip-selected px-4"
+          onClick={() => addToList(charakterInput, charakter, setCharakter, setCharakterInput)}
+          type="button"
+        >
+          +
+        </button>
+      </div>
 
       {/* Free Tags */}
       <div className="mt-6">
@@ -200,13 +285,13 @@ export default function ProfilForm({ onSave, initial }: Props) {
             type="text"
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleTagKeyDown}
+            onKeyDown={(e) => handleListKeyDown(e, tagInput, tags, setTags, setTagInput)}
             placeholder="z.B. 'hat Angst vor Dunkelheit' + Enter"
             className="flex-1"
           />
           <button
             className="chip chip-selected px-4"
-            onClick={addTag}
+            onClick={() => addToList(tagInput, tags, setTags, setTagInput)}
             type="button"
           >
             +

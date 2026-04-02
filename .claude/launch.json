@@ -3,9 +3,12 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "runtimeExecutable": "/Users/tombichay/.nvm/versions/node/v20.18.3/bin/node",
+      "runtimeArgs": ["node_modules/.bin/next", "dev", "--turbopack", "-p", "3000"],
+      "port": 3000,
+      "env": {
+        "PATH": "/Users/tombichay/.nvm/versions/node/v20.18.3/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     }
   ]
 }

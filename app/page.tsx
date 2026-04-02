@@ -158,11 +158,12 @@ export default function LandingPage() {
             Die Koala-Familie
           </h2>
           <p className="text-center text-white/60 mb-16 max-w-2xl mx-auto">
-            Fünf einzigartige Charaktere bewohnen den KoalaTree. Jeder hat seine eigene Persönlichkeit und erzählt andere Geschichten.
+            Sechs einzigartige Charaktere bewohnen den KoalaTree. Jeder hat seine eigene Persönlichkeit und erzählt andere Geschichten.
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
             {[
               { name: "Koda", role: "Der Weise", desc: "Haupterzähler. Warm, weise, wie ein Großvater.", emoji: "🐨", color: "#a8d5b8" },
+              { name: "Kiki", role: "Die Lustige", desc: "Der freche Kookaburra bringt Humor und gute Laune.", emoji: "🐦", color: "#e8c547" },
               { name: "Mika", role: "Der Mutige", desc: "Abenteuer & Herausforderungen meistern.", emoji: "💪", color: "#7cb87c" },
               { name: "Luna", role: "Die Träumerin", desc: "Meditation, Schlaf & sanfte Traumreisen.", emoji: "🌙", color: "#b8a0d5" },
               { name: "Pip", role: "Der Entdecker", desc: "Kreativität, Staunen & Fantasie.", emoji: "⭐", color: "#d4a853" },
