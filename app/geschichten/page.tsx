@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import NavBar from "../components/NavBar";
 import { STORY_FORMATE, PAEDAGOGISCHE_ZIELE, StoryFormat, PaedagogischesZiel } from "@/lib/types";
 
 interface GeschichteWithProfil {
@@ -57,14 +58,10 @@ export default function GeschichtenPage() {
       .trim() + "...";
 
   return (
-    <main className="relative flex-1 flex flex-col items-center px-4 py-12">
+    <>
+    <NavBar />
+    <main className="relative flex-1 flex flex-col items-center px-4 py-8">
       <div className="w-full max-w-2xl">
-        <button
-          className="text-white/40 hover:text-white/60 text-sm transition-colors mb-6"
-          onClick={() => router.push("/dashboard")}
-        >
-          ← Zurück
-        </button>
 
         <h1 className="text-3xl font-bold mb-8">Geschichten-Bibliothek</h1>
 
@@ -154,5 +151,6 @@ export default function GeschichtenPage() {
         )}
       </div>
     </main>
+    </>
   );
 }

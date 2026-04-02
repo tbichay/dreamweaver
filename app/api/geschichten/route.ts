@@ -8,13 +8,17 @@ export async function GET() {
   const geschichten = await prisma.geschichte.findMany({
     where: { userId },
     include: {
-      kindProfil: {
-        select: { name: true, alter: true, geschlecht: true },
+      hoererProfil: {
+        select: { name: true, alter: true, geburtsdatum: true, geschlecht: true },
       },
     },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
 
-  return Response.json(geschichten);
+  // Map for frontend compatibility (kindProfil → hoererProfil)
+  return Response.json(geschichten.map(g => ({
+    ...g,
+    kindProfil: g.hoererProfil, // backwards compat for frontend
+  })));
 }

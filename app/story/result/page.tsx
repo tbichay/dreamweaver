@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { StoryConfig, StoryFormat, PaedagogischesZiel, STORY_FORMATE, PAEDAGOGISCHE_ZIELE } from "@/lib/types";
 import Image from "next/image";
+import NavBar from "../../components/NavBar";
 import Stars from "../../components/Stars";
 import StoryPreview from "../../components/StoryPreview";
 import AudioPlayer from "../../components/AudioPlayer";
@@ -178,7 +179,9 @@ function ResultContent() {
   const zielInfo = ziel ? PAEDAGOGISCHE_ZIELE[ziel] : null;
 
   return (
-    <main className="relative flex-1 flex flex-col items-center px-4 py-12">
+    <>
+    <NavBar />
+    <main className="relative flex-1 flex flex-col items-center px-4 py-8">
       <Stars />
       <div className="relative z-10 w-full max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
@@ -269,6 +272,7 @@ function ResultContent() {
         )}
       </div>
     </main>
+    </>
   );
 }
 

@@ -6,23 +6,26 @@ import {
   StoryFormat,
   PaedagogischesZiel,
   StoryDauer,
-  STORY_FORMATE,
+  StoryFormatInfo,
   PAEDAGOGISCHE_ZIELE,
   DAUER_OPTIONEN,
+  getFormateForAlter,
 } from "@/lib/types";
 
 interface Props {
   kindProfilId: string;
   kindName: string;
+  alter?: number;
   onGenerate: (config: StoryConfig) => void;
 }
 
-export default function StoryConfigurator({ kindProfilId, kindName, onGenerate }: Props) {
+export default function StoryConfigurator({ kindProfilId, kindName, alter = 5, onGenerate }: Props) {
   const [format, setFormat] = useState<StoryFormat | null>(null);
   const [ziel, setZiel] = useState<PaedagogischesZiel | null>(null);
   const [dauer, setDauer] = useState<StoryDauer>("mittel");
   const [besonderesThema, setBesonderesThema] = useState("");
 
+  const verfuegbareFormate = getFormateForAlter(alter);
   const canGenerate = format && ziel;
 
   const handleGenerate = () => {
@@ -43,22 +46,40 @@ export default function StoryConfigurator({ kindProfilId, kindName, onGenerate }
         <h1 className="text-3xl font-bold mb-2">
           Geschichte für {kindName}
         </h1>
-        <p className="text-white/60">Was soll der weise Koala heute Nacht erzählen?</p>
+        <p className="text-white/60">
+          {alter >= 18
+            ? "Was soll Koda heute für dich erzählen?"
+            : "Was soll Koda heute Nacht erzählen?"}
+        </p>
+        {alter > 0 && (
+          <p className="text-xs text-[#d4a853] mt-1">
+            {Object.keys(verfuegbareFormate).length} Formate verfügbar für {alter} Jahre
+          </p>
+        )}
       </div>
 
       {/* Format */}
       <div>
         <h2 className="text-lg font-semibold mb-3">Art der Geschichte</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {(Object.entries(STORY_FORMATE) as [StoryFormat, typeof STORY_FORMATE[StoryFormat]][]).map(
+          {(Object.entries(verfuegbareFormate) as [StoryFormat, StoryFormatInfo][]).map(
             ([key, value]) => (
               <button
                 key={key}
                 className={`card p-4 text-left ${format === key ? "card-selected" : ""}`}
                 onClick={() => setFormat(key)}
               >
-                <div className="text-2xl mb-1">{value.emoji}</div>
-                <div className="font-semibold">{value.label}</div>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-2xl mb-1">{value.emoji}</div>
+                    <div className="font-semibold">{value.label}</div>
+                  </div>
+                  {value.koala && (
+                    <span className="text-xs text-white/30 bg-white/5 rounded-full px-2 py-0.5">
+                      {value.koala}
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-white/50 mt-1">{value.beschreibung}</div>
               </button>
             )
@@ -68,7 +89,9 @@ export default function StoryConfigurator({ kindProfilId, kindName, onGenerate }
 
       {/* Ziel */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Pädagogisches Ziel</h2>
+        <h2 className="text-lg font-semibold mb-3">
+          {alter >= 18 ? "Fokus" : "Pädagogisches Ziel"}
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {(Object.entries(PAEDAGOGISCHE_ZIELE) as [PaedagogischesZiel, typeof PAEDAGOGISCHE_ZIELE[PaedagogischesZiel]][]).map(
             ([key, value]) => (
@@ -111,9 +134,13 @@ export default function StoryConfigurator({ kindProfilId, kindName, onGenerate }
           type="text"
           value={besonderesThema}
           onChange={(e) => setBesonderesThema(e.target.value)}
-          placeholder="z.B. Erster Schultag, Streit mit Freund, neues Geschwisterchen..."
+          placeholder={
+            alter >= 18
+              ? "z.B. Stress loslassen, neue Perspektive, innere Ruhe..."
+              : "z.B. Erster Schultag, Streit mit Freund, neues Geschwisterchen..."
+          }
         />
-        <p className="text-xs text-white/30 mt-1">Der Koala merkt sich das für zukünftige Geschichten</p>
+        <p className="text-xs text-white/30 mt-1">Koda merkt sich das für zukünftige Geschichten</p>
       </div>
 
       {/* Generate Button */}
@@ -123,7 +150,7 @@ export default function StoryConfigurator({ kindProfilId, kindName, onGenerate }
           disabled={!canGenerate}
           onClick={handleGenerate}
         >
-          Der Koala soll erzählen 🐨
+          Koda soll erzählen 🐨
         </button>
       </div>
     </div>

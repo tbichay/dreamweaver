@@ -1,50 +1,94 @@
 "use client";
 
-import { useState } from "react";
-import { KindProfil, INTERESSEN_VORSCHLAEGE, CHARAKTER_VORSCHLAEGE } from "@/lib/types";
+import { useState, KeyboardEvent } from "react";
+import { HoererProfil } from "@/lib/types";
+import { berechneAlter, getInteressenFuerAlter, getCharakterFuerAlter } from "@/lib/utils";
 
 interface Props {
-  onSave: (profil: KindProfil) => void;
-  initial?: KindProfil;
+  onSave: (profil: HoererProfil) => void;
+  initial?: HoererProfil;
 }
 
 export default function ProfilForm({ onSave, initial }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initial?.name || "");
-  const [alter, setAlter] = useState(initial?.alter || 5);
+  const [geburtsdatum, setGeburtsdatum] = useState(
+    initial?.geburtsdatum ? initial.geburtsdatum.split("T")[0] : ""
+  );
   const [geschlecht, setGeschlecht] = useState<"m" | "w" | "d" | undefined>(initial?.geschlecht);
   const [interessen, setInteressen] = useState<string[]>(initial?.interessen || []);
   const [lieblingsfarbe, setLieblingsfarbe] = useState(initial?.lieblingsfarbe || "");
   const [lieblingstier, setLieblingstier] = useState(initial?.lieblingstier || "");
   const [charakter, setCharakter] = useState<string[]>(initial?.charaktereigenschaften || []);
+  const [tags, setTags] = useState<string[]>(initial?.tags || []);
+  const [tagInput, setTagInput] = useState("");
   const [herausforderungen, setHerausforderungen] = useState(initial?.herausforderungen?.join(", ") || "");
+
+  const alter = geburtsdatum ? berechneAlter(geburtsdatum) : 5;
+  const interessenVorschlaege = getInteressenFuerAlter(alter);
+  const charakterVorschlaege = getCharakterFuerAlter(alter);
 
   const toggleItem = (list: string[], setList: (v: string[]) => void, item: string) => {
     setList(list.includes(item) ? list.filter((i) => i !== item) : [...list, item]);
   };
 
+  const addTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+    }
+    setTagInput("");
+  };
+
+  const handleTagKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addTag();
+    }
+  };
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag));
+  };
+
   const handleSubmit = () => {
-    const profil: KindProfil = {
+    const profil: HoererProfil = {
       id: initial?.id || crypto.randomUUID(),
       name,
-      alter,
+      geburtsdatum: geburtsdatum ? new Date(geburtsdatum).toISOString() : undefined,
+      alter: geburtsdatum ? berechneAlter(geburtsdatum) : undefined,
       geschlecht,
       interessen,
       lieblingsfarbe: lieblingsfarbe || undefined,
       lieblingstier: lieblingstier || undefined,
       charaktereigenschaften: charakter,
       herausforderungen: herausforderungen ? herausforderungen.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+      tags: tags.length > 0 ? tags : undefined,
     };
     onSave(profil);
   };
 
+  const quickTags = alter <= 6
+    ? ["hat Angst vor Dunkelheit", "neues Geschwisterchen", "Eingewöhnung Kita", "Trennungsangst"]
+    : alter <= 12
+    ? ["Schulwechsel", "Mobbing", "neues Geschwisterchen", "Scheidung der Eltern", "Leistungsdruck"]
+    : alter <= 17
+    ? ["Prüfungsstress", "Identitätsfindung", "Liebeskummer", "Social Media Druck", "Zukunftsangst"]
+    : ["Burnout", "Schlafprobleme", "Beziehungsstress", "Selbstzweifel", "Neuanfang", "Trauer"];
+
   const steps = [
-    // Step 0: Name & Alter
+    // Step 0: Basics
     <div key="basics" className="space-y-6">
-      <h2 className="text-2xl font-bold text-center mb-2">Erzähl uns von deinem Kind</h2>
-      <p className="text-center text-white/60 mb-6">Wir erstellen ein Profil, damit jede Geschichte persönlich wird.</p>
+      <h2 className="text-2xl font-bold text-center mb-2">
+        {initial ? `${name} bearbeiten` : "Neues Profil erstellen"}
+      </h2>
+      <p className="text-center text-white/60 mb-6">
+        {alter >= 18
+          ? "Erzähl Koda von dir, damit jede Geschichte persönlich wird."
+          : "Erzähl Koda von deinem Kind, damit jede Geschichte persönlich wird."}
+      </p>
       <div>
-        <label className="block text-sm font-medium text-white/70 mb-1">Wie heißt dein Kind?</label>
+        <label className="block text-sm font-medium text-white/70 mb-1">Name</label>
         <input
           type="text"
           value={name}
@@ -54,19 +98,24 @@ export default function ProfilForm({ onSave, initial }: Props) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-white/70 mb-1">Wie alt ist dein Kind?</label>
+        <label className="block text-sm font-medium text-white/70 mb-1">Geburtsdatum</label>
         <input
-          type="number"
-          value={alter}
-          onChange={(e) => setAlter(Number(e.target.value))}
-          min={2}
-          max={12}
+          type="date"
+          value={geburtsdatum}
+          onChange={(e) => setGeburtsdatum(e.target.value)}
+          max={new Date().toISOString().split("T")[0]}
+          className="w-full"
         />
+        {geburtsdatum && (
+          <p className="text-xs text-[#d4a853] mt-1">
+            {alter} Jahre — Geschichten werden automatisch angepasst
+          </p>
+        )}
       </div>
       <div>
         <label className="block text-sm font-medium text-white/70 mb-2">Geschlecht (optional)</label>
         <div className="flex gap-3">
-          {([["m", "Junge"], ["w", "Mädchen"], ["d", "Divers"]] as const).map(([value, label]) => (
+          {([["m", "Männlich"], ["w", "Weiblich"], ["d", "Divers"]] as const).map(([value, label]) => (
             <button
               key={value}
               className={`chip ${geschlecht === value ? "chip-selected" : ""}`}
@@ -81,10 +130,15 @@ export default function ProfilForm({ onSave, initial }: Props) {
 
     // Step 1: Interessen
     <div key="interessen" className="space-y-6">
-      <h2 className="text-2xl font-bold text-center mb-2">Was liebt {name || "dein Kind"}?</h2>
-      <p className="text-center text-white/60 mb-6">Wähle Interessen aus — sie werden Teil der Geschichte.</p>
+      <h2 className="text-2xl font-bold text-center mb-2">
+        Was {alter >= 18 ? "interessiert dich" : `liebt ${name || "dein Kind"}`}?
+      </h2>
+      <p className="text-center text-white/60 mb-6">
+        Wähle Interessen aus — sie werden Teil der Geschichte.
+        {alter > 0 && <span className="text-[#d4a853]"> (Vorschläge für {alter} Jahre)</span>}
+      </p>
       <div className="flex flex-wrap gap-2">
-        {INTERESSEN_VORSCHLAEGE.map((interesse) => (
+        {interessenVorschlaege.map((interesse) => (
           <button
             key={interesse}
             className={`chip ${interessen.includes(interesse) ? "chip-selected" : ""}`}
@@ -116,12 +170,16 @@ export default function ProfilForm({ onSave, initial }: Props) {
       </div>
     </div>,
 
-    // Step 2: Charakter
+    // Step 2: Charakter & Tags
     <div key="charakter" className="space-y-6">
-      <h2 className="text-2xl font-bold text-center mb-2">Wie ist {name || "dein Kind"}?</h2>
-      <p className="text-center text-white/60 mb-6">Diese Eigenschaften helfen uns, die Geschichte anzupassen.</p>
+      <h2 className="text-2xl font-bold text-center mb-2">
+        {alter >= 18 ? "Wie bist du?" : `Wie ist ${name || "dein Kind"}`}?
+      </h2>
+      <p className="text-center text-white/60 mb-6">
+        Diese Eigenschaften helfen Koda, die Geschichte anzupassen.
+      </p>
       <div className="flex flex-wrap gap-2">
-        {CHARAKTER_VORSCHLAEGE.map((eigenschaft) => (
+        {charakterVorschlaege.map((eigenschaft) => (
           <button
             key={eigenschaft}
             className={`chip ${charakter.includes(eigenschaft) ? "chip-selected" : ""}`}
@@ -131,6 +189,62 @@ export default function ProfilForm({ onSave, initial }: Props) {
           </button>
         ))}
       </div>
+
+      {/* Free Tags */}
+      <div className="mt-6">
+        <label className="block text-sm font-medium text-white/70 mb-2">
+          Persönliche Tags <span className="text-white/40">(optional)</span>
+        </label>
+        <div className="flex gap-2 mb-2">
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            placeholder="z.B. 'hat Angst vor Dunkelheit' + Enter"
+            className="flex-1"
+          />
+          <button
+            className="chip chip-selected px-4"
+            onClick={addTag}
+            type="button"
+          >
+            +
+          </button>
+        </div>
+        {/* Quick-add suggestions */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {quickTags.filter((t) => !tags.includes(t)).slice(0, 4).map((suggestion) => (
+            <button
+              key={suggestion}
+              className="text-xs bg-[#d4a853]/10 text-[#d4a853]/70 rounded-full px-2.5 py-1 hover:bg-[#d4a853]/20 transition-colors"
+              onClick={() => setTags([...tags, suggestion])}
+            >
+              + {suggestion}
+            </button>
+          ))}
+        </div>
+        {/* Active tags */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="text-xs bg-[#d4a853]/15 text-[#d4a853] rounded-full px-2.5 py-1 flex items-center gap-1"
+              >
+                {tag}
+                <button
+                  onClick={() => removeTag(tag)}
+                  className="hover:text-red-400 transition-colors ml-0.5"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="mt-4">
         <label className="block text-sm font-medium text-white/70 mb-1">
           Aktuelle Herausforderungen (optional)
@@ -141,7 +255,7 @@ export default function ProfilForm({ onSave, initial }: Props) {
           onChange={(e) => setHerausforderungen(e.target.value)}
           placeholder="z.B. Einschulung, neues Geschwisterchen..."
         />
-        <p className="text-xs text-white/40 mt-1">Kommagetrennt — hilft uns, die Geschichte einfühlsam zu gestalten</p>
+        <p className="text-xs text-white/40 mt-1">Kommagetrennt — hilft Koda, die Geschichte einfühlsam zu gestalten</p>
       </div>
     </div>,
   ];
@@ -182,7 +296,7 @@ export default function ProfilForm({ onSave, initial }: Props) {
           </button>
         ) : (
           <button className="btn-primary" onClick={handleSubmit}>
-            Profil speichern
+            {initial ? "Profil aktualisieren" : "Profil speichern"}
           </button>
         )}
       </div>

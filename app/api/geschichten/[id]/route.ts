@@ -13,13 +13,17 @@ export async function GET(
   const geschichte = await prisma.geschichte.findFirst({
     where: { id, userId },
     include: {
-      kindProfil: {
-        select: { id: true, name: true, alter: true, geschlecht: true },
+      hoererProfil: {
+        select: { id: true, name: true, alter: true, geburtsdatum: true, geschlecht: true },
       },
     },
   });
 
   if (!geschichte) return Response.json({ error: "Not found" }, { status: 404 });
 
-  return Response.json(geschichte);
+  // backwards compat
+  return Response.json({
+    ...geschichte,
+    kindProfil: geschichte.hoererProfil,
+  });
 }

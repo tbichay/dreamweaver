@@ -241,9 +241,26 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="relative z-10 py-8 px-6 text-center border-t border-white/5">
-        <p className="text-white/30 text-xs">
+        <p className="text-white/30 text-xs mb-3">
           KoalaTree — Personalisierte Geschichten für Kinder und Erwachsene
         </p>
+        <nav className="flex items-center justify-center gap-4 text-white/30 text-xs">
+          <Link href="/impressum" className="hover:text-white/50 transition-colors">
+            Impressum
+          </Link>
+          <span>·</span>
+          <Link href="/datenschutz" className="hover:text-white/50 transition-colors">
+            Datenschutz
+          </Link>
+          <span>·</span>
+          <Link href="/agb" className="hover:text-white/50 transition-colors">
+            AGB
+          </Link>
+          <span>·</span>
+          <Link href="/barrierefreiheit" className="hover:text-white/50 transition-colors">
+            Barrierefreiheit
+          </Link>
+        </nav>
       </footer>
     </main>
   );

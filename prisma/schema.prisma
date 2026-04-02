@@ -7,38 +7,41 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model KindProfil {
+model HoererProfil {
   id                      String   @id @default(cuid())
   userId                  String   // Clerk user ID
   name                    String
-  alter                   Int
+  geburtsdatum            DateTime?  // NEU — Geburtsdatum statt festes Alter
+  alter                   Int?       // DEPRECATED — bleibt für Abwärtskompatibilität
   geschlecht              String?
   interessen              String[] // PostgreSQL array
   lieblingsfarbe          String?
   lieblingstier           String?
   charaktereigenschaften  String[]
   herausforderungen       String[]
+  tags                    String[]   // NEU — Freie Tags vom User
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
   geschichten             Geschichte[]
 
+  @@map("KindProfil")
   @@index([userId])
 }
 
 model Geschichte {
-  id             String     @id @default(cuid())
-  kindProfilId   String
-  kindProfil     KindProfil @relation(fields: [kindProfilId], references: [id], onDelete: Cascade)
-  userId         String
-  format         String
-  ziel           String
-  dauer          String
+  id              String        @id @default(cuid())
+  hoererProfilId  String        @map("kindProfilId")
+  hoererProfil    HoererProfil  @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
+  userId          String
+  format          String
+  ziel            String
+  dauer           String
   besonderesThema String?
-  text           String
-  audioUrl       String?    // Vercel Blob URL
-  zusammenfassung String?   // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
-  createdAt      DateTime   @default(now())
+  text            String
+  audioUrl        String?     // Vercel Blob URL
+  zusammenfassung String?     // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
+  createdAt       DateTime    @default(now())
 
   @@index([userId])
-  @@index([kindProfilId])
+  @@index([hoererProfilId])
 }

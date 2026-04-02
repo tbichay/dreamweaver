@@ -2,15 +2,17 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { KindProfil, StoryConfig } from "@/lib/types";
+import { HoererProfil, StoryConfig } from "@/lib/types";
+import { berechneAlter } from "@/lib/utils";
 import Stars from "../components/Stars";
+import NavBar from "../components/NavBar";
 import StoryConfigurator from "../components/StoryConfigurator";
 
 function StoryPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const profilId = searchParams.get("profilId");
-  const [profil, setProfil] = useState<KindProfil | null>(null);
+  const [profil, setProfil] = useState<HoererProfil | null>(null);
 
   useEffect(() => {
     if (!profilId) {
@@ -35,23 +37,25 @@ function StoryPageContent() {
 
   if (!profil) return null;
 
+  const alter = profil.geburtsdatum
+    ? berechneAlter(profil.geburtsdatum)
+    : profil.alter ?? 5;
+
   return (
-    <main className="relative flex-1 flex flex-col items-center px-4 py-12">
-      <Stars />
-      <div className="relative z-10 w-full max-w-2xl">
-        <button
-          className="text-white/40 hover:text-white/60 text-sm transition-colors mb-6"
-          onClick={() => router.push("/dashboard")}
-        >
-          ← Zurück zur Profilauswahl
-        </button>
-        <StoryConfigurator
-          kindProfilId={profil.id}
-          kindName={profil.name}
-          onGenerate={handleGenerate}
-        />
-      </div>
-    </main>
+    <>
+      <NavBar />
+      <main className="relative flex-1 flex flex-col items-center px-4 py-8">
+        <Stars />
+        <div className="relative z-10 w-full max-w-2xl">
+          <StoryConfigurator
+            kindProfilId={profil.id}
+            kindName={profil.name}
+            alter={alter}
+            onGenerate={handleGenerate}
+          />
+        </div>
+      </main>
+    </>
   );
 }
 

@@ -1,16 +1,29 @@
-export interface KindProfil {
+export interface HoererProfil {
   id: string;
   name: string;
-  alter: number;
+  geburtsdatum?: string; // ISO date string
+  alter?: number;        // deprecated, berechnet aus geburtsdatum
   geschlecht?: "m" | "w" | "d";
   interessen: string[];
   lieblingsfarbe?: string;
   lieblingstier?: string;
   charaktereigenschaften: string[];
   herausforderungen?: string[];
+  tags?: string[];       // Freie Tags
 }
 
-export type StoryFormat = "traumreise" | "fabel" | "held" | "dankbarkeit";
+// Backwards compatibility
+export type KindProfil = HoererProfil;
+
+export type StoryFormat =
+  | "traumreise"
+  | "fabel"
+  | "held"
+  | "dankbarkeit"
+  | "abenteuer"
+  | "meditation"
+  | "affirmation"
+  | "reflexion";
 
 export type PaedagogischesZiel =
   | "selbstbewusstsein"
@@ -24,7 +37,7 @@ export type PaedagogischesZiel =
 export type StoryDauer = "kurz" | "mittel" | "lang";
 
 export interface StoryConfig {
-  kindProfilId: string;
+  kindProfilId: string; // bleibt für API-Kompatibilität
   format: StoryFormat;
   ziel: PaedagogischesZiel;
   dauer: StoryDauer;
@@ -40,28 +53,94 @@ export interface Geschichte {
   erstelltAm: string;
 }
 
-export const STORY_FORMATE: Record<StoryFormat, { label: string; beschreibung: string; emoji: string }> = {
+export interface StoryFormatInfo {
+  label: string;
+  beschreibung: string;
+  emoji: string;
+  minAlter: number;
+  maxAlter: number;
+  koala?: string; // welcher Koala erzählt
+}
+
+export const STORY_FORMATE: Record<StoryFormat, StoryFormatInfo> = {
   traumreise: {
     label: "Traumreise",
-    beschreibung: "Der Koala nimmt dein Kind mit auf eine Reise durch den magischen Wald",
+    beschreibung: "Eine sanfte Reise durch magische Welten zum Einschlafen",
     emoji: "🌿",
+    minAlter: 2,
+    maxAlter: 10,
+    koala: "Luna",
   },
   fabel: {
     label: "Weisheitsgeschichte",
-    beschreibung: "Der Koala erzählt eine Geschichte, die er selbst erlebt hat",
+    beschreibung: "Koda erzählt eine Geschichte, die er selbst erlebt hat",
     emoji: "🦉",
+    minAlter: 3,
+    maxAlter: 14,
+    koala: "Koda",
   },
   held: {
     label: "Dein Abenteuer",
-    beschreibung: "Dein Kind ist der Held — der Koala erzählt seine Geschichte",
+    beschreibung: "Du bist der Held — Koda erzählt deine Geschichte",
     emoji: "🌟",
+    minAlter: 4,
+    maxAlter: 14,
+    koala: "Koda",
   },
   dankbarkeit: {
     label: "Dankbarkeits-Moment",
-    beschreibung: "Der Koala und dein Kind schauen gemeinsam auf den Tag zurück",
+    beschreibung: "Gemeinsam auf den Tag zurückblicken und dankbar sein",
     emoji: "🍃",
+    minAlter: 3,
+    maxAlter: 99,
+    koala: "Koda",
+  },
+  abenteuer: {
+    label: "Mutiges Abenteuer",
+    beschreibung: "Eine spannende Geschichte voller Herausforderungen mit Mika",
+    emoji: "⚔️",
+    minAlter: 6,
+    maxAlter: 16,
+    koala: "Mika",
+  },
+  meditation: {
+    label: "Geführte Meditation",
+    beschreibung: "Luna führt dich durch eine tiefe, beruhigende Meditation",
+    emoji: "🧘",
+    minAlter: 8,
+    maxAlter: 99,
+    koala: "Luna",
+  },
+  affirmation: {
+    label: "Positive Affirmationen",
+    beschreibung: "Stärkende Botschaften, verpackt in eine kurze Geschichte",
+    emoji: "✨",
+    minAlter: 5,
+    maxAlter: 99,
+    koala: "Koda",
+  },
+  reflexion: {
+    label: "Stille Reflexion",
+    beschreibung: "Sage lädt ein zum Nachdenken über die wichtigen Dinge im Leben",
+    emoji: "🪷",
+    minAlter: 13,
+    maxAlter: 99,
+    koala: "Sage",
   },
 };
+
+/**
+ * Gibt Story-Formate zurück, die für ein bestimmtes Alter passend sind.
+ */
+export function getFormateForAlter(alter: number): Partial<Record<StoryFormat, StoryFormatInfo>> {
+  const result: Partial<Record<StoryFormat, StoryFormatInfo>> = {};
+  for (const [key, value] of Object.entries(STORY_FORMATE)) {
+    if (alter >= value.minAlter && alter <= value.maxAlter) {
+      result[key as StoryFormat] = value;
+    }
+  }
+  return result;
+}
 
 export const PAEDAGOGISCHE_ZIELE: Record<PaedagogischesZiel, { label: string; beschreibung: string; emoji: string }> = {
   selbstbewusstsein: {
@@ -107,33 +186,16 @@ export const DAUER_OPTIONEN: Record<StoryDauer, { label: string; minuten: number
   lang: { label: "Lang (~15 Min)", minuten: 15 },
 };
 
+// DEPRECATED — Use getInteressenFuerAlter() from lib/utils.ts instead
 export const INTERESSEN_VORSCHLAEGE = [
-  "Dinosaurier",
-  "Weltraum",
-  "Tiere",
-  "Prinzessinnen",
-  "Ritter",
-  "Meerjungfrauen",
-  "Superhelden",
-  "Natur & Wald",
-  "Ozean & Meer",
-  "Magie & Zauberei",
-  "Musik",
-  "Sport",
-  "Fahrzeuge",
-  "Kochen & Backen",
-  "Bauen & Konstruieren",
+  "Dinosaurier", "Weltraum", "Tiere", "Prinzessinnen", "Ritter",
+  "Meerjungfrauen", "Superhelden", "Natur & Wald", "Ozean & Meer",
+  "Magie & Zauberei", "Musik", "Sport", "Fahrzeuge",
+  "Kochen & Backen", "Bauen & Konstruieren",
 ];
 
+// DEPRECATED — Use getCharakterFuerAlter() from lib/utils.ts instead
 export const CHARAKTER_VORSCHLAEGE = [
-  "neugierig",
-  "schüchtern",
-  "mutig",
-  "kreativ",
-  "energisch",
-  "sensibel",
-  "lustig",
-  "nachdenklich",
-  "hilfsbereit",
-  "abenteuerlustig",
+  "neugierig", "schüchtern", "mutig", "kreativ", "energisch",
+  "sensibel", "lustig", "nachdenklich", "hilfsbereit", "abenteuerlustig",
 ];

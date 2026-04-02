@@ -1,4 +1,5 @@
 import {
+  HoererProfil,
   KindProfil,
   StoryConfig,
   StoryFormat,
@@ -72,6 +73,55 @@ const FORMAT_ANWEISUNGEN: Record<StoryFormat, string> = {
 - Jeder schöne Moment wird wie ein leuchtendes Blatt am Koala-Baum
 - Markiere Dankbarkeits-Momente mit [PAUSE]
 - Sehr warmes, geborgenes Ende`,
+
+  abenteuer: `FORMAT: MUTIGES ABENTEUER (erzählt von Mika, dem Mut-Koala)
+- Mika (ein jüngerer, mutiger Koala mit grünem Bandana) übernimmt die Geschichte
+- Er beginnt energisch: "Hey! Mika hier. Ich hab da was Spannendes für dich..."
+- Eine echte Herausforderung: Rätsel lösen, Hindernis überwinden, jemandem helfen
+- Der Hörer nutzt seine echten Stärken und Interessen als Werkzeuge
+- Spannung aufbauen — aber nie beängstigend, sondern aufregend
+- Teamwork und Zusammenarbeit sind Schlüssel zum Erfolg
+- Triumph-Moment: Das Gefühl "Ich hab es geschafft!" deutlich spürbar machen
+- Markiere Spannungsmomente mit [PAUSE]
+- Am Ende übergibt Mika zurück an Koda für das Outro`,
+
+  meditation: `FORMAT: GEFÜHRTE MEDITATION (erzählt von Luna, der Traum-Koala)
+- Luna (die sanfteste Koala mit Lavendel-Schimmer) übernimmt
+- Sie beginnt flüsternd: "Hallo... ich bin Luna. Atme einmal tief ein mit mir..."
+- Führe durch eine vollständige Meditation:
+  1. Ankommen: Körper entspannen, Atem bewusst werden
+  2. Körperreise: Von den Füßen bis zum Kopf, jede Stelle entspannen
+  3. Visualisierung: Ein sicherer, schöner Ort (passend zu Interessen)
+  4. Kern-Botschaft: Sanft und fast beiläufig eingewoben
+  5. Zurückkommen: Langsam, sanft, geborgen
+- Viele [PAUSE] Marker (alle 2-3 Sätze)
+- Extrem ruhige, langsame Sprache
+- Sensorische Details: Wärme, Licht, Farben, sanfte Geräusche
+- Am Ende übergibt Luna zurück an Koda`,
+
+  affirmation: `FORMAT: POSITIVE AFFIRMATIONEN
+- Koda erzählt eine kurze Geschichte in der Affirmationen natürlich vorkommen
+- NICHT als Liste von Affirmationen — sondern als Erzählung
+- Der Koala "pflanzt Samen" im Koala-Baum, jeder Samen ist eine positive Botschaft
+- 5-7 Kern-Affirmationen, passend zum Ziel und zu den Eigenschaften des Hörers:
+  z.B. "Ich bin mutig", "Ich bin genug", "Ich kann alles schaffen was ich mir vornehme"
+- Jede Affirmation wird in einen Moment der Geschichte verwoben
+- Wiederholung: Affirmationen werden sanft wiederholt (2-3x)
+- Markiere Affirmations-Momente mit [PAUSE]
+- Am Ende: Zusammenfassung der Affirmationen als "Geschenke vom Koala-Baum"`,
+
+  reflexion: `FORMAT: STILLE REFLEXION (erzählt von Sage, dem Stillen Koala)
+- Sage (ein ruhiger, nachdenklicher Koala mit Silbersträhne) übernimmt
+- Er beginnt langsam: "Hmm... [PAUSE] ich habe heute über etwas nachgedacht..."
+- Sage teilt eine tiefgründige Beobachtung über das Leben
+- Er stellt offene Fragen (rhetorisch, keine Antwort erwartet):
+  "Was wäre, wenn..." / "Hast du dich schon mal gefragt..."
+- Er erzählt KEINE klassische Geschichte — eher ein Gedanken-Strom
+- Philosophisch aber zugänglich — keine Fachsprache
+- Pausen sind zentral: Sage lässt Raum zum Nachdenken [PAUSE]
+- Er spricht den Hörer als gleichwertigen Denker an — nie von oben herab
+- Themen: Identität, Veränderung, Akzeptanz, Sinn, Verbundenheit
+- Am Ende übergibt Sage zurück an Koda`,
 };
 
 // --- Pedagogical goal instructions ---
@@ -233,7 +283,11 @@ Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne dire
     ? `Aktuelle Herausforderungen: ${profil.herausforderungen.join(", ")}`
     : "";
 
-  const user = `Erzähle eine Gute-Nacht-Geschichte für:
+  const tags = profil.tags && profil.tags.length > 0
+    ? `Persönliche Tags: ${profil.tags.join(", ")}`
+    : "";
+
+  const user = `Erzähle eine ${profil.alter && profil.alter >= 18 ? "Geschichte" : "Gute-Nacht-Geschichte"} für:
 
 Name: ${profil.name}
 Alter: ${profil.alter} Jahre
@@ -242,6 +296,7 @@ ${profil.lieblingstier ? `Lieblingstier: ${profil.lieblingstier}` : ""}
 ${profil.lieblingsfarbe ? `Lieblingsfarbe: ${profil.lieblingsfarbe}` : ""}
 Charakter: ${charakter}
 ${herausforderungen}
+${tags}
 ${config.besonderesThema ? `Heutiges Thema: ${config.besonderesThema}` : ""}
 
 Beginne jetzt mit dem Koala-Intro.`;

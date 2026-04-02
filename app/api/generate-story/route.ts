@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { buildStoryPrompt } from "@/lib/prompts";
-import { KindProfil as KindProfilType, StoryConfig } from "@/lib/types";
+import { HoererProfil, StoryConfig } from "@/lib/types";
+import { berechneAlter } from "@/lib/utils";
 
 const anthropic = new Anthropic();
 
@@ -19,14 +20,14 @@ export async function POST(request: Request) {
     };
 
     // Fetch profile from DB
-    const dbProfil = await prisma.kindProfil.findFirst({
+    const dbProfil = await prisma.hoererProfil.findFirst({
       where: { id: profilId, userId },
     });
     if (!dbProfil) return Response.json({ error: "Profil nicht gefunden" }, { status: 404 });
 
     // Fetch previous stories for Koala memory
     const previousStories = await prisma.geschichte.findMany({
-      where: { kindProfilId: profilId },
+      where: { hoererProfilId: profilId },
       orderBy: { createdAt: "desc" },
       take: 10,
       select: {
@@ -38,17 +39,23 @@ export async function POST(request: Request) {
       },
     });
 
-    // Map DB profile to type
-    const profil: KindProfilType = {
+    // Map DB profile to type — compute alter from geburtsdatum
+    const alter = dbProfil.geburtsdatum
+      ? berechneAlter(dbProfil.geburtsdatum)
+      : dbProfil.alter ?? 5;
+
+    const profil: HoererProfil = {
       id: dbProfil.id,
       name: dbProfil.name,
-      alter: dbProfil.alter,
-      geschlecht: dbProfil.geschlecht as KindProfilType["geschlecht"],
+      alter,
+      geburtsdatum: dbProfil.geburtsdatum?.toISOString(),
+      geschlecht: dbProfil.geschlecht as HoererProfil["geschlecht"],
       interessen: dbProfil.interessen,
       lieblingsfarbe: dbProfil.lieblingsfarbe || undefined,
       lieblingstier: dbProfil.lieblingstier || undefined,
       charaktereigenschaften: dbProfil.charaktereigenschaften,
       herausforderungen: dbProfil.herausforderungen.length > 0 ? dbProfil.herausforderungen : undefined,
+      tags: dbProfil.tags.length > 0 ? dbProfil.tags : undefined,
     };
 
     const { system, user } = buildStoryPrompt(profil, config, previousStories);
@@ -76,12 +83,12 @@ export async function POST(request: Request) {
           }
         }
 
-        // Save story to DB with a basic summary for future Koala memory
+        // Save story to DB
         const zusammenfassung = fullText.slice(0, 200).replace(/\[.*?\]/g, "").trim() + "...";
 
         const geschichte = await prisma.geschichte.create({
           data: {
-            kindProfilId: profilId,
+            hoererProfilId: profilId,
             userId,
             format: config.format,
             ziel: config.ziel,
