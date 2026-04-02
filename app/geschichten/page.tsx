@@ -274,7 +274,26 @@ export default function GeschichtenPage() {
 
                       {/* Player — always visible at title level */}
                       <div className="px-4 pb-3">
-                        {playable ? (
+                        {generatingAudioId === g.id ? (
+                          <div className="flex items-center gap-3 py-2">
+                            <div className="flex gap-1 items-end h-5">
+                              {[0, 1, 2, 3, 4].map((i) => (
+                                <div
+                                  key={i}
+                                  className="w-1 bg-[#4a7c59] rounded-full animate-pulse"
+                                  style={{
+                                    height: `${8 + Math.random() * 12}px`,
+                                    animationDelay: `${i * 0.15}s`,
+                                    animationDuration: "0.8s",
+                                  }}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-xs text-white/50">
+                              Koda und Kiki erzeugen das Hörspiel... das kann bis zu einer Minute dauern
+                            </span>
+                          </div>
+                        ) : playable ? (
                           <AudioPlayer
                             audioUrl={g.audioUrl!}
                             title={title}
@@ -282,13 +301,10 @@ export default function GeschichtenPage() {
                           />
                         ) : (
                           <button
-                            className="w-full btn-primary text-sm py-2 disabled:opacity-50"
-                            disabled={generatingAudioId === g.id}
+                            className="w-full btn-primary text-sm py-2"
                             onClick={() => regenerateAudio(g)}
                           >
-                            {generatingAudioId === g.id
-                              ? "Audio wird erzeugt..."
-                              : "🎧 Audio-Hörspiel erzeugen"}
+                            🎧 Audio-Hörspiel erzeugen
                           </button>
                         )}
                       </div>
