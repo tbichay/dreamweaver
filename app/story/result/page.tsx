@@ -255,7 +255,7 @@ function ResultContent() {
         {(phase === "text-done" || phase === "done") && profilId && (
           <div className="text-center pt-4">
             <button
-              className="text-indigo-300 hover:text-indigo-200 text-sm transition-colors"
+              className="text-[#a8d5b8] hover:text-[#c8e5d0] text-sm transition-colors"
               onClick={() => router.push(`/story?profilId=${profilId}`)}
             >
               Neue Geschichte erstellen

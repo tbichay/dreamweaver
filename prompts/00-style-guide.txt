@@ -1,0 +1,50 @@
+KOALATREE — STYLE GUIDE
+========================
+
+## GOLDENE REGEL
+Weniger Rauschen. Cleane, glatte Flaechen. Nur saubere Verlaeufe.
+Kein visuelles Rauschen, keine koernigen Texturen, keine ueberladenen Szenen.
+Viel Himmel, viel Negativraum, viel Ruhe.
+
+## STIL
+Modern Disney Pixar 3D Animation. Soft cel-shaded 3D rendering.
+Smooth clean surfaces with soft global illumination.
+Wie ein Frame aus einem Pixar-Film — glatt, warm, perfekt beleuchtet.
+
+REFERENZEN:
+- Disney Pixar (Coco, Soul, Inside Out)
+- Disney Dreamlight Valley
+- Moderne Disney 3D Kurzfilme
+
+## FARBEN
+- Sunset Peach (#f4c078) — warme Akzente, Glows
+- Twilight Blue (#4a6fa5) — Himmel, Daemmerung
+- Deep Night (#1a1a2e) — dunkle Bereiche
+- Forest Green (#3d6b4a) — Natur, Baum
+- Warm Cream (#f5eed6) — helle Flaechen
+- Golden Amber (#d4a853) — Highlights, magisches Leuchten
+- Soft Lavender (#8b7cb5) — sanfte Akzente
+
+## KOMPOSITION
+- Oberes Drittel = offener Himmel (Ruhe, Weite)
+- Mittleres Drittel = Baum / Hauptmotiv
+- Unteres Drittel = Figuren / Boden
+- Immer: Klare Trennung der Ebenen, Tiefenschaerfe
+- Wenige Elemente, jedes zaehlt
+
+## CHARAKTERE
+- Rounded, soft, huggable Proportionen
+- Big expressive Disney-Augen mit Lichtreflexen
+- Klare Silhouetten — erkennbar auch als Icons
+- Smooth clean surfaces, kein Fell-Rauschen
+- Jeder Charakter hat EIN Erkennungsmerkmal
+
+## ANTI-STYLE (was wir NICHT wollen)
+- KEIN Aquarell / Watercolor / Oelgemaelde
+- KEIN handgemalter / skizzenhafter Look
+- KEIN Photorealismus
+- KEIN Anime/Manga
+- KEIN visuelles Rauschen oder koernige Texturen
+- KEINE ueberladenen Szenen mit zu vielen Elementen
+- KEIN dichter Dschungel — eher offene Lichtung
+- KEINE rauen Pinselstriche oder sichtbare Brush-Textur

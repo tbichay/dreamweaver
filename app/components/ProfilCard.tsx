@@ -13,7 +13,7 @@ export default function ProfilCard({ profil, onSelect, onDelete }: Props) {
     <div className="card p-5 cursor-pointer group" onClick={() => onSelect(profil)}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-2xl">
+          <div className="w-12 h-12 rounded-full bg-[#3d6b4a]/20 flex items-center justify-center text-2xl">
             {profil.geschlecht === "w" ? "👧" : profil.geschlecht === "m" ? "👦" : "🧒"}
           </div>
           <div>

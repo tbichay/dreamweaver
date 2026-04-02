@@ -1,0 +1,8 @@
+KOALATREE — HERO IMAGE (Website-Hauptbild)
+============================================
+
+AKTUELLER FINALER PROMPT (genehmigt, weniger Rauschen Version):
+
+A single majestic eucalyptus tree standing alone in a peaceful jungle clearing, framed against a vast open sky in soft gradient from warm peach to deep twilight blue. Modern Disney Pixar 3D animation style with smooth clean surfaces and soft global illumination. The tree takes up the lower two-thirds, the upper third is open sky with a few soft clouds catching golden sunset light. In the main fork of the tree, one big friendly koala lounges peacefully — smooth silver-grey fur, round belly, content half-closed eyes, gentle smile. Simple, clean, no clutter. Only two small koalas visible on other branches — one hanging playfully, one curled up sleeping. At the base of the tree, sitting in soft grass with warm rim lighting: a small child, a teenager, and one adult — simple clean Disney character designs, looking up peacefully. Lots of open space. Minimal foliage — a few clean leaf shapes, not dense jungle. Soft volumetric god rays from the sunset behind the tree. Fireflies as simple clean glowing dots, sparse not dense. Smooth cel-shaded rendering, no texture noise, no painterly roughness. Clean like a Pixar movie poster. Calm, spacious, breathable. --ar 16:9
+
+HINWEIS: Noch cleaner machen — weniger Rauschen, glattere Flaechen, sauberere Verlaeufe. Wenn noetig, "ultra smooth surfaces, no grain, no noise, clean gradients only" hinzufuegen.

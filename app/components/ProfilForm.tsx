@@ -156,7 +156,7 @@ export default function ProfilForm({ onSave, initial }: Props) {
           <div
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
-              i === step ? "bg-indigo-400 scale-125" : i < step ? "bg-indigo-400/50" : "bg-white/20"
+              i === step ? "bg-[#3d6b4a] scale-125" : i < step ? "bg-[#3d6b4a]/50" : "bg-white/20"
             }`}
           />
         ))}

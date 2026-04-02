@@ -68,7 +68,7 @@ export default function AudioPlayer({ audioUrl, title }: Props) {
       <div className="flex items-center gap-4">
         {/* Play/Pause */}
         <button
-          className="w-14 h-14 rounded-full bg-indigo-500/20 hover:bg-indigo-500/30 flex items-center justify-center transition-all text-2xl shrink-0"
+          className="w-14 h-14 rounded-full bg-[#3d6b4a]/20 hover:bg-[#3d6b4a]/30 flex items-center justify-center transition-all text-2xl shrink-0"
           onClick={togglePlay}
         >
           {isPlaying ? "⏸" : "▶️"}
@@ -81,7 +81,7 @@ export default function AudioPlayer({ audioUrl, title }: Props) {
             onClick={seek}
           >
             <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full relative transition-all"
+              className="h-full bg-gradient-to-r from-[#3d6b4a] to-[#d4a853] rounded-full relative transition-all"
               style={{ width: `${progress}%` }}
             >
               <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -100,8 +100,8 @@ export default function AudioPlayer({ audioUrl, title }: Props) {
       <div className="mt-4 text-center">
         <a
           href={audioUrl}
-          download="gute-nacht-geschichte.mp3"
-          className="text-sm text-indigo-300 hover:text-indigo-200 transition-colors"
+          download="koalatree-geschichte.mp3"
+          className="text-sm text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors"
         >
           Herunterladen
         </a>

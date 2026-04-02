@@ -130,7 +130,7 @@ export default function GeschichtenPage() {
                             <audio controls className="w-full mb-3" src={g.audioUrl} />
                           )}
                           <button
-                            className="text-sm text-indigo-300 hover:text-indigo-200"
+                            className="text-sm text-[#a8d5b8] hover:text-[#c8e5d0]"
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(`/story/result?id=${g.id}`);

@@ -1,0 +1,10 @@
+KOALATREE — LOGO
+=================
+
+Minimalist but warm logo design for "KoalaTree" on a clean white background. A stylized eucalyptus tree silhouette forming a gentle protective arc, with a small wise koala (Koda) sitting peacefully in the center where the branches meet. The koala is simplified to essential Disney-style shapes — round ears, gentle closed eyes, peaceful content smile. The tree has 5 subtle leaves, each a slightly different color representing the koala family: silver (Koda), green (Mika), lavender (Luna), gold (Pip), charcoal (Sage). A single warm golden glow emanates softly from where the koala sits. Below: the word "KoalaTree" in a warm, rounded, friendly sans-serif font — approachable for all ages, not childish. Modern stylized 3D Disney feel even in simplified form. Color palette: deep forest green, warm amber gold, soft cream. Must work at any size from 16px favicon to billboard. --ar 1:1
+
+
+KOALATREE — APP ICON
+======================
+
+Minimal app icon: Koda's face viewed from the front, simplified to essential rounded shapes in modern Disney 3D style. Big round fluffy ears, warm half-closed content eyes with subtle Disney light reflections, gentle knowing smile. Silver-grey with a warm golden ambient glow behind him. Set inside a subtle circular shape suggesting a tree ring cross-section in deep forest green. Clean, bold, instantly recognizable at 64x64px. Works on light and dark backgrounds. --ar 1:1

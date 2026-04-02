@@ -7,6 +7,7 @@ import { KindProfil } from "@/lib/types";
 import Stars from "./components/Stars";
 import ProfilForm from "./components/ProfilForm";
 import ProfilCard from "./components/ProfilCard";
+import Image from "next/image";
 
 export default function Home() {
   const router = useRouter();
@@ -49,13 +50,13 @@ export default function Home() {
     return (
       <main className="relative flex-1 flex flex-col items-center justify-center">
         <Stars />
-        <div className="text-white/40 text-lg">Laden...</div>
+        <div className="text-cream/40 text-lg">Laden...</div>
       </main>
     );
   }
 
   return (
-    <main className="relative flex-1 flex flex-col items-center px-4 py-12">
+    <main className="relative flex-1 flex flex-col items-center">
       <Stars />
 
       <div className="absolute top-4 right-4 z-20 flex items-center gap-4">
@@ -68,19 +69,35 @@ export default function Home() {
         <UserButton />
       </div>
 
-      <div className="relative z-10 w-full max-w-2xl">
-        <div className="text-center mb-12">
-          <div className="text-6xl mb-4">🐨</div>
-          <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-amber-200 via-green-200 to-amber-200 bg-clip-text text-transparent">
-            KoalaTree
-          </h1>
-          <p className="text-xl text-white/60">
-            Dein weiser Freund im magischen Baum
-          </p>
-          <p className="text-sm text-white/40 mt-2">
-            Personalisierte Gute-Nacht-Geschichten, erzählt vom weisen Koala
-          </p>
+      {/* Hero Section */}
+      <div className="relative w-full max-w-5xl mx-auto mt-4 px-4">
+        <div className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden shadow-2xl">
+          <Image
+            src="/hero.png"
+            alt="KoalaTree — Der magische Eukalyptusbaum"
+            fill
+            className="object-cover"
+            priority
+          />
+          {/* Gradient overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a2e] via-transparent to-transparent" />
+          {/* Title on hero */}
+          <div className="absolute bottom-0 left-0 right-0 p-8 text-center">
+            <h1 className="text-5xl md:text-6xl font-bold mb-2 text-white drop-shadow-lg">
+              KoalaTree
+            </h1>
+            <p className="text-xl text-white/80 drop-shadow-md">
+              Dein weiser Freund im magischen Baum
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* Content below hero */}
+      <div className="relative z-10 w-full max-w-2xl px-4 py-8">
+        <p className="text-center text-white/50 text-sm mb-8">
+          Personalisierte Gute-Nacht-Geschichten, erzählt vom weisen Koala Koda
+        </p>
 
         {showForm ? (
           <>
@@ -99,7 +116,7 @@ export default function Home() {
             {profile.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-lg font-semibold text-white/70 mb-4">
-                  Für wen soll der Koala heute erzählen?
+                  Für wen soll Koda heute erzählen?
                 </h2>
                 <div className="grid gap-3">
                   {profile.map((p) => (
@@ -123,7 +140,7 @@ export default function Home() {
               </button>
               {profile.length === 0 && (
                 <p className="text-white/40 text-sm mt-4">
-                  Der weise Koala möchte dein Kind kennenlernen, damit er die perfekte Geschichte erzählen kann.
+                  Der weise Koala Koda möchte dein Kind kennenlernen, damit er die perfekte Geschichte erzählen kann.
                 </p>
               )}
             </div>
