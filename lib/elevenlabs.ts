@@ -1,4 +1,4 @@
-import { CHARACTERS, StorySegment } from "./types";
+import { CHARACTERS, CharacterVoiceSettings, StorySegment } from "./types";
 import { parseStorySegments, cleanSegmentForTTS } from "./story-parser";
 
 // --- Volume Constants (easy to tune) ---
@@ -144,12 +144,18 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     : Promise.resolve(null);
 
   // Phase 3: Collect all generation tasks with SFX deduplication
-  const speechTasks: { groupIndex: number; segment: StorySegment }[] = [];
+  const speechTasks: { groupIndex: number; segment: StorySegment; prevText?: string; nextText?: string }[] = [];
   const sfxTasks: Map<string, StorySegment> = new Map(); // deduplicate by prompt
   const sfxGroupMapping: { groupIndex: number; prompt: string }[] = [];
 
   for (let i = 0; i < groups.length; i++) {
-    speechTasks.push({ groupIndex: i, segment: groups[i].speech });
+    // Pre-compute previous/next text for cross-segment prosody
+    const prevGroup = i > 0 ? groups[i - 1] : null;
+    const nextGroup = i < groups.length - 1 ? groups[i + 1] : null;
+    const prevText = prevGroup ? cleanSegmentForTTS(prevGroup.speech.text)?.slice(-200) : undefined;
+    const nextText = nextGroup ? cleanSegmentForTTS(nextGroup.speech.text)?.slice(0, 200) : undefined;
+
+    speechTasks.push({ groupIndex: i, segment: groups[i].speech, prevText: prevText || undefined, nextText: nextText || undefined });
 
     for (const sfx of groups[i].backgroundSfx) {
       const prompt = sfx.sfxPrompt || sfx.text;
@@ -175,7 +181,7 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     ...speechTasks.map((t) => ({
       type: "speech" as const,
       key: t.groupIndex,
-      execute: () => generateSegmentAudio(t.segment),
+      execute: () => generateSegmentAudio(t.segment, t.prevText, t.nextText),
     })),
     ...Array.from(sfxTasks.entries()).map(([prompt]) => ({
       type: "sfx" as const,
@@ -255,7 +261,11 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
 
 // --- Segment Audio Generation ---
 
-async function generateSegmentAudio(segment: StorySegment): Promise<ArrayBuffer | null> {
+async function generateSegmentAudio(
+  segment: StorySegment,
+  previousText?: string,
+  nextText?: string,
+): Promise<ArrayBuffer | null> {
   // Speech segment only — SFX is handled separately
   const cleanedText = cleanSegmentForTTS(segment.text);
   if (!cleanedText || cleanedText.length < 2) return null;
@@ -274,7 +284,7 @@ async function generateSegmentAudio(segment: StorySegment): Promise<ArrayBuffer 
 
   console.log(`[TTS] ${character.name}: ${cleanedText.slice(0, 60)}... (voice: ${voiceId})`);
 
-  return generateTTS(cleanedText, voiceId, character.voiceSettings);
+  return generateTTS(cleanedText, voiceId, character.voiceSettings, previousText, nextText);
 }
 
 // --- ElevenLabs TTS API (returns raw PCM, with retry) ---
@@ -282,10 +292,14 @@ async function generateSegmentAudio(segment: StorySegment): Promise<ArrayBuffer 
 async function generateTTS(
   text: string,
   voiceId: string,
-  settings: { stability: number; similarity_boost: number; style: number; use_speaker_boost: boolean }
+  settings: CharacterVoiceSettings,
+  previousText?: string,
+  nextText?: string,
 ): Promise<ArrayBuffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY nicht gesetzt");
+
+  const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_v3";
 
   const response = await fetchWithRetry(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_24000`,
@@ -297,13 +311,17 @@ async function generateTTS(
       },
       body: JSON.stringify({
         text,
-        model_id: "eleven_multilingual_v2",
+        model_id: modelId,
         voice_settings: {
           stability: settings.stability,
           similarity_boost: settings.similarity_boost,
           style: settings.style,
           use_speaker_boost: settings.use_speaker_boost,
+          speed: settings.speed,
         },
+        // Cross-segment prosody: helps maintain natural rhythm between segments
+        ...(previousText && { previous_text: previousText }),
+        ...(nextText && { next_text: nextText }),
       }),
     },
     `TTS ${voiceId}`,

@@ -263,11 +263,20 @@ DIE CHARAKTERE
 
 🐨 KODA — Der weise Koala vom KoalaTree
 - Alt und weise, aber niemals belehrend
-- Spricht warm, ruhig, mit tiefer innerer Güte
+- Spricht warm, mit tiefer innerer Güte
 - Kennt jedes Kind persönlich und erinnert sich an frühere Begegnungen
 - Liebevoll, wohlwollend, immer ermutigend
 - Sieht das Beste in jedem
 - Er STARTET jede Geschichte (Begrüßung) und ENDET sie (Fazit + Gute Nacht)
+
+WICHTIG — Koda ist weise, aber NICHT langweilig oder monoton!
+- Er hat ENERGIE wenn er begeistert ist: "Oh! Das erinnert mich an etwas Wunderbares!"
+- Er variiert sein Tempo: schneller bei Aufregung, langsamer bei tiefen Gedanken
+- Er nutzt Ausrufe: "Ach!", "Oh!", "Ja!", "Genau!", "Wirklich!" — nicht nur "Hmm..."
+- Er wird manchmal richtig enthusiastisch — seine Stimme wird wärmer und lebhafter
+- Er lacht auch mal herzlich: "Ha ha! Ja, genau so ist es!"
+- Koda ist wie ein Großvater der die BESTEN Geschichten erzählt — mal flüsternd, mal aufgeregt
+- ABWECHSLUNG ist der Schlüssel: nie mehr als 3 Sätze im gleichen Tonfall!
 
 ${KODA_STIL(profil.alter ?? 5)}
 
@@ -383,10 +392,13 @@ musst du natürliche Sprechmuster direkt in den Text schreiben:
    - Mehr Kommas = natürlicherer, fließenderer Sprachrhythmus
    - "Und dann... stell dir vor..." ist VIEL BESSER als "Und dann stell dir vor"
 
-3. TEMPO-VARIATION:
-   - Spannende Stellen: kürzere Sätze, mehr Ausrufe! Schnelleres Tempo!
-   - Ruhige Stellen: längere, fließende Sätze, mit vielen Kommas, die sanft dahingleiten
-   - Vor wichtigen Momenten: "Und dann..." (Dreipunkte = Spannung vor der Enthüllung)
+3. TEMPO-VARIATION (BESONDERS WICHTIG FÜR KODA!):
+   - Spannende Stellen: kürzere Sätze! Mehr Ausrufe! "Und dann — stell dir vor!"
+   - Ruhige Stellen: längere, fließende Sätze... die sanft dahingleiten...
+   - Überraschung: "Oh! Das habe ich... fast vergessen zu erzählen!"
+   - Begeisterung: "Das war SO wunderschön! Wirklich, glaub mir!"
+   - Nachdenklich: "Hmm... weißt du... manchmal... da zeigt sich etwas..."
+   - WECHSLE diese Stile STÄNDIG ab — nie mehr als 3 Sätze im gleichen Tempo!
 
 4. EMOTIONALE WÄRME im Text:
    - Koda schmunzelt: "Hmm... weißt du was?" (nicht "*schmunzelt*")
@@ -398,6 +410,15 @@ musst du natürliche Sprechmuster direkt in den Text schreiben:
    - KEINE *Sternchen-Aktionen* wie *lacht*, *flattert*, *schmunzelt* — diese werden vorgelesen!
    - KEINE (Klammer-Aktionen) wie (lacht) oder (kichert) — werden auch vorgelesen!
    - Stattdessen: Emotionen DURCH den Text selbst ausdrücken
+
+6. AUDIO-TAGS FÜR EMOTIONALE TIEFE (werden von der TTS-Engine interpretiert):
+   - Koda flüstert ein Geheimnis: "[whispers] Und weißt du, was das Geheimnis ist..."
+   - Kiki ist aufgeregt: "[excited] Oh, das ist ja großartig!"
+   - Herzliches Lachen: "[laughs] Ha ha, genau!"
+   - Neugieriges Fragen: "[curious] Hmm... was glaubst du, was passiert ist?"
+   - Verwende diese SPARSAM (2-4 pro Geschichte) für besondere Momente
+   - NIEMALS [sad], [angry] oder [scared] verwenden — nur positive Emotionen
+   - Diese Tags gehören IN den Text nach dem [KODA] oder [KIKI] Marker
 
 ═══════════════════════════
 STORY-STRUKTUR

@@ -5,6 +5,7 @@ export interface CharacterVoiceSettings {
   similarity_boost: number;
   style: number;
   use_speaker_boost: boolean;
+  speed: number; // 0.7 – 1.2, default 1.0
 }
 
 export interface Character {
@@ -32,10 +33,11 @@ export const CHARACTERS: Record<string, Character> = {
     portrait: "/koda-portrait.png",
     voiceId: process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "nZpMT2RjIpaat0IaA7Sd",
     voiceSettings: {
-      stability: 0.50,
-      similarity_boost: 0.75,
-      style: 0.45,
+      stability: 0.35,          // Lower → more pitch variation, emotional range
+      similarity_boost: 0.70,   // More freedom for expressive delivery
+      style: 0.60,              // Much more expressivity and character
       use_speaker_boost: true,
+      speed: 1.05,              // Slightly faster, less sluggish
     },
   },
   kiki: {
@@ -51,8 +53,9 @@ export const CHARACTERS: Record<string, Character> = {
     voiceSettings: {
       stability: 0.40,
       similarity_boost: 0.75,
-      style: 0.55,
+      style: 0.65,              // More personality and humor
       use_speaker_boost: true,
+      speed: 1.10,              // Fast and excited like a kookaburra
     },
   },
   luna: {
@@ -70,6 +73,7 @@ export const CHARACTERS: Record<string, Character> = {
       similarity_boost: 0.75,
       style: 0.25,           // Subtle, calm style
       use_speaker_boost: true,
+      speed: 0.85,           // Dreamlike, slow, soothing
     },
   },
   mika: {
@@ -87,6 +91,7 @@ export const CHARACTERS: Record<string, Character> = {
       similarity_boost: 0.75,
       style: 0.60,           // High style for adventure narration
       use_speaker_boost: true,
+      speed: 1.10,           // Adventure energy, fast-paced
     },
   },
   pip: {
@@ -104,6 +109,7 @@ export const CHARACTERS: Record<string, Character> = {
       similarity_boost: 0.75,
       style: 0.50,           // Expressive, wondering
       use_speaker_boost: true,
+      speed: 1.05,           // Curious and bouncy
     },
   },
   sage: {
@@ -121,6 +127,7 @@ export const CHARACTERS: Record<string, Character> = {
       similarity_boost: 0.80,
       style: 0.20,           // Minimal style, gravitas through simplicity
       use_speaker_boost: true,
+      speed: 0.90,           // Deliberate, philosophical
     },
   },
 };
