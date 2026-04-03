@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { StoryConfig, StoryFormat, PaedagogischesZiel, STORY_FORMATE, PAEDAGOGISCHE_ZIELE } from "@/lib/types";
+import { useProfile } from "@/lib/profile-context";
 import Image from "next/image";
 import PageTransition from "../../components/PageTransition";
 import Stars from "../../components/Stars";
@@ -16,6 +17,7 @@ function ResultContent() {
   const searchParams = useSearchParams();
   const existingId = searchParams.get("id");
   const regenerateId = searchParams.get("regenerate");
+  const { activeProfile } = useProfile();
 
   const [profilId, setProfilId] = useState<string | null>(null);
   const [kindName, setKindName] = useState("");
@@ -168,17 +170,17 @@ function ResultContent() {
       return;
     }
 
-    // Mode 2: Generate new story from sessionStorage config
+    // Mode 2: Generate new story from sessionStorage config + active profile
     const configData = sessionStorage.getItem("koalatree-config");
-    const pId = sessionStorage.getItem("koalatree-profilId");
-    const name = sessionStorage.getItem("koalatree-kindName");
 
-    if (!configData || !pId || !name) {
-      router.push("/dashboard");
+    if (!configData || !activeProfile) {
+      router.push("/story");
       return;
     }
 
     const c = JSON.parse(configData) as StoryConfig;
+    const pId = activeProfile.id;
+    const name = activeProfile.name;
     setProfilId(pId);
     setKindName(name);
     setConfig(c);
@@ -207,7 +209,7 @@ function ResultContent() {
         <div className="flex items-center justify-between">
           <button
             className="text-white/40 hover:text-white/60 text-sm transition-colors"
-            onClick={() => profilId ? router.push(`/story?profilId=${profilId}`) : router.push("/dashboard")}
+            onClick={() => router.push("/story")}
           >
             ← Zurück
           </button>
@@ -289,7 +291,7 @@ function ResultContent() {
           <div className="text-center pt-4">
             <button
               className="text-[#a8d5b8] hover:text-[#c8e5d0] text-sm transition-colors"
-              onClick={() => router.push(`/story?profilId=${profilId}`)}
+              onClick={() => router.push("/story")}
             >
               Neue Geschichte erstellen
             </button>

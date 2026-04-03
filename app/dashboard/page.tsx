@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { HoererProfil } from "@/lib/types";
 import { berechneAlter } from "@/lib/utils";
 import { useProfile } from "@/lib/profile-context";
@@ -12,8 +12,9 @@ import ProfilCard from "../components/ProfilCard";
 import { SkeletonCard } from "../components/Skeleton";
 import PageTransition from "../components/PageTransition";
 
-export default function Dashboard() {
+function DashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setActiveProfile } = useProfile();
   const [profile, setProfile] = useState<HoererProfil[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -48,6 +49,13 @@ export default function Dashboard() {
     // Check if user dismissed onboarding
     const dismissed = localStorage.getItem("onboarding-dismissed");
     if (dismissed) setOnboardingDismissed(true);
+
+    // Auto-open form if ?new=1
+    if (searchParams.get("new") === "1") {
+      setShowForm(true);
+      window.history.replaceState(null, "", "/dashboard");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchProfile]);
 
   const handleSave = async (profil: HoererProfil) => {
@@ -84,7 +92,7 @@ export default function Dashboard() {
 
   const handleSelect = (profil: HoererProfil) => {
     setActiveProfile(profil.id);
-    router.push(`/story?profilId=${profil.id}`);
+    router.push("/story");
   };
 
   if (loading) {
@@ -253,5 +261,13 @@ export default function Dashboard() {
       </main>
       </PageTransition>
     </>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense>
+      <DashboardContent />
+    </Suspense>
   );
 }

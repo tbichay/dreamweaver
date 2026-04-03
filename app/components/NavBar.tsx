@@ -8,9 +8,8 @@ import { useProfile } from "@/lib/profile-context";
 import { useState, useRef, useEffect } from "react";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Profile", emoji: "\u{1F464}" },
-  { href: "/story", label: "Geschichte", emoji: "\u2728" },
-  { href: "/geschichten", label: "Bibliothek", emoji: "\u{1F4DA}" },
+  { href: "/story", label: "Neue Geschichte", emoji: "\u2728" },
+  { href: "/geschichten", label: "Meine Geschichten", emoji: "\u{1F4DA}" },
 ];
 
 function getProfileEmoji(name: string): string {
@@ -93,6 +92,16 @@ function ProfileSwitcher({ className }: { className?: string }) {
           </div>
           <div className="border-t border-white/5">
             <Link
+              href="/dashboard?new=1"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/50 hover:text-white hover:bg-white/5 min-h-[44px] transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Neues Profil
+            </Link>
+            <Link
               href="/dashboard"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/50 hover:text-white hover:bg-white/5 min-h-[44px] transition-colors"
@@ -118,7 +127,7 @@ export default function NavBar() {
       {/* ── Desktop Top Bar (sm+) ── */}
       <nav className="sticky top-0 z-30 w-full bg-[#1a2e1a]/90 backdrop-blur-sm border-b border-white/5 hidden sm:block">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2 shrink-0 min-h-[44px]">
+          <Link href="/story" className="flex items-center gap-2 shrink-0 min-h-[44px]">
             <Image src="/logo.png" alt="KoalaTree" height={48} width={160} className="object-contain max-h-[48px] w-auto" />
           </Link>
 
@@ -151,7 +160,7 @@ export default function NavBar() {
       {/* ── Mobile Top Bar (<sm) ── */}
       <nav className="sticky top-0 z-30 w-full bg-[#1a2e1a]/90 backdrop-blur-sm border-b border-white/5 sm:hidden">
         <div className="px-4 h-12 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center shrink-0 min-h-[44px]">
+          <Link href="/story" className="flex items-center shrink-0 min-h-[44px]">
             <Image src="/logo.png" alt="KoalaTree" height={36} width={120} className="object-contain max-h-[36px] w-auto" />
           </Link>
 
