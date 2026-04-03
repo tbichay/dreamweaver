@@ -1,32 +1,33 @@
-import { auth } from "@clerk/nextjs/server";
+import { currentUser } from "@clerk/nextjs/server";
 import { generateAudio } from "@/lib/elevenlabs";
 import { ONBOARDING_STORY_TEXT, ONBOARDING_STORY_TITLE } from "@/lib/onboarding-story";
 import { put } from "@vercel/blob";
 
-const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
+
+async function isAdmin(): Promise<boolean> {
+  const user = await currentUser();
+  if (!user) return false;
+  return user.emailAddresses.some(
+    (e) => e.emailAddress.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+  );
+}
 
 // GET: Return the current onboarding audio URL
 export async function GET() {
   const blobUrl = process.env.ONBOARDING_AUDIO_URL;
+  const admin = await isAdmin();
   return Response.json({
     title: ONBOARDING_STORY_TITLE,
     audioUrl: blobUrl || null,
     hasAudio: !!blobUrl,
+    isAdmin: admin,
   });
 }
 
 // POST: Regenerate the onboarding audio (admin only)
 export async function POST() {
-  const { userId } = await auth();
-
-  if (!ADMIN_USER_ID) {
-    return Response.json(
-      { error: "ADMIN_USER_ID nicht konfiguriert" },
-      { status: 500 }
-    );
-  }
-
-  if (userId !== ADMIN_USER_ID) {
+  if (!(await isAdmin())) {
     return Response.json(
       { error: "Nur der Admin kann die Vorstellungsgeschichte regenerieren" },
       { status: 403 }

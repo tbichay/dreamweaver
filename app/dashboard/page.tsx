@@ -18,6 +18,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [hasOnboardingAudio, setHasOnboardingAudio] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [adminMessage, setAdminMessage] = useState("");
 
   const fetchProfile = useCallback(async () => {
     const res = await fetch("/api/profile");
@@ -30,10 +33,13 @@ export default function Dashboard() {
   useEffect(() => {
     fetchProfile();
 
-    // Check if onboarding audio exists
+    // Check if onboarding audio exists + admin status
     fetch("/api/admin/onboarding")
       .then((r) => r.json())
-      .then((d) => setHasOnboardingAudio(d.hasAudio))
+      .then((d) => {
+        setHasOnboardingAudio(d.hasAudio);
+        setIsAdmin(d.isAdmin || false);
+      })
       .catch(() => {});
 
     // Check if user dismissed onboarding
@@ -106,7 +112,7 @@ export default function Dashboard() {
           </div>
 
           {/* Onboarding Story — Vorstellungsgeschichte */}
-          {hasOnboardingAudio && !onboardingDismissed && !showForm && (
+          {(hasOnboardingAudio || isAdmin) && !onboardingDismissed && !showForm && (
             <div className="mb-8 p-5 rounded-2xl bg-gradient-to-br from-[#2a4a2a]/60 to-[#1a3a2a]/60 border border-[#4a7c59]/30">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -130,10 +136,45 @@ export default function Dashboard() {
                   Ausblenden
                 </button>
               </div>
-              <AudioPlayer
-                audioUrl="/api/audio/onboarding"
-                title="Willkommen am KoalaTree!"
-              />
+              {hasOnboardingAudio && (
+                <AudioPlayer
+                  audioUrl="/api/audio/onboarding"
+                  title="Willkommen am KoalaTree!"
+                />
+              )}
+              {isAdmin && (
+                <div className="mt-3 pt-3 border-t border-white/10">
+                  <div className="flex items-center gap-3">
+                    <button
+                      className="text-xs px-3 py-1.5 rounded bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30 transition-colors disabled:opacity-50"
+                      disabled={regenerating}
+                      onClick={async () => {
+                        setRegenerating(true);
+                        setAdminMessage("Audio wird generiert... das dauert 1-2 Minuten.");
+                        try {
+                          const res = await fetch("/api/admin/onboarding", { method: "POST" });
+                          const data = await res.json();
+                          if (res.ok) {
+                            setAdminMessage(`Fertig! Blob-URL: ${data.blobUrl} — Setze ONBOARDING_AUDIO_URL auf Vercel.`);
+                            setHasOnboardingAudio(true);
+                          } else {
+                            setAdminMessage(`Fehler: ${data.error}`);
+                          }
+                        } catch (err) {
+                          setAdminMessage("Netzwerk-Fehler");
+                        }
+                        setRegenerating(false);
+                      }}
+                    >
+                      {regenerating ? "Generiere..." : hasOnboardingAudio ? "Audio neu generieren" : "Audio erstmalig generieren"}
+                    </button>
+                    <span className="text-[10px] text-white/20">Admin</span>
+                  </div>
+                  {adminMessage && (
+                    <p className="text-xs text-white/40 mt-2 break-all">{adminMessage}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

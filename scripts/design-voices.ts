@@ -55,7 +55,7 @@ const VOICES: Record<string, { name: string; envKey: string; description: string
   pip: {
     name: "KoalaTree Pip",
     envKey: "ELEVENLABS_VOICE_PIP",
-    description: `A curious, bright German male voice, around 12-15 years old or young-sounding adult. Perfect audio quality. Full of wonder and questions, like a young scientist discovering the world. Slightly higher pitch, with upward inflections suggesting constant curiosity. Think of a child prodigy who is amazed by everything. Quick thinking, sometimes stumbling over words from excitement. Warm, earnest, never sarcastic. Natural German with an inquisitive, wide-eyed quality.`,
+    description: `A curious, bright German male voice with a youthful energy. Perfect audio quality. Full of wonder and questions, like a young scientist discovering the world for the first time. Slightly higher pitch, with upward inflections suggesting constant curiosity. Think of an enthusiastic nature guide amazed by everything around them. Quick thinking, sometimes stumbling over words from excitement. Warm, earnest, never sarcastic. Natural German with an inquisitive, wide-eyed quality.`,
     previewText: `Wusstest du... wusstest du, dass Schnabeltiere leuchten? Unter UV-Licht! Echt jetzt! Und... und warum ist der Himmel eigentlich blau? Also, ich weiß es, aber... hast du schon mal darüber nachgedacht, warum er nicht grün ist? Wäre das nicht komisch?`,
   },
   sage: {
