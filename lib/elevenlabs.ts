@@ -7,10 +7,72 @@ const AMBIENCE_MIX_VOLUME = 0.07;  // Ambient atmosphere — barely noticeable
 const AMBIENCE_DURATION = 10;       // Seconds of ambience to generate (will be looped)
 const BATCH_SIZE = 2;               // Parallel API calls per batch (ElevenLabs limit: 3 concurrent, 1 reserved for ambience)
 
+// --- Retry Configuration ---
+const MAX_RETRIES = 4;              // Total attempts = 1 + MAX_RETRIES
+const RETRY_BASE_DELAY = 2000;      // Base delay in ms (doubles each retry: 2s, 4s, 8s, 16s)
+const RETRYABLE_CODES = [429, 500, 502, 503, 504]; // HTTP codes that trigger retry
+
 // --- Audio Group: Speech + associated background SFX ---
 interface AudioGroup {
   speech: StorySegment;
   backgroundSfx: StorySegment[];
+}
+
+// --- Retry Helper ---
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  label: string,
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(url, options);
+
+      if (response.ok) {
+        return response;
+      }
+
+      // Check if this is a retryable error
+      if (RETRYABLE_CODES.includes(response.status) && attempt < MAX_RETRIES) {
+        const errorBody = await response.text();
+        const delay = RETRY_BASE_DELAY * Math.pow(2, attempt); // 2s, 4s, 8s, 16s
+        const jitter = Math.random() * 1000; // Add up to 1s jitter
+        console.warn(
+          `[Retry] ${label}: ${response.status} (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${Math.round(delay + jitter)}ms — ${errorBody.slice(0, 100)}`
+        );
+        await sleep(delay + jitter);
+        continue;
+      }
+
+      // Non-retryable error or out of retries
+      const errorBody = await response.text();
+      throw new Error(`ElevenLabs API Fehler: ${response.status} — ${errorBody}`);
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("ElevenLabs API")) {
+        throw err; // Don't retry our own thrown errors
+      }
+
+      // Network errors are retryable
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < MAX_RETRIES) {
+        const delay = RETRY_BASE_DELAY * Math.pow(2, attempt);
+        console.warn(
+          `[Retry] ${label}: Network error (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms — ${lastError.message}`
+        );
+        await sleep(delay);
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error(`${label}: Alle Versuche fehlgeschlagen`);
 }
 
 // --- Single Voice TTS (Legacy-kompatibel) ---
@@ -122,7 +184,7 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     })),
   ];
 
-  // Process in batches
+  // Process in batches with inter-batch delay to avoid rate limits
   for (let i = 0; i < allTasks.length; i += BATCH_SIZE) {
     const batch = allTasks.slice(i, i + BATCH_SIZE);
     const batchStart = Date.now();
@@ -139,7 +201,13 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
       }
     }
 
-    console.log(`[MultiVoice] Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allTasks.length / BATCH_SIZE)}: ${Date.now() - batchStart}ms`);
+    const batchDuration = Date.now() - batchStart;
+    console.log(`[MultiVoice] Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allTasks.length / BATCH_SIZE)}: ${batchDuration}ms`);
+
+    // Small delay between batches to be kind to ElevenLabs rate limits
+    if (i + BATCH_SIZE < allTasks.length && batchDuration < 500) {
+      await sleep(300);
+    }
   }
 
   // Phase 5: Mix SFX into speech groups
@@ -209,7 +277,7 @@ async function generateSegmentAudio(segment: StorySegment): Promise<ArrayBuffer 
   return generateTTS(cleanedText, voiceId, character.voiceSettings);
 }
 
-// --- ElevenLabs TTS API (returns raw PCM) ---
+// --- ElevenLabs TTS API (returns raw PCM, with retry) ---
 
 async function generateTTS(
   text: string,
@@ -219,7 +287,7 @@ async function generateTTS(
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY nicht gesetzt");
 
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_24000`,
     {
       method: "POST",
@@ -237,19 +305,14 @@ async function generateTTS(
           use_speaker_boost: settings.use_speaker_boost,
         },
       }),
-    }
+    },
+    `TTS ${voiceId}`,
   );
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error(`[ElevenLabs] API Error ${response.status}:`, errorBody);
-    throw new Error(`ElevenLabs API Fehler: ${response.status} — ${errorBody}`);
-  }
 
   return response.arrayBuffer();
 }
 
-// --- ElevenLabs Sound Effects API (returns raw PCM) ---
+// --- ElevenLabs Sound Effects API (returns raw PCM, with retry) ---
 
 async function generateSoundEffect(prompt: string, durationSeconds = 3): Promise<ArrayBuffer | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -261,7 +324,7 @@ async function generateSoundEffect(prompt: string, durationSeconds = 3): Promise
   console.log(`[SFX] Generating: "${prompt}" (${durationSeconds}s)`);
 
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       "https://api.elevenlabs.io/v1/sound-generation?output_format=pcm_24000",
       {
         method: "POST",
@@ -273,21 +336,16 @@ async function generateSoundEffect(prompt: string, durationSeconds = 3): Promise
           text: prompt,
           duration_seconds: durationSeconds,
         }),
-      }
+      },
+      `SFX "${prompt.slice(0, 30)}"`,
     );
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.warn(`[SFX] API Error ${response.status}: ${errorBody} — skipping effect`);
-      return null;
-    }
 
     const buffer = await response.arrayBuffer();
     console.log(`[SFX] Generated: ${buffer.byteLength} bytes (PCM, ${durationSeconds}s)`);
     return buffer;
   } catch (err) {
-    console.warn(`[SFX] Failed to generate "${prompt}":`, err);
-    return null;
+    console.warn(`[SFX] Failed to generate "${prompt}" after retries:`, err);
+    return null; // SFX failures are non-fatal — story continues without the effect
   }
 }
 
@@ -335,7 +393,6 @@ function loopPcmToLength(source: ArrayBuffer, targetByteLength: number): ArrayBu
   // Apply crossfade at loop points to avoid clicks
   // Crossfade region: 500 samples = 1000 bytes (16-bit)
   const CROSSFADE_SAMPLES = 500;
-  const CROSSFADE_BYTES = CROSSFADE_SAMPLES * 2;
   const sourceLen = source.byteLength;
   const resultView = new Int16Array(result.buffer);
   const sourceView = new Int16Array(source);
@@ -354,7 +411,6 @@ function loopPcmToLength(source: ArrayBuffer, targetByteLength: number): ArrayBu
       const fadeIn = i / CROSSFADE_SAMPLES;       // from 0.0 to 1.0
 
       const endIdx = boundarySample - CROSSFADE_SAMPLES + i;
-      const startIdx = boundarySample + i;
 
       if (endIdx >= 0 && endIdx < resultView.length) {
         resultView[endIdx] = Math.round(resultView[endIdx] * fadeOut +
