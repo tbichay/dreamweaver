@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface Props {
   audioUrl: string;
@@ -34,8 +34,8 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
 
-  // Media Session API — Lockscreen-Controls
-  const updateMediaSession = useCallback(() => {
+  // Media Session API — Lockscreen + AirPods controls
+  useEffect(() => {
     if (!("mediaSession" in navigator)) return;
 
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -47,24 +47,44 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
       ],
     });
 
+    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+
     const audio = audioRef.current;
     if (!audio) return;
 
-    navigator.mediaSession.setActionHandler("play", () => {
-      audio.play();
-      setIsPlaying(true);
+    navigator.mediaSession.setActionHandler("play", () => audio.play().catch(() => {}));
+    navigator.mediaSession.setActionHandler("pause", () => audio.pause());
+    navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+      const offset = details?.seekOffset || 15;
+      audio.currentTime = Math.max(0, audio.currentTime - offset);
     });
-    navigator.mediaSession.setActionHandler("pause", () => {
-      audio.pause();
-      setIsPlaying(false);
+    navigator.mediaSession.setActionHandler("seekforward", (details) => {
+      const offset = details?.seekOffset || 15;
+      audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + offset);
     });
-    navigator.mediaSession.setActionHandler("seekbackward", () => {
-      audio.currentTime = Math.max(0, audio.currentTime - 15);
-    });
-    navigator.mediaSession.setActionHandler("seekforward", () => {
-      audio.currentTime = Math.min(audio.duration, audio.currentTime + 15);
-    });
-  }, [title, artwork]);
+    try {
+      navigator.mediaSession.setActionHandler("seekto", (details) => {
+        if (details?.seekTime != null) audio.currentTime = details.seekTime;
+      });
+    } catch { /* seekto not supported everywhere */ }
+    // No previoustrack/nexttrack for single-track player
+    navigator.mediaSession.setActionHandler("previoustrack", null);
+    navigator.mediaSession.setActionHandler("nexttrack", null);
+  }, [title, artwork, isPlaying]);
+
+  // Update position state for lockscreen progress bar
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const audio = audioRef.current;
+    if (!audio || !duration || !isFinite(duration)) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        playbackRate: audio.playbackRate || 1,
+        position: Math.min(currentTime, duration),
+      });
+    } catch { /* not supported everywhere */ }
+  }, [currentTime, duration]);
 
   // Pause when another player starts
   useEffect(() => {
@@ -88,7 +108,6 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onLoadedMetadata = () => {
       setDuration(audio.duration);
-      updateMediaSession();
     };
     const handleEnded = () => {
       setIsPlaying(false);
@@ -114,7 +133,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
     };
-  }, [audioUrl, updateMediaSession]);
+  }, [audioUrl, onEnded]);
 
   // Sleep Timer
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export interface QueueItem {
   id: string;
@@ -48,33 +48,75 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
     }
   }, [queue.length, currentIndex]);
 
-  // Media Session API
-  const updateMediaSession = useCallback(() => {
+  // Media Session API — Lockscreen + AirPods controls
+  // Re-register handlers on every relevant state change so closures stay fresh
+  useEffect(() => {
     if (!("mediaSession" in navigator) || !current) return;
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title: current.title,
-      artist: `KoalaTree - ${current.kindName}`,
+      artist: `KoalaTree — ${current.kindName}`,
       album: "Einschlaf-Warteschlange",
       artwork: [
         { src: "/koda-portrait.png", sizes: "512x512", type: "image/png" },
       ],
     });
 
+    // Explicit playback state for iOS
+    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+
     const audio = audioRef.current;
     if (!audio) return;
 
-    navigator.mediaSession.setActionHandler("play", () => audio.play());
-    navigator.mediaSession.setActionHandler("pause", () => audio.pause());
-    navigator.mediaSession.setActionHandler("previoustrack", () => playPrevious());
-    navigator.mediaSession.setActionHandler("nexttrack", () => playNext());
-    navigator.mediaSession.setActionHandler("seekbackward", () => {
-      audio.currentTime = Math.max(0, audio.currentTime - 15);
+    navigator.mediaSession.setActionHandler("play", () => {
+      audio.play().catch(() => {});
     });
-    navigator.mediaSession.setActionHandler("seekforward", () => {
-      audio.currentTime = Math.min(audio.duration, audio.currentTime + 15);
+    navigator.mediaSession.setActionHandler("pause", () => {
+      audio.pause();
     });
-  }, [current]);
+    navigator.mediaSession.setActionHandler("previoustrack", currentIndex > 0 || (audio.currentTime > 3) ? () => {
+      if (audio.currentTime > 3) {
+        audio.currentTime = 0;
+      } else {
+        setCurrentIndex((prev) => Math.max(0, prev - 1));
+      }
+    } : null);
+    navigator.mediaSession.setActionHandler("nexttrack", currentIndex < queue.length - 1 ? () => {
+      setCurrentIndex((prev) => prev + 1);
+    } : null);
+    navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+      const offset = details?.seekOffset || 15;
+      audio.currentTime = Math.max(0, audio.currentTime - offset);
+    });
+    navigator.mediaSession.setActionHandler("seekforward", (details) => {
+      const offset = details?.seekOffset || 15;
+      audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + offset);
+    });
+    // Scrubbing on lockscreen
+    try {
+      navigator.mediaSession.setActionHandler("seekto", (details) => {
+        if (details?.seekTime != null) {
+          audio.currentTime = details.seekTime;
+        }
+      });
+    } catch { /* seekto not supported on all browsers */ }
+
+  }, [current, currentIndex, queue.length, isPlaying]);
+
+  // Update position state for lockscreen progress bar
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const audio = audioRef.current;
+    if (!audio || !duration || !isFinite(duration)) return;
+
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: duration,
+        playbackRate: audio.playbackRate || 1,
+        position: Math.min(currentTime, duration),
+      });
+    } catch { /* setPositionState not supported on all browsers */ }
+  }, [currentTime, duration]);
 
   // Pause when another player starts
   useEffect(() => {
@@ -99,7 +141,6 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onLoadedMetadata = () => {
       setDuration(audio.duration);
-      updateMediaSession();
     };
     const onPlay = () => {
       setIsPlaying(true);
@@ -130,7 +171,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("ended", onEnded);
     };
-  }, [currentIndex, queue.length, updateMediaSession]);
+  }, [currentIndex, queue.length]);
 
   // Auto-play when currentIndex changes (track advancement)
   useEffect(() => {
