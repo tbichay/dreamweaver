@@ -390,10 +390,24 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
 
           {/* Play/Pause */}
           <button
-            className="w-10 h-10 rounded-full bg-[#3d6b4a]/30 hover:bg-[#3d6b4a]/50 flex items-center justify-center transition-all text-lg shrink-0"
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all text-lg shrink-0 ${
+              isPlaying
+                ? "bg-[#3d6b4a]/50 ring-2 ring-[#4a7c59]/50"
+                : "bg-[#3d6b4a]/30 hover:bg-[#3d6b4a]/50"
+            }`}
             onClick={togglePlay}
           >
-            {isPlaying ? "⏸" : "▶️"}
+            {isPlaying ? (
+              <div className="flex gap-[3px] items-end h-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="w-[3px] bg-[#a8d5b8] rounded-full animate-eq"
+                    style={{ animationDelay: `${i * 0.12}s` }}
+                  />
+                ))}
+              </div>
+            ) : "▶️"}
           </button>
 
           {/* Next */}

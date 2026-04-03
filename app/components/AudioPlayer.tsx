@@ -155,7 +155,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
     } else {
       audio.play();
     }
-    setIsPlaying(!isPlaying);
+    // State wird über onPlay/onPause Events gesetzt
   };
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -199,10 +199,26 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
       <div className="flex items-center gap-3 py-2">
         <audio ref={audioRef} src={audioUrl} preload="metadata" />
         <button
-          className="w-9 h-9 rounded-full bg-[#3d6b4a]/20 hover:bg-[#3d6b4a]/30 flex items-center justify-center transition-all text-lg shrink-0"
+          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-lg shrink-0 ${
+            isPlaying
+              ? "bg-[#3d6b4a]/40 ring-2 ring-[#4a7c59]/50"
+              : "bg-[#3d6b4a]/20 hover:bg-[#3d6b4a]/30"
+          }`}
           onClick={togglePlay}
         >
-          {isPlaying ? "⏸" : "▶️"}
+          {isPlaying ? (
+            <div className="flex gap-[3px] items-end h-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="w-[3px] bg-[#a8d5b8] rounded-full animate-eq"
+                  style={{
+                    animationDelay: `${i * 0.12}s`,
+                  }}
+                />
+              ))}
+            </div>
+          ) : "▶️"}
         </button>
         <div className="flex-1 min-w-0">
           <div className="h-1.5 bg-white/10 rounded-full cursor-pointer" onClick={seek}>
@@ -229,10 +245,24 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
       <div className="flex items-center gap-4">
         {/* Play/Pause */}
         <button
-          className="w-14 h-14 rounded-full bg-[#3d6b4a]/20 hover:bg-[#3d6b4a]/30 flex items-center justify-center transition-all text-2xl shrink-0"
+          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all text-2xl shrink-0 ${
+            isPlaying
+              ? "bg-[#3d6b4a]/40 ring-2 ring-[#4a7c59]/50"
+              : "bg-[#3d6b4a]/20 hover:bg-[#3d6b4a]/30"
+          }`}
           onClick={togglePlay}
         >
-          {isPlaying ? "⏸" : "▶️"}
+          {isPlaying ? (
+            <div className="flex gap-1 items-end h-6">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="w-1 bg-[#a8d5b8] rounded-full animate-eq"
+                  style={{ animationDelay: `${i * 0.12}s` }}
+                />
+              ))}
+            </div>
+          ) : "▶️"}
         </button>
 
         <div className="flex-1">
