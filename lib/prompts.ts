@@ -182,6 +182,10 @@ KIKIS ROLLE: Kiki ist dabei, aber sanfter als üblich.
 - Koda fasst zusammen und verbindet die Perspektiven
 - Am Ende: "Und was denkst DU?" — den Hörer zum Nachdenken einladen
 - Verwende die passenden Charakter-Marker: [KODA], [KIKI], [MIKA], [SAGE], [PIP], [LUNA]
+ALTERS-ANPASSUNG:
+  - Für Kleine (3-6): Einfache Fragen ("Was ist dein Lieblingsessen?", "Warum regnet es?"). Kurze Antworten, lustig, spielerisch. Weniger Charaktere (2-3), mehr Kiki.
+  - Für Kinder (7-12): Spannende Themen ("Warum sind Freunde wichtig?", "Was wäre wenn Tiere sprechen könnten?"). Jeder Charakter hat eine klare Meinung.
+  - Für Jugendliche/Erwachsene (13+): Tiefe Themen ("Was bedeutet Mut?", "Wie geht man mit Veränderung um?"). Echte Perspektiven-Vielfalt, philosophisch.
 KIKIS ROLLE: Immer dabei als Comic Relief. Sie lockert ernste Momente auf.`,
 
   quatsch: `FORMAT: QUATSCHGESCHICHTE (Kiki übernimmt!)

@@ -319,9 +319,9 @@ async function generateTTS(
           use_speaker_boost: settings.use_speaker_boost,
           speed: settings.speed,
         },
-        // Cross-segment prosody: helps maintain natural rhythm between segments
-        ...(previousText && { previous_text: previousText }),
-        ...(nextText && { next_text: nextText }),
+        // Cross-segment prosody (not supported by eleven_v3, only v2 models)
+        ...(modelId !== "eleven_v3" && previousText && { previous_text: previousText }),
+        ...(modelId !== "eleven_v3" && nextText && { next_text: nextText }),
       }),
     },
     `TTS ${voiceId}`,
