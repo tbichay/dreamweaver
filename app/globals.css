@@ -168,3 +168,62 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.9) sepia(0.2) hue-rotate(80deg);
   cursor: pointer;
 }
+
+/* ── Clerk dark-mode overrides ──
+   Catch-all for any Clerk elements that slip through the appearance API */
+.cl-internal-b3fm6y,
+.cl-userProfile-root,
+.cl-modalContent,
+.cl-card {
+  color: #f5eed6 !important;
+}
+
+/* All text inside Clerk modals */
+[data-clerk-portal] *,
+.cl-modalContent * {
+  --cl-chassis-text: #f5eed6;
+  --cl-chassis-text-secondary: rgba(245,238,214,0.65);
+}
+
+/* Clerk description/subtitle text */
+.cl-userProfile-root p,
+.cl-modalContent p,
+.cl-card p {
+  color: rgba(245,238,214,0.7) !important;
+}
+
+/* Clerk links inside modals */
+.cl-userProfile-root a,
+.cl-modalContent a {
+  color: #a8d5b8 !important;
+}
+
+/* Clerk form labels inside modals */
+.cl-userProfile-root label,
+.cl-modalContent label {
+  color: rgba(245,238,214,0.85) !important;
+}
+
+/* Clerk headings */
+.cl-userProfile-root h1,
+.cl-userProfile-root h2,
+.cl-userProfile-root h3,
+.cl-modalContent h1,
+.cl-modalContent h2,
+.cl-modalContent h3 {
+  color: #f5eed6 !important;
+}
+
+/* Clerk secondary/reset buttons */
+.cl-userProfile-root button[data-variant="ghost"],
+.cl-modalContent button[data-variant="ghost"],
+.cl-formButtonReset {
+  color: rgba(245,238,214,0.6) !important;
+}
+
+/* Clerk "Secured by Clerk" footer */
+.cl-internal-wkkub3,
+.cl-footer,
+[class*="powered"] {
+  color: rgba(245,238,214,0.3) !important;
+}
