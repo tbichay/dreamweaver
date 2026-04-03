@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { deDE } from "@clerk/localizations";
+import Providers from "./components/Providers";
 import CookieBanner from "./components/CookieBanner";
 import InstallPrompt from "./components/InstallPrompt";
 import ServiceWorker from "./components/ServiceWorker";
@@ -302,7 +303,9 @@ export default function RootLayout({
           <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
         </head>
         <body className="min-h-full flex flex-col">
-          {children}
+          <Providers>
+            {children}
+          </Providers>
           <CookieBanner />
           <InstallPrompt />
           <ServiceWorker />

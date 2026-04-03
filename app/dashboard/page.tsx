@@ -4,14 +4,17 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { HoererProfil } from "@/lib/types";
 import { berechneAlter } from "@/lib/utils";
+import { useProfile } from "@/lib/profile-context";
 import Stars from "../components/Stars";
-import NavBar from "../components/NavBar";
 import AudioPlayer from "../components/AudioPlayer";
 import ProfilForm from "../components/ProfilForm";
 import ProfilCard from "../components/ProfilCard";
+import { SkeletonCard } from "../components/Skeleton";
+import PageTransition from "../components/PageTransition";
 
 export default function Dashboard() {
   const router = useRouter();
+  const { setActiveProfile } = useProfile();
   const [profile, setProfile] = useState<HoererProfil[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editProfil, setEditProfil] = useState<HoererProfil | undefined>();
@@ -80,16 +83,26 @@ export default function Dashboard() {
   };
 
   const handleSelect = (profil: HoererProfil) => {
+    setActiveProfile(profil.id);
     router.push(`/story?profilId=${profil.id}`);
   };
 
   if (loading) {
     return (
       <>
-        <NavBar />
-        <main className="relative flex-1 flex flex-col items-center justify-center">
+        <main className="relative flex-1 flex flex-col items-center px-4 py-8">
           <Stars />
-          <div className="text-white/40 text-lg">Laden...</div>
+          <div className="relative z-10 w-full max-w-2xl">
+            <div className="text-center mb-8">
+              <div className="h-8 w-48 mx-auto rounded bg-white/5 shimmer mb-2" />
+              <div className="h-4 w-32 mx-auto rounded bg-white/5 shimmer" />
+            </div>
+            <div className="mb-8 grid gap-3">
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          </div>
         </main>
       </>
     );
@@ -97,8 +110,8 @@ export default function Dashboard() {
 
   return (
     <>
-      <NavBar />
-      <main className="relative flex-1 flex flex-col items-center px-4 py-8">
+      <PageTransition>
+      <main className="relative flex-1 flex flex-col items-center px-4 py-8 pb-24 sm:pb-8">
         <Stars />
 
         <div className="relative z-10 w-full max-w-2xl">
@@ -238,6 +251,7 @@ export default function Dashboard() {
           )}
         </div>
       </main>
+      </PageTransition>
     </>
   );
 }

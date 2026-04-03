@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { HoererProfil, StoryConfig } from "@/lib/types";
 import { berechneAlter } from "@/lib/utils";
 import Stars from "../components/Stars";
-import NavBar from "../components/NavBar";
+import PageTransition from "../components/PageTransition";
 import StoryConfigurator from "../components/StoryConfigurator";
 
 function StoryPageContent() {
@@ -26,7 +26,8 @@ function StoryPageContent() {
       })
       .then(setProfil)
       .catch(() => router.push("/dashboard"));
-  }, [profilId, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profilId]);
 
   const handleGenerate = (config: StoryConfig) => {
     sessionStorage.setItem("koalatree-config", JSON.stringify(config));
@@ -42,20 +43,19 @@ function StoryPageContent() {
     : profil.alter ?? 5;
 
   return (
-    <>
-      <NavBar />
-      <main className="relative flex-1 flex flex-col items-center px-4 py-8">
-        <Stars />
-        <div className="relative z-10 w-full max-w-2xl">
-          <StoryConfigurator
-            kindProfilId={profil.id}
-            kindName={profil.name}
-            alter={alter}
-            onGenerate={handleGenerate}
-          />
-        </div>
-      </main>
-    </>
+    <PageTransition>
+        <main className="relative flex-1 flex flex-col items-center px-4 py-8 pb-24 sm:pb-8">
+          <Stars />
+          <div className="relative z-10 w-full max-w-2xl">
+            <StoryConfigurator
+              kindProfilId={profil.id}
+              kindName={profil.name}
+              alter={alter}
+              onGenerate={handleGenerate}
+            />
+          </div>
+        </main>
+    </PageTransition>
   );
 }
 

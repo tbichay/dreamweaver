@@ -1,7 +1,7 @@
 // KoalaTree Service Worker — Network-First Strategy
 // Always fetch fresh content, cache as fallback
 
-const CACHE_NAME = "koalatree-v1";
+const CACHE_NAME = "koalatree-v2";
 
 // Pre-cache essential assets on install
 self.addEventListener("install", (event) => {

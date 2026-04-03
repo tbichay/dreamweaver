@@ -10,7 +10,9 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return Response.json(profile);
+  return Response.json(profile, {
+    headers: { "Cache-Control": "private, no-store" },
+  });
 }
 
 export async function POST(request: Request) {

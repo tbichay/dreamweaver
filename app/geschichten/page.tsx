@@ -3,10 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import NavBar from "../components/NavBar";
 import AudioPlayer from "../components/AudioPlayer";
 import QueuePlayer, { QueueItem } from "../components/QueuePlayer";
 import { STORY_FORMATE, PAEDAGOGISCHE_ZIELE, StoryFormat, PaedagogischesZiel } from "@/lib/types";
+import { useProfile } from "@/lib/profile-context";
+import { SkeletonStoryCard } from "../components/Skeleton";
+import PageTransition from "../components/PageTransition";
 
 interface GeschichteWithProfil {
   id: string;
@@ -29,6 +31,7 @@ type SortBy = "newest" | "oldest" | "name";
 
 export default function GeschichtenPage() {
   const router = useRouter();
+  const { activeProfile } = useProfile();
   const [geschichten, setGeschichten] = useState<GeschichteWithProfil[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -52,6 +55,12 @@ export default function GeschichtenPage() {
     () => [...new Set(geschichten.map((g) => g.kindProfil.name))],
     [geschichten]
   );
+
+  useEffect(() => {
+    if (activeProfile && filterKind === "all" && kindNames.includes(activeProfile.name)) {
+      setFilterKind(activeProfile.name);
+    }
+  }, [activeProfile, kindNames]);
 
   // Get unique formats for filter
   const usedFormats = useMemo(
@@ -170,19 +179,27 @@ export default function GeschichtenPage() {
 
   if (loading) {
     return (
-      <>
-        <NavBar />
-        <main className="flex-1 flex items-center justify-center">
-          <p className="text-white/40">Geschichten werden geladen...</p>
-        </main>
-      </>
+      <main className="relative flex-1 flex flex-col items-center px-4 py-6">
+        <div className="w-full max-w-2xl">
+          <div className="flex items-center justify-between mb-6">
+            <div className="h-7 w-32 rounded bg-white/5 shimmer" />
+            <div className="h-4 w-20 rounded bg-white/5 shimmer" />
+          </div>
+          <div className="space-y-2">
+            <SkeletonStoryCard />
+            <SkeletonStoryCard />
+            <SkeletonStoryCard />
+            <SkeletonStoryCard />
+          </div>
+        </div>
+      </main>
     );
   }
 
   return (
     <>
-      <NavBar />
-      <main className="relative flex-1 flex flex-col items-center px-4 py-6">
+      <PageTransition>
+      <main className="relative flex-1 flex flex-col items-center px-4 py-6 pb-24 sm:pb-6">
         <div className="w-full max-w-2xl">
 
           {/* Header */}
@@ -243,16 +260,23 @@ export default function GeschichtenPage() {
                 <div className="flex gap-2 flex-wrap">
                   {/* Kind filter */}
                   {kindNames.length > 1 && (
-                    <select
-                      value={filterKind}
-                      onChange={(e) => setFilterKind(e.target.value)}
-                      className="w-auto text-xs"
-                    >
-                      <option value="all">Alle Kinder</option>
+                    <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                      <button
+                        className={`chip whitespace-nowrap ${filterKind === "all" ? "chip-selected" : ""}`}
+                        onClick={() => setFilterKind("all")}
+                      >
+                        Alle
+                      </button>
                       {kindNames.map((name) => (
-                        <option key={name} value={name}>{name}</option>
+                        <button
+                          key={name}
+                          className={`chip whitespace-nowrap ${filterKind === name ? "chip-selected" : ""}`}
+                          onClick={() => setFilterKind(name)}
+                        >
+                          {name}
+                        </button>
                       ))}
-                    </select>
+                    </div>
                   )}
 
                   {/* Format filter */}
@@ -477,6 +501,7 @@ export default function GeschichtenPage() {
           {queue.length > 0 && <div className="h-20" />}
         </div>
       </main>
+      </PageTransition>
 
       {/* Queue Player — sticky bottom bar */}
       <QueuePlayer

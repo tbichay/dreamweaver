@@ -22,5 +22,7 @@ export async function GET() {
     ...g,
     audioUrl: g.audioUrl ? `/api/audio/${g.id}` : null,
     kindProfil: g.hoererProfil, // backwards compat for frontend
-  })));
+  })), {
+    headers: { "Cache-Control": "private, no-store" },
+  });
 }

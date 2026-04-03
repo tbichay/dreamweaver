@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { StoryConfig, StoryFormat, PaedagogischesZiel, STORY_FORMATE, PAEDAGOGISCHE_ZIELE } from "@/lib/types";
 import Image from "next/image";
-import NavBar from "../../components/NavBar";
+import PageTransition from "../../components/PageTransition";
 import Stars from "../../components/Stars";
 import StoryPreview from "../../components/StoryPreview";
 import AudioPlayer from "../../components/AudioPlayer";
@@ -185,7 +185,8 @@ function ResultContent() {
     setFormat(c.format);
     setZiel(c.ziel);
     generateStory(pId, c);
-  }, [router, generateStory, loadExisting, existingId, regenerateId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingId, regenerateId]);
 
   if (phase === "loading") {
     return (
@@ -199,9 +200,8 @@ function ResultContent() {
   const zielInfo = ziel ? PAEDAGOGISCHE_ZIELE[ziel] : null;
 
   return (
-    <>
-    <NavBar />
-    <main className="relative flex-1 flex flex-col items-center px-4 py-8">
+    <PageTransition>
+    <main className="relative flex-1 flex flex-col items-center px-4 py-8 pb-24 sm:pb-8">
       <Stars />
       <div className="relative z-10 w-full max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
@@ -297,7 +297,7 @@ function ResultContent() {
         )}
       </div>
     </main>
-    </>
+    </PageTransition>
   );
 }
 

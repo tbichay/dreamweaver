@@ -20,6 +20,40 @@ body {
   min-height: 100vh;
 }
 
+/* Page enter animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+  animation: fadeIn 0.3s ease-out both;
+}
+
+/* Shimmer animation for skeleton loading */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Bottom nav safe area padding for mobile */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Touch target minimum sizes for coarse pointers (mobile) */
+@media (pointer: coarse) {
+  button, a[role="button"], [role="button"] {
+    min-height: 44px;
+  }
+}
+
 /* Firefly animation — soft, slow, minimal */
 @keyframes firefly {
   0%, 100% { opacity: 0.15; transform: translateY(0px); }
