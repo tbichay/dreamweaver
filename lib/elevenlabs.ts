@@ -5,7 +5,7 @@ import { parseStorySegments, cleanSegmentForTTS } from "./story-parser";
 const SFX_MIX_VOLUME = 0.25;       // SFX under speech
 const AMBIENCE_MIX_VOLUME = 0.12;  // Ambient atmosphere — very quiet
 const AMBIENCE_DURATION = 10;       // Seconds of ambience to generate (will be looped)
-const BATCH_SIZE = 5;               // Parallel API calls per batch
+const BATCH_SIZE = 2;               // Parallel API calls per batch (ElevenLabs limit: 3 concurrent, 1 reserved for ambience)
 
 // --- Audio Group: Speech + associated background SFX ---
 interface AudioGroup {
