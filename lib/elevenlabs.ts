@@ -223,6 +223,10 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     let speechBuffer = speechBuffers.get(i);
     if (!speechBuffer) continue;
 
+    // Normalize each speech segment to consistent loudness BEFORE SFX mixing
+    // This prevents volume jumps when switching between characters (e.g. quiet Luna → loud Kiki)
+    speechBuffer = normalizeRms(speechBuffer, -18);
+
     // Find all SFX buffers for this group
     const groupSfx = sfxGroupMapping
       .filter((m) => m.groupIndex === i)
@@ -264,6 +268,9 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     finalPcm = mixPcmBuffers(finalPcm, loopedAmbience, AMBIENCE_MIX_VOLUME);
     console.log(`[MultiVoice] Ambience mixed: ${ambienceBuffer.byteLength} bytes looped to ${loopedAmbience.byteLength}`);
   }
+
+  // Phase 7.5: Master — normalize loudness + soft limit peaks
+  finalPcm = masterPcm(finalPcm);
 
   // Phase 8: Convert to WAV
   const wav = pcmToWav(finalPcm);
@@ -405,7 +412,14 @@ function mixPcmBuffers(base: ArrayBuffer, overlay: ArrayBuffer, volume: number):
 
   for (let i = 0; i < mixLength; i++) {
     const mixed = baseSamples[i] + Math.round(overlaySamples[i] * volume);
-    baseSamples[i] = Math.max(-32768, Math.min(32767, mixed)); // clamp to Int16 range
+    // Soft clipping via tanh saturation instead of hard clamping
+    // Smoothly compresses peaks instead of chopping them flat
+    if (mixed > 32767 || mixed < -32768) {
+      const normalized = mixed / 32768;
+      baseSamples[i] = Math.round(Math.tanh(normalized) * 32767);
+    } else {
+      baseSamples[i] = mixed;
+    }
   }
 
   return baseSamples.buffer;
@@ -488,6 +502,99 @@ function applyFades(buffer: ArrayBuffer, fadeInMs = 8, fadeOutMs = 30): ArrayBuf
   }
 
   return view.buffer;
+}
+
+/**
+ * RMS-based loudness normalization.
+ * Measures the current RMS level, then applies gain to reach the target.
+ * Safety: max +6dB boost to avoid amplifying silence/noise.
+ */
+function normalizeRms(buffer: ArrayBuffer, targetDbFs = -18): ArrayBuffer {
+  const view = new Int16Array(buffer.slice(0));
+  const len = view.length;
+  if (len === 0) return view.buffer;
+
+  // Pass 1: measure RMS
+  let sumSquares = 0;
+  for (let i = 0; i < len; i++) {
+    const normalized = view[i] / 32768; // normalize to -1..1
+    sumSquares += normalized * normalized;
+  }
+  const rms = Math.sqrt(sumSquares / len);
+  if (rms < 0.0001) return view.buffer; // near-silence — don't amplify
+
+  const currentDbFs = 20 * Math.log10(rms);
+  const gainDb = Math.min(targetDbFs - currentDbFs, 6); // cap at +6dB
+  const gain = Math.pow(10, gainDb / 20);
+
+  // Pass 2: apply gain
+  for (let i = 0; i < len; i++) {
+    const amplified = Math.round(view[i] * gain);
+    view[i] = Math.max(-32768, Math.min(32767, amplified)) as number;
+  }
+
+  console.log(`[Master] Normalize: ${currentDbFs.toFixed(1)}dB → ${targetDbFs}dB (gain: ${gainDb.toFixed(1)}dB)`);
+  return view.buffer;
+}
+
+/**
+ * Soft peak limiter with attack/release envelope.
+ * Instead of hard-clipping peaks (which produces digital distortion),
+ * this smoothly reduces gain when the signal approaches the ceiling.
+ */
+function softLimiter(buffer: ArrayBuffer, thresholdDb = -1): ArrayBuffer {
+  const view = new Int16Array(buffer.slice(0));
+  const len = view.length;
+  if (len === 0) return view.buffer;
+
+  const threshold = 32768 * Math.pow(10, thresholdDb / 20); // ~32124 for -1dB
+  const ratio = 4; // 4:1 compression above threshold
+  const attackSamples = 24;   // 1ms at 24kHz
+  const releaseSamples = 1200; // 50ms at 24kHz
+  const attackCoeff = 1 - Math.exp(-1 / attackSamples);
+  const releaseCoeff = 1 - Math.exp(-1 / releaseSamples);
+
+  let envelope = 0; // current gain reduction in linear scale (0 = no reduction)
+
+  for (let i = 0; i < len; i++) {
+    const abs = Math.abs(view[i]);
+
+    if (abs > threshold) {
+      // How much over threshold (in linear scale)
+      const over = abs - threshold;
+      const compressed = threshold + over / ratio;
+      const targetReduction = 1 - compressed / abs;
+
+      // Attack: fast ramp up to target reduction
+      if (targetReduction > envelope) {
+        envelope += (targetReduction - envelope) * attackCoeff;
+      } else {
+        envelope += (targetReduction - envelope) * releaseCoeff;
+      }
+    } else {
+      // Release: slowly return to no reduction
+      envelope *= (1 - releaseCoeff);
+    }
+
+    // Apply gain reduction
+    const gain = 1 - envelope;
+    view[i] = Math.round(view[i] * gain) as number;
+  }
+
+  console.log(`[Master] Soft limiter applied (threshold: ${thresholdDb}dB, ratio: ${ratio}:1)`);
+  return view.buffer;
+}
+
+/**
+ * Master the final PCM buffer: normalize loudness, then limit peaks.
+ * This is the "mastering chain" — ensures consistent, clean output.
+ */
+function masterPcm(buffer: ArrayBuffer): ArrayBuffer {
+  const startMs = Date.now();
+  let result = normalizeRms(buffer, -18);
+  result = softLimiter(result, -1);
+  console.log(`[Master] Mastering done in ${Date.now() - startMs}ms`);
+  return result;
 }
 
 /**
