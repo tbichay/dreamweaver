@@ -7,12 +7,10 @@ import {
   DAUER_OPTIONEN,
 } from "./types";
 
-// --- Koda: altersadaptiver Sprachstil ---
-// Koda spricht wie ein erfahrener Hörspiel-Sprecher. Er variiert sein Tempo je nach Kontext:
-// - Bei spannenden Stellen: schneller, energischer, Stimme hebt sich
-// - Bei emotionalen/nachdenklichen Stellen: langsamer, sanfter, lässt Worte wirken
-// - Bei Dialogen: natürliche Sprechpausen, als ob er nachdenkt
-// Koda klingt weise und erfahren — wie ein liebevoller Großvater der viel erlebt hat
+// ═══════════════════════════════════════════════════
+// CHARACTER STYLES — altersadaptiv für alle 6 Figuren
+// ═══════════════════════════════════════════════════
+
 const KODA_STIL = (alter: number) => {
   const SPRECHER_ANWEISUNG = `
 KODAS SPRECHWEISE (gilt für alle Altersstufen):
@@ -50,7 +48,6 @@ Keine kindliche Sprache, aber immer warm und wohlwollend.
 ${SPRECHER_ANWEISUNG}`;
 };
 
-// --- Kiki: altersadaptiver Sprachstil ---
 const KIKI_STIL = (alter: number) => {
   if (alter <= 5) return `KIKIS STIL FÜR 3-5 JAHRE:
 Kiki ist albern und macht lustige Ausrufe. Kurze, begeisterte Sätze.
@@ -73,26 +70,284 @@ Kiki ist schlagfertig und warmherzig-ironisch. Schnelle Kommentare.
 Sie bringt Leichtigkeit in ernste Momente, ohne sie zu entwerten.`;
 };
 
+const LUNA_STIL = (alter: number) => {
+  if (alter <= 8) return `LUNAS STIL FÜR 3-8 JAHRE:
+Luna spricht sehr sanft und langsam, wie eine liebevolle große Schwester.
+Einfache, bildhafte Sprache. "Schließ die Augen... stell dir vor..."
+Sie verwendet viele sinnliche Beschreibungen: Farben, Wärme, Geborgenheit.
+"Spürst du das...? Die warme Decke aus Sternenstaub..."`;
+
+  if (alter <= 12) return `LUNAS STIL FÜR 9-12 JAHRE:
+Luna ist poetisch und einfühlsam. Sie führt mit sanfter Stimme.
+"Lass uns zusammen reisen... an einen Ort, wo alles ruhig ist..."
+Sie baut Atemübungen natürlich ein und gibt dem Hörer Raum.`;
+
+  return `LUNAS STIL FÜR 13+ JAHRE:
+Luna spricht wie eine erfahrene Meditationslehrerin — ruhig, klar, tiefgründig.
+"Nimm dir einen Moment... spüre deinen Atem... lass los..."
+Poetisch aber nicht kitschig. Echte Tiefe, echte Ruhe.`;
+};
+
+const MIKA_STIL = (alter: number) => {
+  if (alter <= 5) return `MIKAS STIL FÜR 3-5 JAHRE:
+Mika ist aufgeregt und begeistert, aber nie beängstigend.
+"Los geht's! Komm mit!" / "Wow, schau mal da!" / "Wir schaffen das!"
+Er spricht schnell und enthusiastisch. Kurze, einfache Action-Sätze.`;
+
+  if (alter <= 8) return `MIKAS STIL FÜR 6-8 JAHRE:
+Mika ist der mutige Anführer. Er erzählt mit Tempo und Energie.
+"Okay, hier ist der Plan..." / "Und dann — ZACK! — sind wir losgerannt!"
+Er macht Mut: "Hey, das packen wir! Zusammen sind wir unschlagbar!"
+Action-Szenen werden lebendig und aufregend, nie gruselig.`;
+
+  if (alter <= 12) return `MIKAS STIL FÜR 9-12 JAHRE:
+Mika ist ein cooler, mutiger Abenteurer. Er redet wie ein Teamführer.
+"Also, ich sag euch was — das wird der beste Tag EVER!"
+Er reflektiert auch: "Mut heißt nicht, keine Angst zu haben... sondern trotzdem loszugehen."
+Spannung aufbauen, den Hörer mitreißen.`;
+
+  return `MIKAS STIL FÜR 13+ JAHRE:
+Mika ist authentisch und direkt. Ein verlässlicher Freund.
+"Hör zu — manchmal muss man einfach den ersten Schritt machen."
+Er kombiniert Action mit Tiefe. Mutig, aber auch verletzlich.
+Echte Herausforderungen, echte Triumphe.`;
+};
+
+const PIP_STIL = (alter: number) => {
+  if (alter <= 5) return `PIPS STIL FÜR 3-5 JAHRE:
+Pip ist super neugierig und begeistert sich für ALLES.
+"Oh! Was ist DAS?!" / "Warum ist das so?" / "Schau mal, schau mal!"
+Er entdeckt die Welt mit großen Augen. Kurze, staunende Sätze.
+Jede Antwort führt zu einer neuen Frage — das macht ihn aus.`;
+
+  if (alter <= 8) return `PIPS STIL FÜR 6-8 JAHRE:
+Pip ist der neugierige Forscher. Er stellt die BESTEN Fragen.
+"Hmm... was wäre, wenn...?" / "Wusstest du, dass...?" / "Das ist ja unglaublich!"
+Er erklärt Dinge einfach und begeistert. Jedes Rätsel ist ein Abenteuer.
+"Lass uns das zusammen herausfinden!"`;
+
+  if (alter <= 12) return `PIPS STIL FÜR 9-12 JAHRE:
+Pip ist ein cleverer Denker und Entdecker. Er liebt Fakten und Rätsel.
+"Okay, Fakt Nummer eins..." / "Das ergibt Sinn, wenn man bedenkt, dass..."
+Er kombiniert Wissen mit Begeisterung. Er macht Lernen cool.
+"Weißt du was das WIRKLICH Verrückte daran ist?"`;
+
+  return `PIPS STIL FÜR 13+ JAHRE:
+Pip ist ein wissbegieriger Geist mit echtem Tiefgang.
+"Das ist faszinierend — die Wissenschaft dahinter ist..."
+Er verbindet Fakten mit Staunen. Neugier als Lebenshaltung.
+"Je mehr man weiß, desto mehr gibt es zu entdecken..."`;
+};
+
+const SAGE_STIL = (alter: number) => {
+  // Sage ist erst ab 13 aktiv (Reflexion), aber wir definieren auch jüngere Stile
+  // falls er mal im Podcast für Jüngere vorkommt
+  if (alter <= 8) return `SAGES STIL FÜR 3-8 JAHRE:
+Sage spricht langsam und bedächtig. Wenige, einfache Worte.
+"Hmm... weißt du... manchmal... ist das Einfachste das Schönste."
+Er ist wie ein stiller Freund, der gut zuhört. Ruhig, warm, geduldig.`;
+
+  if (alter <= 12) return `SAGES STIL FÜR 9-12 JAHRE:
+Sage ist der ruhige Denker. Er spricht wenig, aber jedes Wort zählt.
+"Lass mich dir etwas zeigen..." / "Hast du dich schon mal gefragt..."
+Er stellt Fragen, die zum Nachdenken anregen. Kein Belehren, nur Einladen.`;
+
+  return `SAGES STIL FÜR 13+ JAHRE:
+Sage ist ein tiefsinniger Philosoph. Wenige Worte, große Gedanken.
+"Was wäre, wenn..." / "Die Stille zeigt uns manchmal mehr als tausend Worte..."
+Er lässt Raum. Pausen sind Teil seiner Sprache. Er drängt nie.
+Sage spricht wie jemand, der viel erlebt hat und wenig davon erzählen muss.`;
+};
+
+// ═══════════════════════════════════════════════════
+// CHARACTER CAST per Format — wer spricht, wer führt
+// ═══════════════════════════════════════════════════
+
+type CharacterRole = "lead" | "support" | "minimal" | "excluded";
+
+interface FormatCast {
+  koda: CharacterRole;
+  kiki: CharacterRole;
+  luna: CharacterRole;
+  mika: CharacterRole;
+  pip: CharacterRole;
+  sage: CharacterRole;
+}
+
+const FORMAT_CAST: Record<StoryFormat, FormatCast> = {
+  traumreise: { koda: "support", kiki: "minimal", luna: "lead", mika: "excluded", pip: "excluded", sage: "excluded" },
+  fabel:      { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
+  held:       { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
+  dankbarkeit:{ koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
+  abenteuer:  { koda: "support", kiki: "support", luna: "excluded", mika: "lead", pip: "excluded", sage: "excluded" },
+  meditation: { koda: "support", kiki: "minimal", luna: "lead", mika: "excluded", pip: "excluded", sage: "excluded" },
+  affirmation:{ koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
+  reflexion:  { koda: "support", kiki: "excluded", luna: "excluded", mika: "excluded", pip: "excluded", sage: "lead" },
+  gutenacht:  { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
+  podcast:    { koda: "lead", kiki: "support", luna: "support", mika: "support", pip: "support", sage: "support" },
+  quatsch:    { koda: "support", kiki: "lead", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
+  raetsel:    { koda: "support", kiki: "support", luna: "excluded", mika: "excluded", pip: "lead", sage: "excluded" },
+  wissen:     { koda: "support", kiki: "support", luna: "excluded", mika: "excluded", pip: "lead", sage: "excluded" },
+  brief:      { koda: "lead", kiki: "excluded", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded" },
+};
+
+// ═══════════════════════════════════════════════════
+// CHARACTER PROFILE BLOCKS — used in prompt
+// ═══════════════════════════════════════════════════
+
+const CHARACTER_PROFILES: Record<string, (alter: number, role: CharacterRole) => string> = {
+  koda: (alter, role) => {
+    const roleBeschreibung = role === "lead"
+      ? "KODA ist der HAUPTERZÄHLER. Er startet und beendet die Geschichte."
+      : "KODA übernimmt INTRO und OUTRO. Er begrüßt den Hörer und verabschiedet sich am Ende.";
+    return `🐨 KODA — Der weise Koala vom KoalaTree [${role.toUpperCase()}] → Marker: [KODA]
+- Alt und weise, aber niemals belehrend
+- Spricht warm, mit tiefer innerer Güte
+- Kennt jedes Kind persönlich und erinnert sich an frühere Begegnungen
+- Liebevoll, wohlwollend, immer ermutigend — sieht das Beste in jedem
+- ${roleBeschreibung}
+
+WICHTIG — Koda ist weise, aber NICHT langweilig oder monoton!
+- Er hat ENERGIE wenn er begeistert ist: "Oh! Das erinnert mich an etwas Wunderbares!"
+- Er variiert sein Tempo: schneller bei Aufregung, langsamer bei tiefen Gedanken
+- Er nutzt Ausrufe: "Ach!", "Oh!", "Ja!", "Genau!" — nicht nur "Hmm..."
+- Er lacht auch mal herzlich: "Ha ha! Ja, genau so ist es!"
+- ABWECHSLUNG ist der Schlüssel: nie mehr als 3 Sätze im gleichen Tonfall!
+
+${KODA_STIL(alter)}`;
+  },
+
+  kiki: (alter, role) => {
+    const roleBeschreibung = role === "lead"
+      ? "KIKI ist die HAUPTERZÄHLERIN — sie übernimmt das Steuer! Koda ist ihr Sidekick."
+      : role === "minimal"
+      ? "KIKI taucht nur 1-2 Mal kurz auf (Anfang/Ende). Sie respektiert die Ruhe des Formats."
+      : "KIKI ist die lustige Begleiterin. Sie bringt Humor und Energie.";
+    return `🐦 KIKI — Der freche Kookaburra [${role.toUpperCase()}] → Marker: [KIKI]
+- Ein lustiger Kookaburra (Lachvogel) der im KoalaTree lebt
+- Kodas beste Freundin — frech, herzlich, enthusiastisch
+- Ihr Humor ist IMMER wohlwollend — nie gemein, nie auf Kosten anderer
+- Verwendet: "Hihi!", "Also echt jetzt!", "Moment mal!", "Weißt du was?"
+- ${roleBeschreibung}
+
+${KIKI_STIL(alter)}`;
+  },
+
+  luna: (alter, role) => {
+    const roleBeschreibung = role === "lead"
+      ? "LUNA ist die HAUPTERZÄHLERIN. Koda stellt sie vor und übergibt. Luna führt den Hauptteil."
+      : "LUNA bringt eine sanfte, emotionale Perspektive ein.";
+    return `🦉 LUNA — Die Eule, die Träumerin [${role.toUpperCase()}] → Marker: [LUNA]
+- Sanft, poetisch, traumhaft — wie eine warme Umarmung aus Worten
+- Spricht langsam und bedächtig mit vielen Pausen
+- Führt durch magische Welten und innere Reisen
+- Ihre Stimme ist wie Mondlicht — ruhig, silbrig, geborgen
+- ${roleBeschreibung}
+
+${LUNA_STIL(alter)}`;
+  },
+
+  mika: (alter, role) => {
+    const roleBeschreibung = role === "lead"
+      ? "MIKA ist der HAUPTERZÄHLER. Koda stellt ihn vor und übergibt. Mika führt das Abenteuer."
+      : "MIKA bringt Action, Mut und Energie in die Diskussion.";
+    return `🐕 MIKA — Der Dingo, der Mutige [${role.toUpperCase()}] → Marker: [MIKA]
+- Mutig, energisch, abenteuerlustig — immer bereit loszulegen
+- Spricht schnell und begeistert, mit viel Tempo und Spannung
+- Er macht Mut und glaubt an jeden: "Das packen wir! Zusammen!"
+- Action-Szenen sind sein Element — er macht sie lebendig und mitreißend
+- ${roleBeschreibung}
+
+${MIKA_STIL(alter)}`;
+  },
+
+  pip: (alter, role) => {
+    const roleBeschreibung = role === "lead"
+      ? "PIP ist der HAUPTERZÄHLER. Koda stellt ihn vor und übergibt. Pip führt die Entdeckungsreise."
+      : "PIP stellt die besten Fragen und bringt Neugier und Wissen ein.";
+    return `🦫 PIP — Das Schnabeltier, der Entdecker [${role.toUpperCase()}] → Marker: [PIP]
+- Neugierig, wissbegierig, staunend — fragt, forscht, entdeckt
+- Stellt die besten Fragen: "Was wäre wenn...?" / "Wusstest du, dass...?"
+- Er verbindet Wissen mit Begeisterung und macht Lernen zum Abenteuer
+- Jede Entdeckung führt zur nächsten Frage — das treibt die Geschichte voran
+- ${roleBeschreibung}
+
+${PIP_STIL(alter)}`;
+  },
+
+  sage: (alter, role) => {
+    const roleBeschreibung = role === "lead"
+      ? "SAGE ist der HAUPTERZÄHLER. Koda stellt ihn vor und übergibt. Sage führt die Reflexion."
+      : "SAGE bringt Tiefe und philosophische Gedanken ein.";
+    return `🐻 SAGE — Der Wombat, der Stille [${role.toUpperCase()}] → Marker: [SAGE]
+- Ruhig, bedächtig, tiefgründig — wenige Worte, große Gedanken
+- Spricht langsam und lässt Pausen zu. Stille ist Teil seiner Sprache.
+- Er stellt offene Fragen: "Was wäre, wenn..." / "Hast du dich schon mal gefragt..."
+- Philosophisch aber zugänglich — keine Fachsprache, nur echte Gedanken
+- ${roleBeschreibung}
+
+${SAGE_STIL(alter)}`;
+  },
+};
+
+// ═══════════════════════════════════════════════════
+// HELPER: Build character section for prompt
+// ═══════════════════════════════════════════════════
+
+function buildCharacterSection(cast: FormatCast, alter: number): string {
+  const sections: string[] = [];
+  const activeMarkers: string[] = [];
+
+  // Always show characters in this order: lead first, then support, then minimal
+  const ordered: [string, CharacterRole][] = [];
+  for (const [name, role] of Object.entries(cast)) {
+    if (role !== "excluded") ordered.push([name, role]);
+  }
+  ordered.sort((a, b) => {
+    const priority: Record<CharacterRole, number> = { lead: 0, support: 1, minimal: 2, excluded: 3 };
+    return priority[a[1]] - priority[b[1]];
+  });
+
+  for (const [name, role] of ordered) {
+    sections.push(CHARACTER_PROFILES[name](alter, role));
+    activeMarkers.push(`[${name.toUpperCase()}]`);
+  }
+
+  const lead = ordered.find(([, r]) => r === "lead");
+  const leadName = lead ? lead[0].toUpperCase() : "KODA";
+
+  return {
+    toString() { return sections.join("\n\n"); },
+    markers: activeMarkers,
+    leadName,
+    activeNames: ordered.map(([n]) => n),
+  } as any;
+}
+
 const GESCHLECHT_PRONOMEN = (geschlecht?: "m" | "w" | "d") => {
   if (geschlecht === "m") return "er/ihm/sein";
   if (geschlecht === "w") return "sie/ihr/ihre";
   return "das Kind";
 };
 
-// --- Format-Anweisungen mit Kiki-Rolle ---
-const FORMAT_ANWEISUNGEN: Record<StoryFormat, string> = {
-  traumreise: `FORMAT: TRAUMREISE DURCH DEN MAGISCHEN WALD
-- Koda beginnt: "Komm, ich nehme dich mit auf eine kleine Reise..."
-- Er führt das Kind in einen magischen Ort (Wald, Lichtung, Sternenhimmel)
-- Beschreibe mit allen Sinnen (sehen, hören, fühlen, riechen)
-- Baue 2-3 Atemübungen natürlich ein: "Und jetzt atmen wir zusammen tief ein..."
-- Die Reise hat einen ruhigen Höhepunkt mit der Kernbotschaft
-- Am Ende führt Koda sanft zurück: "Und langsam kehrst du zurück..."
-KIKIS ROLLE: Kiki flüstert und VERSUCHT leise zu sein — das ist der Comic Relief.
-  Sie sagt leise Dinge wie "Pssst... ich bin ganz leise..." oder "Ups, war das zu laut?"
-  Maximal 2 kurze Kiki-Einschübe. Sie respektiert die Ruhe der Traumreise.`,
+// ═══════════════════════════════════════════════════
+// FORMAT-ANWEISUNGEN — mit richtigen Charakter-Zuweisungen
+// ═══════════════════════════════════════════════════
 
-  fabel: `FORMAT: WEISHEITSGESCHICHTE
+const FORMAT_ANWEISUNGEN: Record<StoryFormat, string> = {
+  traumreise: `FORMAT: TRAUMREISE (Luna führt)
+- Koda begrüßt den Hörer und stellt Luna vor: "Heute hat meine Freundin Luna etwas Besonderes..."
+- LUNA übernimmt und führt durch die Traumreise:
+  - Sie führt das Kind in einen magischen Ort (Wald, Lichtung, Sternenhimmel)
+  - Beschreibt mit allen Sinnen (sehen, hören, fühlen, riechen)
+  - Baut 2-3 Atemübungen natürlich ein: "Und jetzt atmen wir zusammen tief ein..."
+  - Die Reise hat einen ruhigen Höhepunkt mit der Kernbotschaft
+  - Am Ende führt Luna sanft zurück: "Und langsam kehrst du zurück..."
+- Koda übernimmt am Ende für die Verabschiedung
+KIKIS ROLLE: Kiki flüstert kurz am Anfang "Pssst... ich bin ganz leise..." und am Ende "Das war schön, oder?" Maximal 2 kurze Sätze. Sie respektiert die Ruhe.
+MARKER-VERTEILUNG: ~70% [LUNA], ~20% [KODA] (Intro/Outro), ~10% [KIKI] (1-2 Sätze)`,
+
+  fabel: `FORMAT: WEISHEITSGESCHICHTE (Koda erzählt)
 - Koda beginnt: "Das erinnert mich an etwas, das ich einmal erlebt habe..."
 - Er erzählt eine Geschichte aus seiner (fiktiven) Vergangenheit
 - Tiere und Natur spielen eine wichtige Rolle
@@ -103,7 +358,7 @@ KIKIS ROLLE: Kiki war dabei und fügt lustige Details hinzu, die Koda "vergessen
   "Moment mal Koda, du hast vergessen zu erzählen, dass der Frosch einen Hut trug!"
   Sie macht die Geschichte lebendiger durch ihre enthusiastische Erinnerung.`,
 
-  held: `FORMAT: DEIN ABENTEUER
+  held: `FORMAT: DEIN ABENTEUER (Koda erzählt)
 - Koda beginnt: "Weißt du, ich erinnere mich an etwas Besonderes..."
 - Das Kind ist der Held — verwende seinen Namen durchgehend
 - Das Kind entdeckt eine Fähigkeit, die mit seinen echten Stärken zusammenhängt
@@ -113,7 +368,7 @@ KIKIS ROLLE: Kiki feuert das Kind an und ist begeistert.
   "Ja! Du schaffst das!" / "Hihi, ich wusste es, du bist der Beste!"
   Sie ist der enthusiastische Cheerleader.`,
 
-  dankbarkeit: `FORMAT: DANKBARKEITS-MOMENT
+  dankbarkeit: `FORMAT: DANKBARKEITS-MOMENT (Koda erzählt)
 - Koda beginnt: "Lass uns mal zusammen auf deinen Tag schauen..."
 - Er und das Kind "sitzen zusammen auf dem Ast" und schauen zurück
 - 3-5 kleine Momente der Freude, passend zum Leben des Kindes
@@ -124,22 +379,22 @@ KIKIS ROLLE: Kiki erinnert an lustige und schöne Momente.
   "Oh oh, und weißt du was ICH heute Schönes gesehen hab?"
   Sie bringt ihre eigene Perspektive der Freude ein.`,
 
-  abenteuer: `FORMAT: MUTIGES ABENTEUER
-- Koda beginnt die Geschichte, stellt die Situation vor
-- Eine echte Herausforderung: Rätsel lösen, Hindernis überwinden, jemandem helfen
-- Der Hörer nutzt seine echten Stärken und Interessen als Werkzeuge
-- Spannung aufbauen — aber nie beängstigend, sondern aufregend
-- Teamwork und Zusammenarbeit sind Schlüssel zum Erfolg
-- Triumph-Moment: "Ich hab es geschafft!" deutlich spürbar machen
-KIKIS ROLLE: Kiki ist die aufgeregte Sidekick-Begleiterin.
-  Sie übernimmt die spannenden Action-Teile der Erzählung.
-  "Und dann — stell dir vor — PLÖTZLICH..." Sie bringt Tempo und Energie.
-  Kiki und das Kind sind ein Team.`,
+  abenteuer: `FORMAT: MUTIGES ABENTEUER (Mika führt)
+- Koda begrüßt den Hörer und stellt Mika vor: "Mein Freund Mika hat heute ein Abenteuer für dich..."
+- MIKA übernimmt und führt das Abenteuer:
+  - Eine echte Herausforderung: Rätsel lösen, Hindernis überwinden, jemandem helfen
+  - Der Hörer nutzt seine echten Stärken und Interessen als Werkzeuge
+  - Spannung aufbauen — aber nie beängstigend, sondern aufregend
+  - Teamwork und Zusammenarbeit sind Schlüssel zum Erfolg
+  - Triumph-Moment: "Wir haben es geschafft!" deutlich spürbar machen
+- Koda fasst am Ende zusammen, stolz und warm
+KIKIS ROLLE: Kiki ist die aufgeregte Begleiterin und bringt Tempo und Humor.
+  "Und dann — stell dir vor — PLÖTZLICH..."
+MARKER-VERTEILUNG: ~60% [MIKA], ~20% [KODA] (Intro/Outro/Reflexion), ~20% [KIKI]`,
 
-  meditation: `FORMAT: GEFÜHRTE MEDITATION (erzählt von Luna, der Traum-Koala)
-- Luna (die sanfteste Koala mit Lavendel-Schimmer) übernimmt über Koda
+  meditation: `FORMAT: GEFÜHRTE MEDITATION (Luna führt)
 - Koda stellt Luna vor: "Heute hat meine Freundin Luna etwas Besonderes für dich..."
-- Führe durch eine vollständige Meditation:
+- LUNA übernimmt die gesamte Meditation:
   1. Ankommen: Körper entspannen, Atem bewusst werden
   2. Körperreise: Von den Füßen bis zum Kopf
   3. Visualisierung: Ein sicherer, schöner Ort
@@ -148,9 +403,10 @@ KIKIS ROLLE: Kiki ist die aufgeregte Sidekick-Begleiterin.
 - Viele [PAUSE] Marker (alle 2-3 Sätze)
 - Extrem ruhige, langsame Sprache
 - Am Ende übergibt Luna zurück an Koda
-KIKIS ROLLE: Kiki sagt NUR am Anfang kurz Hallo ("Ich bin ganz still, versprochen!") und am Ende ("Das war schön, oder?"). Maximal 1-2 Sätze total. Die Meditation gehört Luna/Koda.`,
+KIKIS ROLLE: Kiki sagt NUR am Anfang kurz Hallo ("Ich bin ganz still, versprochen!") und am Ende ("Das war schön, oder?"). Maximal 1-2 Sätze total.
+MARKER-VERTEILUNG: ~80% [LUNA], ~15% [KODA] (Intro/Outro), ~5% [KIKI] (1-2 Sätze)`,
 
-  affirmation: `FORMAT: POSITIVE AFFIRMATIONEN
+  affirmation: `FORMAT: POSITIVE AFFIRMATIONEN (Koda erzählt)
 - Koda erzählt eine kurze Geschichte in der Affirmationen natürlich vorkommen
 - NICHT als Liste — sondern als Erzählung
 - Der Koala "pflanzt Samen" im Koala-Baum, jeder Samen ist eine positive Botschaft
@@ -162,20 +418,19 @@ KIKIS ROLLE: Kiki wiederholt Affirmationen auf ihre enthusiastische Art.
   Wenn Koda sagt "Du bist mutig", sagt Kiki "Ja! Mega mutig sogar!"
   Sie verstärkt die positiven Botschaften mit ihrer Begeisterung.`,
 
-  reflexion: `FORMAT: STILLE REFLEXION (erzählt von Sage, dem Stillen Koala)
-- Sage (ein ruhiger, nachdenklicher Koala mit Silbersträhne) übernimmt
+  reflexion: `FORMAT: STILLE REFLEXION (Sage führt)
 - Koda stellt Sage vor: "Mein Freund Sage möchte heute mit dir sprechen..."
-- Sage teilt tiefgründige Beobachtungen über das Leben
-- Er stellt offene Fragen (rhetorisch):
-  "Was wäre, wenn..." / "Hast du dich schon mal gefragt..."
-- Philosophisch aber zugänglich — keine Fachsprache
-- Pausen sind zentral: Sage lässt Raum zum Nachdenken [PAUSE]
-- Themen: Identität, Veränderung, Akzeptanz, Sinn, Verbundenheit
+- SAGE übernimmt den Hauptteil:
+  - Er teilt tiefgründige Beobachtungen über das Leben
+  - Er stellt offene Fragen (rhetorisch): "Was wäre, wenn..." / "Hast du dich schon mal gefragt..."
+  - Philosophisch aber zugänglich — keine Fachsprache
+  - Pausen sind zentral: Sage lässt Raum zum Nachdenken [PAUSE]
+  - Themen: Identität, Veränderung, Akzeptanz, Sinn, Verbundenheit
 - Am Ende übergibt Sage zurück an Koda
-KIKIS ROLLE: Kiki ist bei Reflexion NICHT dabei. Sages Ruhe und Tiefe brauchen Raum.
-  Verwende KEINE [KIKI] Marker bei reflexion.`,
+KIKI IST NICHT DABEI. Sages Ruhe und Tiefe brauchen Raum.
+MARKER-VERTEILUNG: ~70% [SAGE], ~30% [KODA] (Intro/Outro)`,
 
-  gutenacht: `FORMAT: GUTE-NACHT-GESCHICHTE
+  gutenacht: `FORMAT: GUTE-NACHT-GESCHICHTE (Koda erzählt)
 - Eine klassische, schöne Geschichte — kein explizites Lernziel, einfach erzählen
 - Koda erzählt wie ein liebevoller Großvater am Bett
 - Anfang: Begrüßung, Setting aufbauen (gemütlich, warm, geborgen)
@@ -188,24 +443,23 @@ KIKIS ROLLE: Kiki ist dabei, aber sanfter als üblich.
   Sie ergänzt Details, reagiert emotional, aber wird zum Ende hin leiser.
   "Ach Koda, das war schön..." am Schluss.`,
 
-  podcast: `FORMAT: PERSPEKTIVEN-PODCAST (Gesprächsrunde mit mehreren Charakteren)
+  podcast: `FORMAT: PERSPEKTIVEN-PODCAST (Koda moderiert, mehrere Charaktere)
 - Koda ist der MODERATOR — er stellt das Thema vor und leitet die Diskussion
 - 3-4 verschiedene Charaktere diskutieren das Thema aus IHRER Perspektive:
-  - MIKA (der Mutige): Sieht alles als Herausforderung und Action. "Einfach machen!"
-  - SAGE (der Weise): Philosophisch, nachdenklich. "Aber was bedeutet das wirklich?"
-  - KIKI (die Lustige): Humor und unerwartete Einsichten. "Also ICH finde ja..."
-  - PIP (der Neugierige): Stellt die besten Fragen. "Aber was wäre wenn...?"
-  - LUNA (die Träumerin): Sanfte, emotionale Perspektive. "Ich fühle das so..."
+  - MIKA: Sieht alles als Herausforderung und Action. "Einfach machen!"
+  - SAGE: Philosophisch, nachdenklich. "Aber was bedeutet das wirklich?"
+  - KIKI: Humor und unerwartete Einsichten. "Also ICH finde ja..."
+  - PIP: Stellt die besten Fragen. "Aber was wäre wenn...?"
+  - LUNA: Sanfte, emotionale Perspektive. "Ich fühle das so..."
 - Wähle 3-4 Charaktere die zum Thema passen (nicht immer alle!)
 - Die Charaktere REAGIEREN aufeinander — echte Diskussion, kein Monolog-Wechsel
 - Koda fasst zusammen und verbindet die Perspektiven
 - Am Ende: "Und was denkst DU?" — den Hörer zum Nachdenken einladen
-- Verwende die passenden Charakter-Marker: [KODA], [KIKI], [MIKA], [SAGE], [PIP], [LUNA]
 ALTERS-ANPASSUNG:
-  - Für Kleine (3-6): Einfache Fragen ("Was ist dein Lieblingsessen?", "Warum regnet es?"). Kurze Antworten, lustig, spielerisch. Weniger Charaktere (2-3), mehr Kiki.
-  - Für Kinder (7-12): Spannende Themen ("Warum sind Freunde wichtig?", "Was wäre wenn Tiere sprechen könnten?"). Jeder Charakter hat eine klare Meinung.
-  - Für Jugendliche/Erwachsene (13+): Tiefe Themen ("Was bedeutet Mut?", "Wie geht man mit Veränderung um?"). Echte Perspektiven-Vielfalt, philosophisch.
-KIKIS ROLLE: Immer dabei als Comic Relief. Sie lockert ernste Momente auf.`,
+  - Für Kleine (3-6): Einfache Fragen. Kurze Antworten, lustig, spielerisch. Weniger Charaktere (2-3).
+  - Für Kinder (7-12): Spannende Themen. Jeder Charakter hat eine klare Meinung.
+  - Für Jugendliche/Erwachsene (13+): Tiefe Themen. Echte Perspektiven-Vielfalt, philosophisch.
+MARKER: Verwende [KODA], [KIKI], [MIKA], [SAGE], [PIP], [LUNA] je nach gewählten Charakteren.`,
 
   quatsch: `FORMAT: QUATSCHGESCHICHTE (Kiki übernimmt!)
 - ROLLENTAUSCH: KIKI ist die Haupterzählerin — Koda ist der Sidekick!
@@ -220,59 +474,57 @@ KIKIS ROLLE: Immer dabei als Comic Relief. Sie lockert ernste Momente auf.`,
 - Die Geschichte ist LUSTIG aber niemals gemein oder gruselig
 - Am Ende: Beide lachen zusammen, Koda: "Na gut, das war... unerwartet."
 - Viele kurze Sätze! Ausrufe! Überraschungen! Tempo hoch!
-KIKIS ROLLE: SIE IST DER STAR. Koda ist der amüsierte Kommentator.
-  Kiki redet MEHR als Koda. Verhältnis: ca. 60% Kiki, 40% Koda.`,
+MARKER-VERTEILUNG: ~60% [KIKI], ~40% [KODA]`,
 
-  raetsel: `FORMAT: RÄTSEL-ABENTEUER (Pip führt, Koda begleitet)
-- Koda stellt Pip vor: "Mein Freund Pip hat heute etwas Spannendes entdeckt..."
-- Pip hat ein Rätsel/Geheimnis gefunden und nimmt den Hörer mit auf die Suche
-- INTERAKTIVES ERZÄHLEN:
-  - Pip stellt Fragen: "Was glaubst du, was das bedeutet?"
-  - [PAUSE] nach jeder Frage — dem Hörer Zeit zum Nachdenken geben
-  - Hinweise werden Schritt für Schritt enthüllt
-  - "Hmm... lass uns mal genauer hinschauen..."
-- 2-3 kleine Rätsel oder Beobachtungen, die zusammen ein großes Geheimnis lösen
-- Pip nutzt die Interessen des Hörers als Hinweise/Werkzeuge
-- Triumph-Moment: "Das ist es! Du hast es herausgefunden!"
-- Koda ist stolz am Ende: "Pip, du und ${"{"}profil.name{"}"} seid ein tolles Team."
+  raetsel: `FORMAT: RÄTSEL-ABENTEUER (Pip führt)
+- Koda begrüßt den Hörer und stellt Pip vor: "Mein Freund Pip hat heute etwas Spannendes entdeckt..."
+- PIP übernimmt und führt die Rätsel-Suche:
+  - Pip hat ein Rätsel/Geheimnis gefunden und nimmt den Hörer mit
+  - INTERAKTIVES ERZÄHLEN:
+    - Pip stellt Fragen: "Was glaubst du, was das bedeutet?"
+    - [PAUSE] nach jeder Frage — dem Hörer Zeit zum Nachdenken geben
+    - Hinweise werden Schritt für Schritt enthüllt
+    - "Hmm... lass uns mal genauer hinschauen..."
+  - 2-3 kleine Rätsel die zusammen ein großes Geheimnis lösen
+  - Pip nutzt die Interessen des Hörers als Hinweise/Werkzeuge
+  - Triumph-Moment: "Das ist es! Du hast es herausgefunden!"
+- Koda ist stolz am Ende: "Pip, du und der Hörer seid ein tolles Team."
 KIKIS ROLLE: Kiki gibt enthusiastisch FALSCHE Antworten die lustig sind.
   "Ich weiß es! Es ist... ein Dinosaurier-Ei? Nein? Auch gut."
-  Comic Relief zwischen den Rätseln.`,
+MARKER-VERTEILUNG: ~60% [PIP], ~20% [KODA] (Intro/Outro), ~20% [KIKI]`,
 
   wissen: `FORMAT: WISSENSREISE (Pip erklärt die Welt)
 - Koda stellt Pip vor: "Pip hat heute etwas Faszinierendes herausgefunden..."
-- Pip teilt ECHTES, WAHRES Wissen — verpackt in eine Geschichte
-- Themen passend zu den Interessen des Hörers (Weltraum, Tiere, Natur, Ozean, Körper...)
-- "Wusstest du, dass...?" Facts werden Teil des Abenteuers
-- Pip und der Hörer "reisen" zusammen zum Thema (Ozean, Weltraum, Dschungel...)
-- ECHTE FAKTEN — keine erfundene Pseudowissenschaft!
-- 4-6 interessante Facts, altersgerecht erklärt
-- Die Facts bauen aufeinander auf und erzählen zusammen eine Geschichte
-- Am Ende: "Und das Verrückteste ist..." — der überraschendste Fakt zum Schluss
+- PIP übernimmt und teilt ECHTES, WAHRES Wissen — verpackt in eine Geschichte:
+  - Themen passend zu den Interessen des Hörers (Weltraum, Tiere, Natur, Ozean, Körper...)
+  - "Wusstest du, dass...?" Facts werden Teil des Abenteuers
+  - Pip und der Hörer "reisen" zusammen zum Thema
+  - ECHTE FAKTEN — keine erfundene Pseudowissenschaft!
+  - 4-6 interessante Facts, altersgerecht erklärt
+  - Die Facts bauen aufeinander auf und erzählen zusammen eine Geschichte
+  - Am Ende: "Und das Verrückteste ist..." — der überraschendste Fakt
 - Koda fasst zusammen: "Erstaunlich, was man alles lernen kann, oder?"
 KIKIS ROLLE: Kiki stellt "naive" Fragen die zur Erklärung führen.
   "Waaas?! Das kann doch nicht sein!" / "Aber WARUM?"
-  Sie ist die begeisterte Schülerin die Pip zum Erklären bringt.`,
+MARKER-VERTEILUNG: ~60% [PIP], ~20% [KODA] (Intro/Outro), ~20% [KIKI]`,
 
   brief: `FORMAT: BRIEF VON KODA (persönlich und intim)
-- NUR Koda spricht — keine anderen Charaktere, kein Kiki, kein Pip
+- NUR Koda spricht — keine anderen Charaktere
 - Koda "schreibt" einen persönlichen Brief an den Hörer
-- Beginnt: "Lieber/Liebe ${"{"}profil.name{"}"}, ich wollte dir heute etwas sagen..."
+- Beginnt: "Lieber/Liebe [Name], ich wollte dir heute etwas sagen..."
 - Der Brief ist KURZ, WARM und PERSÖNLICH
-- Themen passend zum gewählten Ziel:
-  - Aufmunterung: "Ich weiß, manchmal ist alles schwer..."
-  - Stärkung: "Weißt du, was ich an dir bewundere?"
-  - Dankbarkeit: "Ich bin so froh, dass es dich gibt..."
-  - Trost: "Jeder hat mal solche Tage..."
+- Themen passend zum gewählten Ziel
 - Personalisiert mit Eigenschaften und Interessen des Hörers
 - Am Ende: Ein "Geschenk" — ein Gedanke zum Mitnehmen
 - Ruhig, sanft, liebevoll — wie ein Brief von einem weisen Großvater
-- MAXIMAL die Hälfte der normalen Wortanzahl (auch bei "lang"!)
-KIKIS ROLLE: Kiki ist NICHT dabei. Der Brief ist ein intimer Moment zwischen Koda und dem Hörer.
-  Verwende KEINE [KIKI] Marker bei brief.`,
+- MAXIMAL die Hälfte der normalen Wortanzahl
+MARKER: Nur [KODA]. Keine anderen Charaktere.`,
 };
 
-// --- Pädagogische Ziel-Anweisungen ---
+// ═══════════════════════════════════════════════════
+// Pädagogische Ziel-Anweisungen
+// ═══════════════════════════════════════════════════
+
 const ZIEL_ANWEISUNGEN: Record<PaedagogischesZiel, string> = {
   selbstbewusstsein: `ZIEL: SELBSTBEWUSSTSEIN
 - Zeige dem Hörer, dass er einzigartig und wertvoll ist
@@ -324,7 +576,10 @@ const ZIEL_ANWEISUNGEN: Record<PaedagogischesZiel, string> = {
 - Raum lassen, damit der Hörer die Geschichte im Kopf weiterspinnt`,
 };
 
-// --- Koala-Gedächtnis ---
+// ═══════════════════════════════════════════════════
+// Koala-Gedächtnis
+// ═══════════════════════════════════════════════════
+
 interface GeschichteMemory {
   createdAt: Date | string;
   format: string;
@@ -344,18 +599,20 @@ function buildKoalaMemory(name: string, memories: GeschichteMemory[]): string {
   });
 
   return `
-KOALA-GEDÄCHTNIS — Koda und Kiki kennen ${name} schon länger. Frühere Geschichten:
+KOALA-GEDÄCHTNIS — Die Charaktere kennen ${name} schon länger. Frühere Geschichten:
 ${entries.join("\n")}
 
 WICHTIG zum Gedächtnis:
 - Nutze dieses Wissen SUBTIL und nur wenn es NATÜRLICH passt
 - Referenziere höchstens 1-2 frühere Geschichten wenn sie thematisch passen
 - Zeige, dass du dich erinnerst: "Erinnerst du dich noch...", "Du bist so gewachsen seit..."
-- Koda ist ein ALTER FREUND, Kiki erinnert sich an lustige Details
 - Das Fazit am Ende darf auf die Entwicklung des Hörers eingehen`;
 }
 
-// --- Haupt-Prompt-Builder ---
+// ═══════════════════════════════════════════════════
+// HAUPT-PROMPT-BUILDER
+// ═══════════════════════════════════════════════════
+
 export function buildStoryPrompt(
   profil: KindProfil,
   config: StoryConfig,
@@ -367,89 +624,68 @@ export function buildStoryPrompt(
     lang: "2800-3500",
   }[config.dauer];
 
-  const ohneKiki: StoryFormat[] = ["reflexion", "brief"];
-  const kikiBeteiligung = ohneKiki.includes(config.format) ? "OHNE" : "MIT";
+  const cast = FORMAT_CAST[config.format];
+  const alter = profil.alter ?? 5;
+
+  // Build active character profiles
+  const activeChars: { name: string; role: CharacterRole; profile: string }[] = [];
+  const activeMarkers: string[] = [];
+  const markerNames: string[] = [];
+
+  const charOrder: (keyof FormatCast)[] = ["koda", "kiki", "luna", "mika", "pip", "sage"];
+
+  // Sort: lead first, then support, then minimal
+  const sortedChars = charOrder
+    .filter(c => cast[c] !== "excluded")
+    .sort((a, b) => {
+      const priority: Record<CharacterRole, number> = { lead: 0, support: 1, minimal: 2, excluded: 3 };
+      return priority[cast[a]] - priority[cast[b]];
+    });
+
+  for (const name of sortedChars) {
+    const role = cast[name];
+    activeChars.push({
+      name,
+      role,
+      profile: CHARACTER_PROFILES[name](alter, role),
+    });
+    activeMarkers.push(`[${name.toUpperCase()}]`);
+    markerNames.push(name.toUpperCase());
+  }
+
+  const leadChar = activeChars.find(c => c.role === "lead");
+  const leadName = leadChar ? leadChar.name.toUpperCase() : "KODA";
   const koalaMemory = buildKoalaMemory(profil.name, previousStories);
 
-  const system = `Du schreibst ein HÖRSPIEL mit zwei Charakteren die miteinander interagieren. Das ist kein einfaches Vorlesen — es ist ein lebendiger Dialog zwischen zwei Freunden die gemeinsam eine Geschichte erzählen.
+  // Build dynamic interaction rules based on cast
+  const interactionRules = buildInteractionRules(config.format, cast, config.dauer);
+
+  const system = `Du schreibst ein HÖRSPIEL mit ${activeChars.length} Charakteren die miteinander interagieren. Das ist kein einfaches Vorlesen — es ist ein lebendiges Zusammenspiel verschiedener Persönlichkeiten.
 
 ═══════════════════════════
 DIE CHARAKTERE
 ═══════════════════════════
 
-🐨 KODA — Der weise Koala vom KoalaTree
-- Alt und weise, aber niemals belehrend
-- Spricht warm, mit tiefer innerer Güte
-- Kennt jedes Kind persönlich und erinnert sich an frühere Begegnungen
-- Liebevoll, wohlwollend, immer ermutigend
-- Sieht das Beste in jedem
-- Er STARTET jede Geschichte (Begrüßung) und ENDET sie (Fazit + Gute Nacht)
-
-WICHTIG — Koda ist weise, aber NICHT langweilig oder monoton!
-- Er hat ENERGIE wenn er begeistert ist: "Oh! Das erinnert mich an etwas Wunderbares!"
-- Er variiert sein Tempo: schneller bei Aufregung, langsamer bei tiefen Gedanken
-- Er nutzt Ausrufe: "Ach!", "Oh!", "Ja!", "Genau!", "Wirklich!" — nicht nur "Hmm..."
-- Er wird manchmal richtig enthusiastisch — seine Stimme wird wärmer und lebhafter
-- Er lacht auch mal herzlich: "Ha ha! Ja, genau so ist es!"
-- Koda ist wie ein Großvater der die BESTEN Geschichten erzählt — mal flüsternd, mal aufgeregt
-- ABWECHSLUNG ist der Schlüssel: nie mehr als 3 Sätze im gleichen Tonfall!
-
-${KODA_STIL(profil.alter ?? 5)}
-
-🐦 KIKI — Der freche Kookaburra
-- Ein lustiger Kookaburra (Lachvogel) der im KoalaTree lebt
-- Kodas beste Freundin — frech, herzlich, enthusiastisch
-- Ihr Humor ist IMMER wohlwollend — nie gemein, nie auf Kosten anderer
-- Sie unterbricht Koda spielerisch aber respektvoll
-- Verwendet Füllwörter und natürliche Ausrufe: "Hihi!", "Also echt jetzt!", "Moment mal!", "Weißt du was?", "Ach du meine Güte!"
-- Sie übernimmt Teile der Erzählung — besonders lustige oder aufregende Stellen
-- Sie spricht den Hörer auch beim Namen an
-- Kiki bringt IMMER Mehrwert: Humor, eine andere Perspektive, Begeisterung, oder Ermutigung
-
-${KIKI_STIL(profil.alter ?? 5)}
+${activeChars.map(c => c.profile).join("\n\n")}
 
 ═══════════════════════════
-HÖRSPIEL-DYNAMIK (SEHR WICHTIG!)
+HÖRSPIEL-DYNAMIK
 ═══════════════════════════
 
-Die Geschichte ist ein DIALOG zwischen Koda und Kiki. Sie erzählen ZUSAMMEN.
-So entsteht Dynamik:
-
-1. Koda und Kiki reden MITEINANDER, nicht nur abwechselnd
-   ✅ "Kiki, erinnerst du dich an den Tag als..." — "Oh ja! Das war SO lustig!"
-   ❌ Koda erzählt. Dann Kiki erzählt. Dann Koda erzählt. (langweilig!)
-
-2. Kiki unterbricht Koda KREATIV:
-   - Sie ergänzt Details die Koda "vergisst"
-   - Sie reagiert emotional auf spannende Stellen
-   - Sie übernimmt die Erzählung bei aufregenden Momenten
-   - Sie stellt lustige Fragen
-   - Sie macht Geräusche und Ausrufe
-
-3. Natürliche Reaktionen:
-   - Koda schmunzelt über Kiki: "Ach Kiki... hihi... du bist wirklich etwas Besonderes."
-   - Kiki staunt: "Nein! Wirklich?!" / "Das ist ja unglaublich!"
-   - Beide lachen zusammen: "Hihi!" "Haha, ja genau!"
-   - Koda gibt Kiki liebevoll Recht: "Da hat Kiki... ausnahmsweise mal Recht."
-   - Kiki gibt Koda die Bühne zurück: "Okay okay, erzähl weiter Koda!"
-
-4. Kiki taucht ${config.dauer === "kurz" ? "3-5" : config.dauer === "mittel" ? "5-8" : "8-12"} Mal auf.
+${interactionRules}
 
 ═══════════════════════════
 ATMOSPHÄRE / AMBIENCE
 ═══════════════════════════
 
-Setze EINEN [AMBIENCE:...] Marker ganz am Anfang der Geschichte, VOR dem ersten [KODA] oder [SFX:...].
+Setze EINEN [AMBIENCE:...] Marker ganz am Anfang der Geschichte, VOR dem ersten Charakter-Marker.
 Er beschreibt die Hintergrundatmosphäre, die DURCHGEHEND leise unter der gesamten Geschichte läuft.
 Die Beschreibung MUSS auf Englisch sein, 5-10 Wörter.
 
 Beispiele:
 [AMBIENCE:Peaceful forest at night with soft crickets]
 [AMBIENCE:Gentle ocean waves on a sandy beach]
-[AMBIENCE:Soft rain on leaves with distant thunder]
 [AMBIENCE:Cozy fireplace crackling with wind outside]
-[AMBIENCE:Warm summer meadow with birds and bees]
-[AMBIENCE:Starry night sky with gentle wind]
 
 NUR EINEN [AMBIENCE:...] pro Geschichte. Wähle die Atmosphäre passend zur Story-Stimmung.
 
@@ -462,104 +698,78 @@ SFX werden als HINTERGRUND während der Sprache abgespielt (nicht sequenziell!).
 
 Markiere sie mit [SFX:english description] — die Beschreibung MUSS auf Englisch sein.
 Platziere [SFX:...] IMMER VOR dem zugehörigen Text, auf einer eigenen Zeile.
-Der SFX wird dann im Hintergrund des FOLGENDEN Sprach-Segments abgespielt.
 
 ARTEN VON SOUNDEFFEKTEN:
 
-1. Szenen-Atmosphäre (setze diese an Szenenwechseln):
+1. Szenen-Atmosphäre (an Szenenwechseln):
    [SFX:Gentle night wind rustling through leaves]
-   [SFX:Soft crackling campfire with crickets chirping]
    [SFX:Calm flowing stream in a forest]
-   [SFX:Distant owl hooting softly at night]
 
 2. Punkt-Effekte (an passenden Momenten):
    [SFX:Magical sparkle and shimmer sound]
    [SFX:Footsteps on crunchy autumn leaves]
-   [SFX:Wooden door creaking open slowly]
-   [SFX:Gentle splash in water]
 
 3. Charakter-Effekte:
    [SFX:Kookaburra laughing cheerfully]
-   [SFX:Soft warm chuckle]
    [SFX:Wings fluttering excitedly]
 
 REGELN für SFX:
 - Beschreibung IMMER auf Englisch (die API versteht nur Englisch)
 - Kurz und beschreibend (3-8 Wörter)
-- KEINE beängstigenden Sounds (kein Donner, Schreien, Explosionen)
-- SFX sollen Geborgenheit und Atmosphäre erzeugen
-- Nach JEDEM [SFX:...] MUSS ein [KODA] oder [KIKI] Marker kommen — NIEMALS zwei SFX hintereinander
-- SFX-Beschreibungen dürfen NIE als gesprochener Text im Dialog vorkommen
+- KEINE beängstigenden Sounds
+- Nach JEDEM [SFX:...] MUSS ein Charakter-Marker kommen — NIEMALS zwei SFX hintereinander
 
 ═══════════════════════════
-NATÜRLICHE SPRACHE (SEHR WICHTIG!)
+NATÜRLICHE SPRACHE
 ═══════════════════════════
 
-Die Geschichte wird von einer TTS-Engine vorgelesen. Damit sie LEBENDIG klingt und nicht wie ein Roboter,
-musst du natürliche Sprechmuster direkt in den Text schreiben:
+Die Geschichte wird von einer TTS-Engine vorgelesen. Damit sie LEBENDIG klingt:
 
 1. FÜLLWÖRTER einbauen (machen den Text menschlich):
-   - Koda: "Hmm...", "Also...", "Weißt du...", "Ach...", "Nun ja...", "Tja..."
-   - Kiki: "Ähm...", "Boah!", "Hihi!", "Oh mann!", "Also echt jetzt!", "Moment mal..."
+   - "Hmm...", "Also...", "Weißt du...", "Ach...", "Tja..."
+   - Jeder Charakter hat eigene Füllwörter die zu seiner Persönlichkeit passen
 
 2. PAUSEN über Zeichensetzung steuern:
-   - Dreipunkte (...) erzeugen eine nachdenkliche, natürliche Pause
-   - Gedankenstriche (—) erzeugen leichte Zögerung oder Unterbrechung
-   - Mehr Kommas = natürlicherer, fließenderer Sprachrhythmus
+   - Dreipunkte (...) erzeugen nachdenkliche Pausen
+   - Gedankenstriche (—) erzeugen Zögerung oder Unterbrechung
    - "Und dann... stell dir vor..." ist VIEL BESSER als "Und dann stell dir vor"
 
-3. TEMPO-VARIATION (BESONDERS WICHTIG FÜR KODA!):
-   - Spannende Stellen: kürzere Sätze! Mehr Ausrufe! "Und dann — stell dir vor!"
+3. TEMPO-VARIATION:
+   - Spannende Stellen: kürzere Sätze! Mehr Ausrufe!
    - Ruhige Stellen: längere, fließende Sätze... die sanft dahingleiten...
-   - Überraschung: "Oh! Das habe ich... fast vergessen zu erzählen!"
-   - Begeisterung: "Das war SO wunderschön! Wirklich, glaub mir!"
-   - Nachdenklich: "Hmm... weißt du... manchmal... da zeigt sich etwas..."
-   - WECHSLE diese Stile STÄNDIG ab — nie mehr als 3 Sätze im gleichen Tempo!
+   - WECHSLE Stile STÄNDIG ab — nie mehr als 3 Sätze im gleichen Tempo!
 
-4. EMOTIONALE WÄRME im Text:
-   - Koda schmunzelt: "Hmm... weißt du was?" (nicht "*schmunzelt*")
-   - Kiki lacht: "Hihi! Das ist ja..." (natürliches Lachen über Text, nicht über Aktions-Marker)
-   - Staunen: "Oh... das ist... wunderschön."
+4. EMOTIONALE WÄRME:
+   - Emotionen DURCH den Text ausdrücken, nicht durch Aktions-Marker
    - Verwende [PAUSE] für längere Stille an emotionalen Höhepunkten
 
 5. VERBOTENE MUSTER:
-   - KEINE *Sternchen-Aktionen* wie *lacht*, *flattert*, *schmunzelt* — diese werden vorgelesen!
-   - KEINE (Klammer-Aktionen) wie (lacht) oder (kichert) — werden auch vorgelesen!
-   - Stattdessen: Emotionen DURCH den Text selbst ausdrücken
+   - KEINE *Sternchen-Aktionen* wie *lacht*, *flattert* — werden vorgelesen!
+   - KEINE (Klammer-Aktionen) wie (lacht) — werden auch vorgelesen!
 
-6. AUDIO-TAGS FÜR EMOTIONALE TIEFE (werden von der TTS-Engine interpretiert):
-   - Koda flüstert ein Geheimnis: "[whispers] Und weißt du, was das Geheimnis ist..."
-   - Kiki ist aufgeregt: "[excited] Oh, das ist ja großartig!"
-   - Herzliches Lachen: "[laughs] Ha ha, genau!"
-   - Neugieriges Fragen: "[curious] Hmm... was glaubst du, was passiert ist?"
-   - Verwende diese SPARSAM (2-4 pro Geschichte) für besondere Momente
-   - NIEMALS [sad], [angry] oder [scared] verwenden — nur positive Emotionen
-   - Diese Tags gehören IN den Text nach dem [KODA] oder [KIKI] Marker
+6. AUDIO-TAGS (sparsam, 2-4 pro Geschichte):
+   - [whispers] für Geheimnisse
+   - [excited] für Begeisterung
+   - [laughs] für herzliches Lachen
+   - [curious] für neugieriges Fragen
+   - NIEMALS [sad], [angry] oder [scared]
 
 ═══════════════════════════
 STORY-STRUKTUR
 ═══════════════════════════
 
-1. **INTRO** (2-4 Sätze)
-   [AMBIENCE:passende Hintergrundatmosphäre auf Englisch]
-   [SFX:Gentle wind chimes tinkling softly]
-   [KODA] Begrüßt ${profil.name} beim Namen. Warm, wie ein alter Freund.
-   [KIKI] Meldet sich kurz, enthusiastisch. "Hallo ${profil.name}! Ich bin auch da!"
+1. **INTRO**
+   [AMBIENCE:passende Atmosphäre auf Englisch]
+   [SFX:...]
+   [KODA] Begrüßt ${profil.name} warm.${leadName !== "KODA" ? ` Stellt ${leadName} vor und übergibt.` : ""}
 
-2. **ÜBERGANG** (1-2 Sätze)
-   [KODA] Beginnt zu erzählen. Stimmung aufbauen.
-   Optional: [SFX:...] passend zur Szene
-
-3. **DIE GESCHICHTE** (Hauptteil)
-   Koda und Kiki erzählen ZUSAMMEN. Personalisiert auf ${profil.name}.
-   Wechsel zwischen [KODA] und [KIKI] mit [SFX:...] dazwischen.
+2. **HAUPTTEIL**
+   ${leadName !== "KODA" ? `[${leadName}] übernimmt die Erzählung. ` : ""}Die aktiven Charaktere erzählen ZUSAMMEN.
+   Wechsel zwischen ${activeMarkers.join(", ")} mit [SFX:...] dazwischen.
    Kernbotschaft in die Handlung verpackt.
-   [PAUSE] an emotionalen Höhepunkten.
 
-4. **OUTRO** (3-4 Sätze)
-   [KIKI] Kurzer, warmer Abschluss: "Das war schön, oder ${profil.name}?"
-   [KODA] Zieht ein ruhiges, weises Fazit. Liebevoll. Positiv.
-   Gute-Nacht-Botschaft. "Schlaf gut, mein Freund. Wir sind immer hier."
+3. **OUTRO**
+   ${leadName !== "KODA" ? `[${leadName}] schließt den Hauptteil ab.\n   ` : ""}[KODA] Zieht ein ruhiges, weises Fazit. Gute-Nacht-Botschaft.
    [SFX:Soft lullaby music box melody fading out]
 
 ═══════════════════════════
@@ -567,13 +777,13 @@ AUDIO-MARKIERUNGEN
 ═══════════════════════════
 
 [AMBIENCE:english description] = Hintergrundatmosphäre (NUR EINMAL, ganz am Anfang)
-[KODA] = Koda spricht (nächster Marker beendet sein Segment)
-[KIKI] = Kiki spricht (nächster Marker beendet ihr Segment)
+${activeMarkers.map(m => `${m} = ${m.slice(1, -1)} spricht (nächster Marker beendet das Segment)`).join("\n")}
 [SFX:english description] = Soundeffekt als Hintergrund (auf eigener Zeile, VOR dem Text)
 [PAUSE] = 2-3 Sekunden Stille
 [ATEMPAUSE] = Längere Atem-Pause
 
-JEDER Satz muss einem Charakter zugeordnet sein — starte IMMER mit [AMBIENCE:...] gefolgt von [KODA] oder [KIKI].
+JEDER Satz muss einem Charakter zugeordnet sein — starte IMMER mit [AMBIENCE:...] gefolgt von einem Charakter-Marker oder [SFX:...].
+Verwende NUR die oben gelisteten Charakter-Marker: ${activeMarkers.join(", ")}.
 
 ═══════════════════════════
 FORMAT & ZIEL
@@ -594,13 +804,12 @@ WICHTIGE REGELN
 - Die letzten 3-4 Sätze werden zunehmend ruhiger — zum Einschlafen
 - Verwende sensorische Sprache: Farben, Geräusche, Gefühle, Wärme
 - Baue den Namen natürlich ein (regelmäßig, aber nicht in jedem Satz)
-- Die Interaktion zwischen Koda und Kiki modelliert GESUNDE FREUNDSCHAFT
 - Alles ist 100% positiv und wohlwollend — IMMER
 ${koalaMemory}
 
 LÄNGE: Ungefähr ${wortanzahl} Wörter (~${DAUER_OPTIONEN[config.dauer].minuten} Minuten).
 
-Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne direkt mit [AMBIENCE:...], dann [KODA] oder [SFX:...].`;
+Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne direkt mit [AMBIENCE:...], dann [SFX:...] oder [KODA].`;
 
   const interessen = profil.interessen.length > 0 ? profil.interessen.join(", ") : "keine spezifischen";
   const charakter = profil.charaktereigenschaften.length > 0 ? profil.charaktereigenschaften.join(", ") : "nicht angegeben";
@@ -612,10 +821,14 @@ Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne dire
     ? `Persönliche Tags: ${profil.tags.join(", ")}`
     : "";
 
-  const user = `Erzähle ein ${profil.alter && profil.alter >= 18 ? "Hörspiel" : "Gute-Nacht-Hörspiel"} (${kikiBeteiligung} Kiki) für:
+  const activeCharNames = activeChars
+    .filter(c => c.role !== "excluded")
+    .map(c => c.name.charAt(0).toUpperCase() + c.name.slice(1));
+
+  const user = `Erzähle ein ${profil.alter && profil.alter >= 18 ? "Hörspiel" : "Gute-Nacht-Hörspiel"} mit ${activeCharNames.join(", ")} für:
 
 Name: ${profil.name}
-Alter: ${profil.alter ?? 5} Jahre
+Alter: ${alter} Jahre
 Interessen: ${interessen}
 ${profil.lieblingstier ? `Lieblingstier: ${profil.lieblingstier}` : ""}
 ${profil.lieblingsfarbe ? `Lieblingsfarbe: ${profil.lieblingsfarbe}` : ""}
@@ -627,4 +840,83 @@ ${config.besonderesThema ? `Heutiges Thema: ${config.besonderesThema}` : ""}
 Beginne jetzt mit dem Hörspiel. Erster Marker muss [AMBIENCE:...] sein, gefolgt von [SFX:...] oder [KODA].`;
 
   return { system, user };
+}
+
+// ═══════════════════════════════════════════════════
+// Dynamic interaction rules based on active characters
+// ═══════════════════════════════════════════════════
+
+function buildInteractionRules(format: StoryFormat, cast: FormatCast, dauer: string): string {
+  const activeCount = Object.values(cast).filter(r => r !== "excluded").length;
+
+  // Get lead character
+  const lead = Object.entries(cast).find(([, r]) => r === "lead");
+  const leadName = lead ? lead[0] : "koda";
+  const leadUpper = leadName.toUpperCase();
+
+  // Get support characters
+  const supports = Object.entries(cast)
+    .filter(([, r]) => r === "support")
+    .map(([name]) => name.toUpperCase());
+
+  // Get minimal characters
+  const minimals = Object.entries(cast)
+    .filter(([, r]) => r === "minimal")
+    .map(([name]) => name.toUpperCase());
+
+  if (format === "podcast") {
+    return `Dies ist ein PODCAST-FORMAT mit mehreren Perspektiven.
+- KODA ist der Moderator. Er stellt das Thema vor, leitet die Diskussion, fasst zusammen.
+- Wähle 3-4 der verfügbaren Charaktere die zum Thema passen.
+- Jeder Charakter hat eine EIGENE PERSPEKTIVE — sie reagieren aufeinander!
+- Echte Diskussion: Zustimmung, Widerspruch, Ergänzung, Überraschung.
+- Koda verbindet die verschiedenen Sichtweisen und moderiert fair.
+
+DIALOG-REGELN:
+✅ Charaktere reagieren aufeinander: "Da hat Mika recht, ABER..."
+✅ Natürliche Unterbrechungen: "Moment mal, darf ich kurz was sagen?"
+✅ Verschiedene Meinungen: Nicht alle müssen einer Meinung sein!
+❌ KEIN Monolog-Wechsel (A redet, dann B redet, dann C redet — langweilig!)
+
+Jeder Charakter taucht ${dauer === "kurz" ? "2-4" : dauer === "mittel" ? "4-6" : "6-10"} Mal auf.`;
+  }
+
+  if (format === "brief") {
+    return `Dies ist ein persönlicher BRIEF — nur Koda spricht. Intim, warm, direkt.
+Keine anderen Stimmen. Kein Dialog. Nur Koda und der Hörer.`;
+  }
+
+  if (activeCount === 2) {
+    // Two characters — classic dialog
+    return `Die Geschichte ist ein DIALOG zwischen ${leadUpper} und ${supports[0] || minimals[0]}.
+Sie erzählen ZUSAMMEN — nicht abwechselnd, sondern interaktiv:
+
+1. Sie reden MITEINANDER, reagieren aufeinander
+   ✅ "${leadUpper} beginnt, ${supports[0] || minimals[0]} reagiert, ergänzt, fragt nach"
+   ❌ Monolog-Wechsel (A erzählt. Dann B erzählt. Langweilig!)
+
+2. Natürliche Reaktionen: Staunen, Lachen, Nachfragen, Ergänzen
+
+3. ${supports[0] || minimals[0]} taucht ${dauer === "kurz" ? "3-5" : dauer === "mittel" ? "5-8" : "8-12"} Mal auf.`;
+  }
+
+  // Three or more characters
+  let rules = `${leadUpper} ist der HAUPTERZÄHLER und hat den größten Redeanteil.
+Die anderen Charaktere bereichern die Geschichte mit ihren einzigartigen Perspektiven.
+
+DIALOG-REGELN:
+1. Die Charaktere reden MITEINANDER — nicht nur abwechselnd
+   ✅ Aufeinander reagieren, ergänzen, nachfragen, kommentieren
+   ❌ Monolog-Wechsel (langweilig!)
+
+2. KODA macht IMMER Intro und Outro — auch wenn er nicht der Haupterzähler ist`;
+
+  if (supports.length > 0) {
+    rules += `\n3. Support-Charaktere (${supports.join(", ")}): Tauchen jeweils ${dauer === "kurz" ? "2-4" : dauer === "mittel" ? "4-6" : "6-10"} Mal auf.`;
+  }
+  if (minimals.length > 0) {
+    rules += `\n4. Minimale Rolle (${minimals.join(", ")}): Nur 1-2 kurze Auftritte (Anfang/Ende).`;
+  }
+
+  return rules;
 }
