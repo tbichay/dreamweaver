@@ -12,6 +12,18 @@ const MAX_RETRIES = 4;              // Total attempts = 1 + MAX_RETRIES
 const RETRY_BASE_DELAY = 2000;      // Base delay in ms (doubles each retry: 2s, 4s, 8s, 16s)
 const RETRYABLE_CODES = [429, 500, 502, 503, 504]; // HTTP codes that trigger retry
 
+// --- Audio Result with Timeline ---
+export interface TimelineEntry {
+  characterId: string;
+  startMs: number;
+  endMs: number;
+}
+
+export interface AudioResult {
+  wav: ArrayBuffer;
+  timeline: TimelineEntry[];
+}
+
 // --- Audio Group: Speech + associated background SFX ---
 interface AudioGroup {
   speech: StorySegment;
@@ -77,7 +89,7 @@ async function fetchWithRetry(
 
 // --- Single Voice TTS (Legacy-kompatibel) ---
 
-export async function generateAudio(text: string): Promise<ArrayBuffer> {
+export async function generateAudio(text: string): Promise<AudioResult> {
   // Prüfe ob der Text Multi-Charakter-Marker enthält
   if (/\[(KODA|KIKI|LUNA|MIKA|PIP|SAGE)\]/.test(text)) {
     const segments = parseStorySegments(text);
@@ -86,9 +98,9 @@ export async function generateAudio(text: string): Promise<ArrayBuffer> {
 
   // Legacy: Single Voice
   const cleanedText = cleanSegmentForTTS(text);
-  const voiceId = process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "nZpMT2RjIpaat0IaA7Sd";
+  const voiceId = process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "dFA3XRddYScy6ylAYTIO";
   const pcm = await generateTTS(cleanedText, voiceId, CHARACTERS.koda.voiceSettings);
-  return pcmToWav(pcm);
+  return { wav: pcmToWav(pcm), timeline: [{ characterId: "koda", startMs: 0, endMs: (pcm.byteLength / 2 / 24000) * 1000 }] };
 }
 
 // --- Build Audio Groups from parsed segments ---
@@ -130,7 +142,7 @@ function buildAudioGroups(segments: StorySegment[]): {
 
 // --- Multi-Voice Audio Pipeline (with mixing) ---
 
-export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise<ArrayBuffer> {
+export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise<AudioResult> {
   const startTime = Date.now();
   console.log(`[MultiVoice] Starting: ${segments.length} segments`);
 
@@ -245,21 +257,47 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     throw new Error("No audio segments generated");
   }
 
-  // Phase 6: Apply fades to eliminate boundary artifacts, insert silence gaps, then concatenate
+  // Phase 6: Apply fades, insert silence gaps, build timeline, concatenate
   const SEGMENT_GAP_MS = 350; // 350ms pause between segments for natural pacing
   const silenceSamples = Math.floor((24000 * SEGMENT_GAP_MS) / 1000); // 24kHz PCM
   const silenceBuffer = new ArrayBuffer(silenceSamples * 2); // 16-bit = 2 bytes/sample, zeros = silence
 
   const withGaps: ArrayBuffer[] = [];
-  for (let i = 0; i < mixedBuffers.length; i++) {
-    // Fade edges to remove ElevenLabs "phantom word" artifacts at segment boundaries
-    withGaps.push(applyFades(mixedBuffers[i], 8, 30));
-    if (i < mixedBuffers.length - 1) {
-      withGaps.push(silenceBuffer);
+  const timeline: TimelineEntry[] = [];
+  let offsetMs = 0;
+
+  // Track which group index each mixedBuffer came from (groups with null speech were skipped)
+  let mixedGroupIndices: number[] = [];
+  {
+    let mi = 0;
+    for (let gi = 0; gi < groups.length; gi++) {
+      if (speechBuffers.has(gi)) {
+        mixedGroupIndices.push(gi);
+        mi++;
+      }
     }
   }
+
+  for (let i = 0; i < mixedBuffers.length; i++) {
+    const fadedBuffer = applyFades(mixedBuffers[i], 8, 30);
+    withGaps.push(fadedBuffer);
+
+    // Calculate segment duration in ms
+    const segmentMs = (fadedBuffer.byteLength / 2) / 24000 * 1000;
+    const groupIndex = mixedGroupIndices[i];
+    const characterId = groups[groupIndex]?.speech.characterId || "koda";
+
+    timeline.push({ characterId, startMs: Math.round(offsetMs), endMs: Math.round(offsetMs + segmentMs) });
+    offsetMs += segmentMs;
+
+    if (i < mixedBuffers.length - 1) {
+      withGaps.push(silenceBuffer);
+      offsetMs += SEGMENT_GAP_MS;
+    }
+  }
+
   let finalPcm = concatAudioBuffers(withGaps);
-  console.log(`[MultiVoice] Added ${mixedBuffers.length - 1} silence gaps (${SEGMENT_GAP_MS}ms each)`);
+  console.log(`[MultiVoice] Added ${mixedBuffers.length - 1} silence gaps (${SEGMENT_GAP_MS}ms each), timeline: ${timeline.length} entries`);
 
   // Phase 7: Mix ambience under everything
   const ambienceBuffer = await ambiencePromise;
@@ -276,7 +314,7 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
   const wav = pcmToWav(finalPcm);
   console.log(`[MultiVoice] Done: ${wav.byteLength} bytes (WAV), ${Date.now() - startTime}ms total`);
 
-  return wav;
+  return { wav, timeline };
 }
 
 // --- Segment Audio Generation ---

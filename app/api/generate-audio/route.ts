@@ -19,8 +19,8 @@ export async function POST(request: Request) {
     }
 
     console.log(`[Audio] Generating for story ${geschichteId || "unknown"}, text length: ${text.length}`);
-    const audioBuffer = await generateAudio(text);
-    console.log(`[Audio] Generated ${audioBuffer.byteLength} bytes`);
+    const { wav: audioBuffer, timeline } = await generateAudio(text);
+    console.log(`[Audio] Generated ${audioBuffer.byteLength} bytes, ${timeline.length} timeline entries`);
 
     // Upload to Vercel Blob — required for WAV files (too large for base64)
     if (!process.env.BLOB_READ_WRITE_TOKEN) {

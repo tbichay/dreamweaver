@@ -48,20 +48,30 @@ export async function POST() {
 
   try {
     console.log("[Onboarding] Generating audio for onboarding story...");
-    const audioBuffer = await generateAudio(ONBOARDING_STORY_TEXT);
-    console.log(`[Onboarding] Generated ${audioBuffer.byteLength} bytes`);
+    const { wav, timeline } = await generateAudio(ONBOARDING_STORY_TEXT);
+    console.log(`[Onboarding] Generated ${wav.byteLength} bytes, ${timeline.length} timeline entries`);
 
+    // Upload WAV audio
     const blob = await put(
       "audio/onboarding-willkommen.wav",
-      Buffer.from(audioBuffer),
+      Buffer.from(wav),
       { access: "private", contentType: "audio/wav", allowOverwrite: true }
     );
 
-    console.log(`[Onboarding] Uploaded to: ${blob.url}`);
+    // Upload timeline JSON alongside audio
+    const timelineJson = JSON.stringify(timeline);
+    await put(
+      "audio/onboarding-willkommen-timeline.json",
+      Buffer.from(timelineJson),
+      { access: "private", contentType: "application/json", allowOverwrite: true }
+    );
+
+    console.log(`[Onboarding] Uploaded to: ${blob.url} + timeline`);
 
     return Response.json({
       success: true,
-      size: audioBuffer.byteLength,
+      size: wav.byteLength,
+      timelineEntries: timeline.length,
       message: "Onboarding-Audio erfolgreich generiert!",
     });
   } catch (error) {
