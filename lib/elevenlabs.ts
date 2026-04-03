@@ -241,14 +241,15 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     throw new Error("No audio segments generated");
   }
 
-  // Phase 6: Insert silence gaps between segments, then concatenate
+  // Phase 6: Apply fades to eliminate boundary artifacts, insert silence gaps, then concatenate
   const SEGMENT_GAP_MS = 350; // 350ms pause between segments for natural pacing
   const silenceSamples = Math.floor((24000 * SEGMENT_GAP_MS) / 1000); // 24kHz PCM
   const silenceBuffer = new ArrayBuffer(silenceSamples * 2); // 16-bit = 2 bytes/sample, zeros = silence
 
   const withGaps: ArrayBuffer[] = [];
   for (let i = 0; i < mixedBuffers.length; i++) {
-    withGaps.push(mixedBuffers[i]);
+    // Fade edges to remove ElevenLabs "phantom word" artifacts at segment boundaries
+    withGaps.push(applyFades(mixedBuffers[i], 8, 30));
     if (i < mixedBuffers.length - 1) {
       withGaps.push(silenceBuffer);
     }
@@ -461,6 +462,32 @@ function loopPcmToLength(source: ArrayBuffer, targetByteLength: number): ArrayBu
 
   console.log(`[PCM] Looped ${sourceLen} bytes → ${targetByteLength} bytes (${loopCount} loops)`);
   return result.buffer;
+}
+
+/**
+ * Apply fade-in and fade-out to a PCM buffer to eliminate boundary artifacts.
+ * ElevenLabs sometimes generates tiny "phantom word" fragments at segment edges.
+ * A short fade smoothly silences these artifacts.
+ */
+function applyFades(buffer: ArrayBuffer, fadeInMs = 8, fadeOutMs = 30): ArrayBuffer {
+  const samples = buffer.byteLength / 2; // 16-bit = 2 bytes per sample
+  const view = new Int16Array(buffer.slice(0)); // clone to avoid mutation
+
+  const fadeInSamples = Math.min(Math.floor((24000 * fadeInMs) / 1000), samples);
+  const fadeOutSamples = Math.min(Math.floor((24000 * fadeOutMs) / 1000), samples);
+
+  // Fade in
+  for (let i = 0; i < fadeInSamples; i++) {
+    view[i] = Math.round(view[i] * (i / fadeInSamples));
+  }
+
+  // Fade out
+  for (let i = 0; i < fadeOutSamples; i++) {
+    const idx = samples - 1 - i;
+    view[idx] = Math.round(view[idx] * (i / fadeOutSamples));
+  }
+
+  return view.buffer;
 }
 
 /**
