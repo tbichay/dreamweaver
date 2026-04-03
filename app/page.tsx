@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Stars from "./components/Stars";
+import CharacterShowcase from "./components/CharacterShowcase";
 
 export default async function LandingPage() {
   const { userId } = await auth();
@@ -154,35 +155,17 @@ export default async function LandingPage() {
       </section>
 
       {/* ═══════════════════════════════════════════════
-          SECTION 4: Die Koala-Familie
+          SECTION 4: Die Koala-Familie — Interactive Showcase
           ═══════════════════════════════════════════════ */}
       <section className="relative z-10 py-24 px-6">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-[#f5eed6]">
             Die Koala-Familie
           </h2>
-          <p className="text-center text-white/60 mb-16 max-w-2xl mx-auto">
-            Sechs einzigartige Charaktere bewohnen den KoalaTree. Jeder hat seine eigene Persönlichkeit und erzählt andere Geschichten.
+          <p className="text-center text-white/60 mb-12 max-w-2xl mx-auto">
+            Sechs einzigartige Charaktere bewohnen den KoalaTree. Jeder hat seine eigene Stimme und erzählt andere Geschichten.
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-            {[
-              { name: "Koda", role: "Der Weise", desc: "Haupterzähler. Warm, weise, wie ein Großvater.", image: "/koda-portrait.png", color: "#a8d5b8" },
-              { name: "Kiki", role: "Die Lustige", desc: "Der freche Kookaburra bringt Humor und gute Laune.", image: "/kiki-portrait.png", color: "#e8c547" },
-              { name: "Mika", role: "Der Mutige", desc: "Abenteuer & Herausforderungen meistern.", image: "/mika-portrait.png", color: "#7cb87c" },
-              { name: "Luna", role: "Die Träumerin", desc: "Meditation, Schlaf & sanfte Traumreisen.", image: "/luna-portrait.png", color: "#b8a0d5" },
-              { name: "Pip", role: "Der Entdecker", desc: "Kreativität, Staunen & Fantasie.", image: "/pip-portrait.png", color: "#d4a853" },
-              { name: "Sage", role: "Der Stille", desc: "Achtsamkeit & Reflexion für Ältere.", image: "/sage-portrait.png", color: "#8b9fad" },
-            ].map((koala) => (
-              <div key={koala.name} className="text-center">
-                <div className="w-20 h-20 mx-auto mb-3 rounded-2xl bg-white/5 overflow-hidden relative">
-                  <Image src={koala.image} alt={koala.name} fill className="object-cover" />
-                </div>
-                <h3 className="font-bold text-lg" style={{ color: koala.color }}>{koala.name}</h3>
-                <p className="text-white/50 text-xs font-medium mb-1">{koala.role}</p>
-                <p className="text-white/40 text-xs leading-relaxed">{koala.desc}</p>
-              </div>
-            ))}
-          </div>
+          <CharacterShowcase />
         </div>
       </section>
 

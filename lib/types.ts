@@ -31,14 +31,15 @@ export const CHARACTERS: Record<string, Character> = {
     color: "#a8d5b8",
     emoji: "🐨",
     portrait: "/koda-portrait.png",
-    // Alternative: Helmut (dFA3XRddYScy6ylAYTIO) — "Warm, Gentle and Soothing" German voice
-    voiceId: process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "nZpMT2RjIpaat0IaA7Sd",
+    // Helmut — "Warm, Gentle and Soothing" German voice
+    // Fallback: ayE8dwR5j1tan8dAMst0 (alte Koda-Stimme)
+    voiceId: process.env.ELEVENLABS_VOICE_KODA || process.env.ELEVENLABS_VOICE_ID || "dFA3XRddYScy6ylAYTIO",
     voiceSettings: {
-      stability: 0.40,          // Slightly more stable for gravitas, still expressive
-      similarity_boost: 0.70,   // More freedom for expressive delivery
-      style: 0.60,              // Much more expressivity and character
+      stability: 0.50,          // Stable and warm, like a wise grandfather
+      similarity_boost: 0.65,   // Some freedom for natural expression
+      style: 0.45,              // Moderate style — warm but not theatrical
       use_speaker_boost: true,
-      speed: 0.92,              // Slower, wiser, less hectic — like a seasoned narrator
+      speed: 0.85,              // Slow, deliberate — old and wise, never rushed
     },
   },
   kiki: {
