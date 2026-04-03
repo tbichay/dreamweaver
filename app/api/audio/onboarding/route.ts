@@ -1,23 +1,27 @@
-import { get } from "@vercel/blob";
+import { list } from "@vercel/blob";
 
 // Public proxy for the onboarding audio — no auth needed
+// Finds the blob automatically by prefix instead of relying on env var
 export async function GET() {
-  const blobUrl = process.env.ONBOARDING_AUDIO_URL;
-
-  if (!blobUrl) {
-    return new Response("Onboarding audio not configured", { status: 404 });
-  }
-
   try {
-    const result = await get(blobUrl, { access: "private" });
-    if (!result) {
-      return new Response("Onboarding audio not found", { status: 404 });
+    const { blobs } = await list({ prefix: "audio/onboarding-willkommen", limit: 1 });
+
+    if (blobs.length === 0) {
+      return new Response("Onboarding audio not yet generated", { status: 404 });
     }
 
-    return new Response(result.stream, {
+    const blob = blobs[0];
+
+    // Fetch the actual blob data and stream it through
+    const response = await fetch(blob.downloadUrl);
+    if (!response.ok || !response.body) {
+      return new Response("Error fetching onboarding audio", { status: 500 });
+    }
+
+    return new Response(response.body, {
       headers: {
-        "Content-Type": result.blob.contentType || "audio/wav",
-        "Content-Length": String(result.blob.size),
+        "Content-Type": "audio/wav",
+        "Content-Length": String(blob.size),
         "Cache-Control": "public, max-age=86400", // Cache for 24h
         "Accept-Ranges": "bytes",
       },

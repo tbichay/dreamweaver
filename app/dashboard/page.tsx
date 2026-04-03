@@ -155,7 +155,7 @@ export default function Dashboard() {
                           const res = await fetch("/api/admin/onboarding", { method: "POST" });
                           const data = await res.json();
                           if (res.ok) {
-                            setAdminMessage(`Fertig! Blob-URL: ${data.blobUrl} — Setze ONBOARDING_AUDIO_URL auf Vercel.`);
+                            setAdminMessage("Fertig! Onboarding-Audio wurde generiert.");
                             setHasOnboardingAudio(true);
                           } else {
                             setAdminMessage(`Fehler: ${data.error}`);

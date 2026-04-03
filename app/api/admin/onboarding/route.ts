@@ -1,7 +1,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { generateAudio } from "@/lib/elevenlabs";
 import { ONBOARDING_STORY_TEXT, ONBOARDING_STORY_TITLE } from "@/lib/onboarding-story";
-import { put } from "@vercel/blob";
+import { put, list } from "@vercel/blob";
 
 export const maxDuration = 300; // 5 minutes — onboarding story is long
 
@@ -15,14 +15,24 @@ async function isAdmin(): Promise<boolean> {
   );
 }
 
-// GET: Return the current onboarding audio URL
+// Check if onboarding audio exists in blob store
+async function hasOnboardingBlob(): Promise<boolean> {
+  try {
+    const { blobs } = await list({ prefix: "audio/onboarding-willkommen", limit: 1 });
+    return blobs.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+// GET: Return onboarding status — checks blob store directly
 export async function GET() {
-  const blobUrl = process.env.ONBOARDING_AUDIO_URL;
+  const hasAudio = await hasOnboardingBlob();
   const admin = await isAdmin();
   return Response.json({
     title: ONBOARDING_STORY_TITLE,
-    audioUrl: blobUrl || null,
-    hasAudio: !!blobUrl,
+    audioUrl: hasAudio ? "/api/audio/onboarding" : null,
+    hasAudio,
     isAdmin: admin,
   });
 }
@@ -51,9 +61,8 @@ export async function POST() {
 
     return Response.json({
       success: true,
-      blobUrl: blob.url,
       size: audioBuffer.byteLength,
-      message: "Onboarding-Audio generiert. Setze ONBOARDING_AUDIO_URL in Vercel auf: " + blob.url,
+      message: "Onboarding-Audio erfolgreich generiert!",
     });
   } catch (error) {
     console.error("[Onboarding] Error:", error);
