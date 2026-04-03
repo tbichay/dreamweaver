@@ -23,6 +23,9 @@ const SLEEP_OPTIONS = [
   { label: "60 Min", minutes: 60 },
 ];
 
+const AUDIO_PLAY_EVENT = "koalatree-audio-play";
+const QUEUE_PLAYER_ID = "queue-player";
+
 export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -73,6 +76,21 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
     });
   }, [current]);
 
+  // Pause when another player starts
+  useEffect(() => {
+    const handleOtherPlay = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail !== QUEUE_PLAYER_ID) {
+        const audio = audioRef.current;
+        if (audio && !audio.paused) {
+          audio.pause();
+        }
+      }
+    };
+    window.addEventListener(AUDIO_PLAY_EVENT, handleOtherPlay);
+    return () => window.removeEventListener(AUDIO_PLAY_EVENT, handleOtherPlay);
+  }, []);
+
   // Audio event listeners
   useEffect(() => {
     const audio = audioRef.current;
@@ -83,7 +101,10 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
       setDuration(audio.duration);
       updateMediaSession();
     };
-    const onPlay = () => setIsPlaying(true);
+    const onPlay = () => {
+      setIsPlaying(true);
+      window.dispatchEvent(new CustomEvent(AUDIO_PLAY_EVENT, { detail: QUEUE_PLAYER_ID }));
+    };
     const onPause = () => setIsPlaying(false);
     const onEnded = () => {
       // Auto-play next track

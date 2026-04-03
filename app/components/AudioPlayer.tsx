@@ -19,9 +19,13 @@ const SLEEP_OPTIONS = [
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 
+// Global: ensure only one audio plays at a time
+const AUDIO_PLAY_EVENT = "koalatree-audio-play";
+
 export default function AudioPlayer({ audioUrl, title, compact = false, artwork, onEnded }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const instanceId = useRef(Math.random().toString(36).slice(2));
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -62,6 +66,21 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
     });
   }, [title, artwork]);
 
+  // Pause when another player starts
+  useEffect(() => {
+    const handleOtherPlay = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail !== instanceId.current) {
+        const audio = audioRef.current;
+        if (audio && !audio.paused) {
+          audio.pause();
+        }
+      }
+    };
+    window.addEventListener(AUDIO_PLAY_EVENT, handleOtherPlay);
+    return () => window.removeEventListener(AUDIO_PLAY_EVENT, handleOtherPlay);
+  }, []);
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -75,7 +94,11 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
       setIsPlaying(false);
       onEnded?.();
     };
-    const onPlay = () => setIsPlaying(true);
+    const onPlay = () => {
+      setIsPlaying(true);
+      // Notify other players to pause
+      window.dispatchEvent(new CustomEvent(AUDIO_PLAY_EVENT, { detail: instanceId.current }));
+    };
     const onPause = () => setIsPlaying(false);
 
     audio.addEventListener("timeupdate", onTimeUpdate);
