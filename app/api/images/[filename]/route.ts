@@ -1,33 +1,31 @@
 import { list, get } from "@vercel/blob";
-import { readFile } from "fs/promises";
-import path from "path";
+import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Public image proxy — serves Studio-generated images from Vercel Blob,
- * falling back to static files in /public/ if no Studio version exists.
+ * falling back to static files in /public/ via redirect.
  *
  * This allows the Studio to seamlessly replace website images:
- * generate a new portrait → it's instantly live.
+ * generate a new portrait in Studio → activate it → instantly live.
  */
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ filename: string }> },
 ) {
   const { filename } = await params;
 
-  // Sanitize filename
+  // Sanitize filename — allow alphanumeric, hyphens, underscores, dots
   if (!filename || !/^[\w-]+\.\w+$/.test(filename)) {
+    console.error(`[ImageProxy] Invalid filename: "${filename}"`);
     return new Response("Invalid filename", { status: 400 });
   }
 
-  // 1. Try Vercel Blob (studio-generated images)
-  // We need the EXACT canonical file, not a prefix match that might return versioned files
+  // 1. Try Vercel Blob (studio-generated canonical images)
   try {
     const exactPath = `studio/${filename}`;
-    // list() does prefix matching, so "studio/koda-portrait.png" would also match
-    // "studio/koda-portrait-1743779850000.png". We fetch a few and find the exact one.
+    // list() does prefix matching, so we fetch a few and find the exact pathname
     const { blobs } = await list({ prefix: exactPath, limit: 20 });
     const exactBlob = blobs.find((b) => b.pathname === exactPath);
 
@@ -43,33 +41,13 @@ export async function GET(
         });
       }
     }
-  } catch {
-    // Blob lookup failed — fall through to static file
+  } catch (err) {
+    console.error(`[ImageProxy] Blob lookup failed for ${filename}:`, err);
   }
 
-  // 2. Fallback to /public/ static file
-  try {
-    const publicPath = path.join(process.cwd(), "public", filename);
-    const buffer = await readFile(publicPath);
-
-    const ext = filename.split(".").pop()?.toLowerCase();
-    const contentType =
-      ext === "png"
-        ? "image/png"
-        : ext === "jpg" || ext === "jpeg"
-          ? "image/jpeg"
-          : ext === "webp"
-            ? "image/webp"
-            : "application/octet-stream";
-
-    return new Response(buffer, {
-      headers: {
-        "Content-Type": contentType,
-        "Content-Length": String(buffer.byteLength),
-        "Cache-Control": "public, max-age=86400, s-maxage=86400",
-      },
-    });
-  } catch {
-    return new Response("Image not found", { status: 404 });
-  }
+  // 2. Fallback: redirect to static /public/ file
+  // On Vercel, /public/ files are served as static assets at the root URL (e.g. /koda-portrait.png).
+  // The middleware matcher excludes .png files, so static assets are served directly without auth.
+  const origin = request.nextUrl.origin;
+  return Response.redirect(`${origin}/${filename}`, 302);
 }

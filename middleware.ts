@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/datenschutz",
   "/barrierefreiheit",
   "/api/audio/onboarding",
+  "/api/images(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
