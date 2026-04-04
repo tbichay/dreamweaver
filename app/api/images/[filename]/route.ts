@@ -23,16 +23,22 @@ export async function GET(
   }
 
   // 1. Try Vercel Blob (studio-generated images)
+  // We need the EXACT canonical file, not a prefix match that might return versioned files
   try {
-    const { blobs } = await list({ prefix: `studio/${filename}`, limit: 1 });
-    if (blobs.length > 0) {
-      const result = await get(blobs[0].url, { access: "private" });
+    const exactPath = `studio/${filename}`;
+    // list() does prefix matching, so "studio/koda-portrait.png" would also match
+    // "studio/koda-portrait-1743779850000.png". We fetch a few and find the exact one.
+    const { blobs } = await list({ prefix: exactPath, limit: 20 });
+    const exactBlob = blobs.find((b) => b.pathname === exactPath);
+
+    if (exactBlob) {
+      const result = await get(exactBlob.url, { access: "private" });
       if (result && result.statusCode === 200 && result.stream) {
         return new Response(result.stream, {
           headers: {
             "Content-Type": result.blob.contentType || "image/png",
             "Content-Length": String(result.blob.size),
-            "Cache-Control": "public, max-age=3600, s-maxage=3600",
+            "Cache-Control": "public, max-age=60, s-maxage=60",
           },
         });
       }
