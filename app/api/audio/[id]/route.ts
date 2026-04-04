@@ -1,11 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { get } from "@vercel/blob";
+import { head, getDownloadUrl } from "@vercel/blob";
 
 export const dynamic = "force-dynamic"; // Never cache on edge — auth required
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
@@ -28,19 +28,56 @@ export async function GET(
   }
 
   try {
-    const result = await get(geschichte.audioUrl, { access: "private" });
+    // Get blob metadata for size info
+    const blobMeta = await head(geschichte.audioUrl);
+    const totalSize = blobMeta.size;
+    const contentType = blobMeta.contentType || "audio/wav";
+    const rangeHeader = request.headers.get("Range");
 
-    if (!result || result.statusCode !== 200 || !result.stream) {
-      console.error("[Audio Proxy] Blob not available");
+    // Get a signed download URL for the private blob
+    const downloadUrl = await getDownloadUrl(geschichte.audioUrl);
+
+    if (rangeHeader) {
+      // Parse range request (e.g. "bytes=0-1023")
+      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+      if (match) {
+        const start = parseInt(match[1], 10);
+        const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+        const chunkSize = end - start + 1;
+
+        const rangeRes = await fetch(downloadUrl, {
+          headers: { Range: `bytes=${start}-${end}` },
+        });
+
+        if (rangeRes.body) {
+          return new Response(rangeRes.body, {
+            status: 206,
+            headers: {
+              "Content-Type": contentType,
+              "Content-Length": String(chunkSize),
+              "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+              "Accept-Ranges": "bytes",
+              "Cache-Control": "private, max-age=3600",
+            },
+          });
+        }
+      }
+    }
+
+    // Full request — stream the entire file
+    const fullRes = await fetch(downloadUrl);
+
+    if (!fullRes.ok || !fullRes.body) {
+      console.error("[Audio Proxy] Download failed:", fullRes.status);
       return new Response("Audio temporarily unavailable", { status: 503 });
     }
 
-    return new Response(result.stream, {
+    return new Response(fullRes.body, {
       headers: {
-        "Content-Type": result.blob.contentType || "audio/wav",
-        "Content-Length": String(result.blob.size),
-        "Cache-Control": "private, max-age=3600",
+        "Content-Type": contentType,
+        "Content-Length": String(totalSize),
         "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=3600",
       },
     });
   } catch (error) {

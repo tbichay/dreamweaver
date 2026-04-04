@@ -9,6 +9,13 @@ import PageTransition from "../../components/PageTransition";
 import Stars from "../../components/Stars";
 import StoryPreview from "../../components/StoryPreview";
 import AudioPlayer from "../../components/AudioPlayer";
+import StoryVisualPlayer from "../../components/StoryVisualPlayer";
+
+interface TimelineEntry {
+  characterId: string;
+  startMs: number;
+  endMs: number;
+}
 
 type Phase = "loading" | "generating-text" | "text-done" | "generating-audio" | "done" | "error";
 
@@ -30,6 +37,7 @@ function ResultContent() {
   const [error, setError] = useState("");
   const [format, setFormat] = useState<StoryFormat | null>(null);
   const [ziel, setZiel] = useState<PaedagogischesZiel | null>(null);
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const initialized = useRef(false);
 
   // Load existing story from DB
@@ -46,6 +54,7 @@ function ResultContent() {
       setGeschichteId(data.id);
       setConfig({ kindProfilId: data.kindProfil.id, format: data.format, ziel: data.ziel, dauer: data.dauer });
       if (data.titel) setTitel(data.titel);
+      if (data.timeline && Array.isArray(data.timeline)) setTimeline(data.timeline);
       if (data.audioUrl && data.audioUrl !== "local") {
         setAudioUrl(data.audioUrl);
         setPhase("done");
@@ -130,6 +139,7 @@ function ResultContent() {
 
       const data = await response.json();
       setAudioUrl(data.audioUrl);
+      if (data.timeline && Array.isArray(data.timeline)) setTimeline(data.timeline);
       setPhase("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Audio-Fehler");
@@ -277,7 +287,15 @@ function ResultContent() {
         )}
 
         {phase === "done" && audioUrl && (
-          <AudioPlayer audioUrl={audioUrl} title={`Geschichte für ${kindName}`} />
+          timeline.length > 0 ? (
+            <StoryVisualPlayer
+              audioUrl={audioUrl}
+              timeline={timeline}
+              title={`Geschichte für ${kindName}`}
+            />
+          ) : (
+            <AudioPlayer audioUrl={audioUrl} title={`Geschichte für ${kindName}`} />
+          )
         )}
 
         {phase === "error" && (

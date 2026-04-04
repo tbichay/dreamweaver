@@ -170,7 +170,10 @@ export default function CharacterShowcase() {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().catch(() => {});
+      audio.play().catch((err) => {
+        console.error("[CharacterShowcase] Play failed:", err);
+        setIsPlaying(false);
+      });
       setIsPlaying(true);
     }
   }, [isPlaying]);

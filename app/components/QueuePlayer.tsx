@@ -33,6 +33,8 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
   const [sleepTimer, setSleepTimer] = useState<number | null>(null);
@@ -142,10 +144,27 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onLoadedMetadata = () => {
-      setDuration(audio.duration);
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+        setIsLoading(false);
+      }
+    };
+    const onDurationChange = () => {
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+        setIsLoading(false);
+      }
+    };
+    const onCanPlay = () => setIsLoading(false);
+    const onError = () => {
+      const err = audio.error;
+      console.error("[QueuePlayer] Audio error:", err?.code, err?.message, current?.audioUrl);
+      setHasError(true);
+      setIsLoading(false);
     };
     const onPlay = () => {
       setIsPlaying(true);
+      setHasError(false);
       window.dispatchEvent(new CustomEvent(AUDIO_PLAY_EVENT, { detail: QUEUE_PLAYER_ID }));
     };
     const onPause = () => setIsPlaying(false);
@@ -153,7 +172,6 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
       // Auto-play next track
       if (currentIndex < queue.length - 1) {
         setCurrentIndex((prev) => prev + 1);
-        // Will auto-play via the currentIndex effect below
       } else {
         setIsPlaying(false);
         setCurrentIndex(0);
@@ -162,6 +180,9 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
 
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("durationchange", onDurationChange);
+    audio.addEventListener("canplay", onCanPlay);
+    audio.addEventListener("error", onError);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("ended", onEnded);
@@ -169,22 +190,33 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("durationchange", onDurationChange);
+      audio.removeEventListener("canplay", onCanPlay);
+      audio.removeEventListener("error", onError);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("ended", onEnded);
     };
-  }, [currentIndex, queue.length]);
+  }, [currentIndex, queue.length, current?.audioUrl]);
 
   // Auto-play when currentIndex changes (track advancement)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !current) return;
 
+    // Reset state for new track
+    setIsLoading(true);
+    setHasError(false);
+    setDuration(0);
+    setCurrentTime(0);
+
     audio.src = current.audioUrl;
     audio.load();
 
     if (isPlaying || currentIndex > 0) {
-      audio.play().catch(() => {});
+      audio.play().catch((err) => {
+        console.error("[QueuePlayer] Auto-play failed:", err);
+      });
     }
   }, [currentIndex, current?.id]);
 
@@ -235,10 +267,22 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (hasError) {
+      // Retry: reload and play
+      setHasError(false);
+      setIsLoading(true);
+      audio.load();
+      audio.play().catch((err) => {
+        console.error("[QueuePlayer] Retry play failed:", err);
+      });
+      return;
+    }
     if (isPlaying) {
       audio.pause();
     } else {
-      audio.play().catch(() => {});
+      audio.play().catch((err) => {
+        console.error("[QueuePlayer] Play failed:", err);
+      });
     }
   };
 
@@ -263,7 +307,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current;
-    if (!audio || !duration) return;
+    if (!audio || !duration || isLoading) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
     audio.currentTime = ratio * duration;
@@ -413,12 +457,18 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
         <audio ref={audioRef} preload="metadata" />
 
         {/* Progress bar — full width, thin, at top of bar */}
-        <div className="h-1 bg-white/5 cursor-pointer" onClick={seek}>
-          <div
-            className="h-full bg-gradient-to-r from-[#3d6b4a] to-[#d4a853] transition-all"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        {isLoading && !duration ? (
+          <div className="h-1 bg-white/5 overflow-hidden">
+            <div className="h-full w-1/3 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          </div>
+        ) : (
+          <div className="h-1 bg-white/5 cursor-pointer" onClick={seek}>
+            <div
+              className="h-full bg-gradient-to-r from-[#3d6b4a] to-[#d4a853] transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
 
         <div className="flex items-center gap-3 px-4 py-3">
           {/* Previous */}
@@ -434,13 +484,21 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
           {/* Play/Pause */}
           <button
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all text-lg shrink-0 ${
-              isPlaying
+              hasError
+                ? "bg-red-500/20 hover:bg-red-500/30"
+                : isPlaying
                 ? "bg-[#3d6b4a]/50 ring-2 ring-[#4a7c59]/50"
                 : "bg-[#3d6b4a]/30 hover:bg-[#3d6b4a]/50"
             }`}
             onClick={togglePlay}
           >
-            {isPlaying ? (
+            {hasError ? (
+              <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            ) : isLoading && !isPlaying ? (
+              <div className="w-4 h-4 border-2 border-white/20 border-t-[#a8d5b8] rounded-full animate-spin" />
+            ) : isPlaying ? (
               <div className="flex gap-[3px] items-end h-4">
                 {[0, 1, 2, 3].map((i) => (
                   <div
@@ -468,7 +526,13 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
           <div className="flex-1 min-w-0 mx-2">
             <p className="text-sm text-[#f5eed6] truncate font-medium">{current.title}</p>
             <p className="text-xs text-white/30 truncate">
-              {current.kindName} · {formatTime(currentTime)} / {formatTime(duration)}
+              {hasError ? (
+                <span className="text-red-400/60">Fehler — tippen zum Erneut versuchen</span>
+              ) : isLoading && !duration ? (
+                <>{current.kindName} · <span className="animate-pulse">Laden...</span></>
+              ) : (
+                <>{current.kindName} · {formatTime(currentTime)} / {formatTime(duration)}</>
+              )}
               {fadingOut && " · Einschlaf-Modus..."}
             </p>
           </div>
