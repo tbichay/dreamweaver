@@ -17,7 +17,7 @@ function ResultContent() {
   const searchParams = useSearchParams();
   const existingId = searchParams.get("id");
   const regenerateId = searchParams.get("regenerate");
-  const { activeProfile } = useProfile();
+  const { activeProfile, loading: profileLoading } = useProfile();
 
   const [profilId, setProfilId] = useState<string | null>(null);
   const [kindName, setKindName] = useState("");
@@ -26,7 +26,7 @@ function ResultContent() {
   const [geschichteId, setGeschichteId] = useState<string | null>(existingId);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [titel, setTitel] = useState("");
-  const [phase, setPhase] = useState<Phase>(existingId || regenerateId ? "loading" : "generating-text");
+  const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState("");
   const [format, setFormat] = useState<StoryFormat | null>(null);
   const [ziel, setZiel] = useState<PaedagogischesZiel | null>(null);
@@ -138,11 +138,13 @@ function ResultContent() {
   };
 
   useEffect(() => {
+    // Wait for profiles to finish loading before deciding what to do
+    if (profileLoading) return;
     if (initialized.current) return;
-    initialized.current = true;
 
     // Mode 0: Regenerate — load old story config, then generate new
     if (regenerateId) {
+      initialized.current = true;
       (async () => {
         try {
           const res = await fetch(`/api/geschichten/${regenerateId}`);
@@ -166,6 +168,7 @@ function ResultContent() {
 
     // Mode 1: Load existing story by ID
     if (existingId) {
+      initialized.current = true;
       loadExisting(existingId);
       return;
     }
@@ -178,6 +181,7 @@ function ResultContent() {
       return;
     }
 
+    initialized.current = true;
     const c = JSON.parse(configData) as StoryConfig;
     const pId = activeProfile.id;
     const name = activeProfile.name;
@@ -188,7 +192,7 @@ function ResultContent() {
     setZiel(c.ziel);
     generateStory(pId, c);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existingId, regenerateId]);
+  }, [existingId, regenerateId, profileLoading]);
 
   if (phase === "loading") {
     return (

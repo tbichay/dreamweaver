@@ -8,7 +8,7 @@ const isPublicRoute = createRouteMatcher([
   "/agb",
   "/datenschutz",
   "/barrierefreiheit",
-  "/api/audio/onboarding",
+  "/api/audio/onboarding(.*)",
   "/api/images(.*)",
 ]);
 
