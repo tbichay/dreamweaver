@@ -14,11 +14,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> },
 ) {
-  const { filename } = await params;
+  const rawFilename = (await params).filename;
+  // Trim whitespace and trailing junk that browsers sometimes append
+  const filename = rawFilename?.trim().replace(/\s.*$/, "");
 
   // Sanitize filename
   if (!filename || !/^[\w-]+\.\w+$/.test(filename)) {
-    console.error(`[ImageProxy] Invalid filename: "${filename}"`);
+    console.error(`[ImageProxy] Invalid filename: "${rawFilename}" → cleaned: "${filename}"`);
     return new Response("Invalid filename", { status: 400 });
   }
 
