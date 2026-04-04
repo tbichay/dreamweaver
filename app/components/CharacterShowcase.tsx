@@ -183,7 +183,7 @@ export default function CharacterShowcase() {
       <audio
         ref={audioRef}
         src="/api/audio/onboarding"
-        preload="none"
+        preload="metadata"
         onEnded={() => setIsPlaying(false)}
         onPause={() => setIsPlaying(false)}
         onPlay={() => setIsPlaying(true)}
