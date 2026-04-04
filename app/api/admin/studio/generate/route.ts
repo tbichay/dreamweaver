@@ -49,10 +49,10 @@ export async function POST(request: Request) {
     if (!character || !CHARACTERS[character]) {
       return Response.json({ error: "Ung\u00FCltiger Charakter" }, { status: 400 });
     }
-    if (pose && !POSES[pose]) {
+    if (pose && !(pose in POSES)) {
       return Response.json({ error: "Ung\u00FCltige Pose" }, { status: 400 });
     }
-    if (scene && !SCENES[scene]) {
+    if (scene && !(scene in SCENES)) {
       return Response.json({ error: "Ung\u00FCltige Szene" }, { status: 400 });
     }
   }
