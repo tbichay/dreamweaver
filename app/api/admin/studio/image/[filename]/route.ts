@@ -1,0 +1,50 @@
+import { currentUser } from "@clerk/nextjs/server";
+import { list, get } from "@vercel/blob";
+
+export const dynamic = "force-dynamic";
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
+
+async function isAdmin(): Promise<boolean> {
+  const user = await currentUser();
+  if (!user) return false;
+  return user.emailAddresses.some(
+    (e) => e.emailAddress.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
+  );
+}
+
+// Proxy for private studio images — admin only
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ filename: string }> },
+) {
+  if (!(await isAdmin())) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
+  const { filename } = await params;
+  const prefix = `studio/${filename}`;
+
+  try {
+    const { blobs } = await list({ prefix, limit: 1 });
+    if (blobs.length === 0) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    const result = await get(blobs[0].url, { access: "private" });
+    if (!result || result.statusCode !== 200 || !result.stream) {
+      return new Response("Image unavailable", { status: 503 });
+    }
+
+    return new Response(result.stream, {
+      headers: {
+        "Content-Type": result.blob.contentType || "image/png",
+        "Content-Length": String(result.blob.size),
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  } catch (error) {
+    console.error("[Studio Image Proxy] Error:", error);
+    return new Response("Error", { status: 500 });
+  }
+}

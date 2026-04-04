@@ -91,19 +91,22 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(imageData.b64_json, "base64");
     console.log(`[Studio] Generated ${buffer.byteLength} bytes`);
 
-    // Upload to Vercel Blob
+    // Upload to Vercel Blob (private store)
     const blobPath = `studio/${filename}`;
     const blob = await put(blobPath, buffer, {
-      access: "public",
+      access: "private",
       contentType: "image/png",
       allowOverwrite: true,
     });
 
     console.log(`[Studio] Uploaded to: ${blob.url}`);
 
+    // Return proxy URL (not direct blob URL, since store is private)
+    const proxyUrl = `/api/admin/studio/image/${filename}`;
+
     return Response.json({
       success: true,
-      url: blob.url,
+      url: proxyUrl,
       filename,
       size: buffer.byteLength,
       prompt,
@@ -124,13 +127,16 @@ export async function GET() {
 
   try {
     const { blobs } = await list({ prefix: "studio/" });
-    const images = blobs.map((b) => ({
-      url: b.url,
-      pathname: b.pathname,
-      filename: b.pathname.replace("studio/", ""),
-      size: b.size,
-      uploadedAt: b.uploadedAt,
-    }));
+    const images = blobs.map((b) => {
+      const fname = b.pathname.replace("studio/", "");
+      return {
+        url: `/api/admin/studio/image/${fname}`,
+        pathname: b.pathname,
+        filename: fname,
+        size: b.size,
+        uploadedAt: b.uploadedAt,
+      };
+    });
 
     return Response.json({ images });
   } catch (error) {
