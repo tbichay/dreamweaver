@@ -19,7 +19,7 @@ export default async function LandingPage() {
         {/* Hero background image */}
         <div className="absolute inset-0 z-0">
           <Image
-            src="/hero.png"
+            src="/api/images/hero.png"
             alt="KoalaTree — Der magische Eukalyptusbaum"
             fill
             className="object-cover object-center"
@@ -81,7 +81,7 @@ export default async function LandingPage() {
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-12">
           <div className="w-40 h-40 md:w-56 md:h-56 relative shrink-0">
             <Image
-              src="/koda-portrait.png"
+              src="/api/images/koda-portrait.png"
               alt="Koda — der weise Koala"
               fill
               className="object-contain rounded-3xl"
@@ -120,7 +120,7 @@ export default async function LandingPage() {
             {/* Step 1 */}
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 relative">
-                <Image src="/koda-welcome.png" alt="Profil erstellen" fill className="object-contain rounded-2xl" />
+                <Image src="/api/images/koda-welcome.png" alt="Profil erstellen" fill className="object-contain rounded-2xl" />
               </div>
               <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 1</div>
               <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Profil erstellen</h3>
@@ -131,7 +131,7 @@ export default async function LandingPage() {
             {/* Step 2 */}
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 relative">
-                <Image src="/koda-thinking.png" alt="Thema wählen" fill className="object-contain rounded-2xl" />
+                <Image src="/api/images/koda-thinking.png" alt="Thema wählen" fill className="object-contain rounded-2xl" />
               </div>
               <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 2</div>
               <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Thema wählen</h3>
@@ -204,7 +204,7 @@ export default async function LandingPage() {
       <section className="relative z-10 py-24 px-6 text-center">
         <div className="max-w-2xl mx-auto">
           <div className="w-28 h-28 mx-auto mb-8 relative">
-            <Image src="/koda-portrait.png" alt="Koda" fill className="object-contain rounded-3xl" />
+            <Image src="/api/images/koda-portrait.png" alt="Koda" fill className="object-contain rounded-3xl" />
           </div>
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-[#f5eed6]">
             Koda wartet auf dich

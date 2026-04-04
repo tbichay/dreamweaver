@@ -43,7 +43,7 @@ export default function AudioPlayer({ audioUrl, title, compact = false, artwork,
       artist: "KoalaTree",
       album: "Hörspiele",
       artwork: [
-        { src: artwork || "/koda-portrait.png", sizes: "512x512", type: "image/png" },
+        { src: artwork || "/api/images/koda-portrait.png", sizes: "512x512", type: "image/png" },
       ],
     });
 

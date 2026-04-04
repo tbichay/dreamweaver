@@ -58,7 +58,7 @@ export default function QueuePlayer({ queue, onRemove, onClear, onReorder }: Pro
       artist: `KoalaTree — ${current.kindName}`,
       album: "Einschlaf-Warteschlange",
       artwork: [
-        { src: "/koda-portrait.png", sizes: "512x512", type: "image/png" },
+        { src: "/api/images/koda-portrait.png", sizes: "512x512", type: "image/png" },
       ],
     });
 
