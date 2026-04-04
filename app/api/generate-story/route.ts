@@ -39,6 +39,16 @@ export async function POST(request: Request) {
       },
     });
 
+    // Fetch profile events for evolution awareness (last 90 days, max 15)
+    const profileEvents = await prisma.profilEvent.findMany({
+      where: {
+        hoererProfilId: profilId,
+        createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 15,
+    });
+
     // Map DB profile to type — compute alter from geburtsdatum
     const alter = dbProfil.geburtsdatum
       ? berechneAlter(dbProfil.geburtsdatum)
@@ -58,7 +68,7 @@ export async function POST(request: Request) {
       tags: dbProfil.tags.length > 0 ? dbProfil.tags : undefined,
     };
 
-    const { system, user } = buildStoryPrompt(profil, config, previousStories);
+    const { system, user } = buildStoryPrompt(profil, config, previousStories, profileEvents);
 
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-20250514",

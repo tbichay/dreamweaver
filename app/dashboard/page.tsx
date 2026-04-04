@@ -9,6 +9,7 @@ import Stars from "../components/Stars";
 import AudioPlayer from "../components/AudioPlayer";
 import ProfilForm from "../components/ProfilForm";
 import ProfilCard from "../components/ProfilCard";
+import ProfilHistory from "../components/ProfilHistory";
 import { SkeletonCard } from "../components/Skeleton";
 import PageTransition from "../components/PageTransition";
 
@@ -25,6 +26,7 @@ function DashboardContent() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [adminMessage, setAdminMessage] = useState("");
+  const [historyProfil, setHistoryProfil] = useState<HoererProfil | null>(null);
 
   const fetchProfile = useCallback(async () => {
     const res = await fetch("/api/profile");
@@ -228,6 +230,30 @@ function DashboardContent() {
             </>
           ) : (
             <>
+              {/* Update nudge — when profile hasn't been updated in 30+ days */}
+              {profile.some((p) => {
+                const updated = new Date(p.updatedAt || p.createdAt || Date.now());
+                return Date.now() - updated.getTime() > 30 * 24 * 60 * 60 * 1000;
+              }) && (
+                <div className="mb-4 p-3 rounded-xl bg-[#d4a853]/10 border border-[#d4a853]/20 text-center">
+                  <p className="text-sm text-[#d4a853]/80">
+                    🌱 Hat sich bei jemandem etwas verändert?{" "}
+                    <button
+                      className="underline hover:text-[#d4a853] transition-colors"
+                      onClick={() => {
+                        const stale = profile.find((p) => {
+                          const updated = new Date(p.updatedAt || p.createdAt || Date.now());
+                          return Date.now() - updated.getTime() > 30 * 24 * 60 * 60 * 1000;
+                        });
+                        if (stale) handleEdit(stale);
+                      }}
+                    >
+                      Profil aktualisieren
+                    </button>
+                  </p>
+                </div>
+              )}
+
               {profile.length > 0 && (
                 <div className="mb-8 grid gap-3">
                   {profile.map((p) => (
@@ -237,6 +263,7 @@ function DashboardContent() {
                       onSelect={handleSelect}
                       onDelete={handleDelete}
                       onEdit={handleEdit}
+                      onHistory={setHistoryProfil}
                     />
                   ))}
                 </div>
@@ -260,6 +287,15 @@ function DashboardContent() {
         </div>
       </main>
       </PageTransition>
+
+      {/* Profile history modal */}
+      {historyProfil && (
+        <ProfilHistory
+          profilId={historyProfil.id}
+          profilName={historyProfil.name}
+          onClose={() => setHistoryProfil(null)}
+        />
+      )}
     </>
   );
 }

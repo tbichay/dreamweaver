@@ -180,6 +180,8 @@ export interface HoererProfil {
   charaktereigenschaften: string[];
   herausforderungen?: string[];
   tags?: string[];       // Freie Tags
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Backwards compatibility

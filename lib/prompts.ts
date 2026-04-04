@@ -6,6 +6,7 @@ import {
   PaedagogischesZiel,
   DAUER_OPTIONEN,
 } from "./types";
+import { buildProfileEvolution, ProfilEventRow } from "./profile-diff";
 
 // ═══════════════════════════════════════════════════
 // CHARACTER STYLES — altersadaptiv für alle 6 Figuren
@@ -707,7 +708,8 @@ WICHTIG zum Gedächtnis:
 export function buildStoryPrompt(
   profil: KindProfil,
   config: StoryConfig,
-  previousStories: GeschichteMemory[] = []
+  previousStories: GeschichteMemory[] = [],
+  profileEvents: ProfilEventRow[] = []
 ): { system: string; user: string } {
   const wortanzahl = {
     kurz: "600-900",
@@ -747,6 +749,7 @@ export function buildStoryPrompt(
   const leadChar = activeChars.find(c => c.role === "lead");
   const leadName = leadChar ? leadChar.name.toUpperCase() : "KODA";
   const koalaMemory = buildKoalaMemory(profil.name, previousStories);
+  const profileEvolution = buildProfileEvolution(profil.name, profileEvents);
 
   // Build dynamic interaction rules based on cast
   const interactionRules = buildInteractionRules(config.format, cast, config.dauer);
@@ -897,7 +900,7 @@ WICHTIGE REGELN
 - Baue den Namen natürlich ein (regelmäßig, aber nicht in jedem Satz)
 - Alles ist 100% positiv und wohlwollend — IMMER
 ${koalaMemory}
-
+${profileEvolution}
 LÄNGE: Ungefähr ${wortanzahl} Wörter (~${DAUER_OPTIONEN[config.dauer].minuten} Minuten).
 
 Schreibe NUR die Geschichte — keine Titel, keine Meta-Kommentare. Beginne direkt mit [AMBIENCE:...], dann [SFX:...] oder [KODA].`;

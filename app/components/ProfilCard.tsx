@@ -8,9 +8,10 @@ interface Props {
   onSelect: (profil: HoererProfil) => void;
   onDelete: (id: string) => void;
   onEdit?: (profil: HoererProfil) => void;
+  onHistory?: (profil: HoererProfil) => void;
 }
 
-export default function ProfilCard({ profil, onSelect, onDelete, onEdit }: Props) {
+export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHistory }: Props) {
   const alter = profil.geburtsdatum
     ? berechneAlter(profil.geburtsdatum)
     : profil.alter ?? 0;
@@ -28,6 +29,15 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit }: Props
           </div>
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+          {onHistory && (
+            <button
+              className="text-white/30 hover:text-[#d4a853] text-sm p-1 transition-colors"
+              onClick={(e) => { e.stopPropagation(); onHistory(profil); }}
+              title="Entwicklung ansehen"
+            >
+              🌱
+            </button>
+          )}
           {onEdit && (
             <button
               className="text-white/30 hover:text-[#a8d5b8] text-sm p-1 transition-colors"

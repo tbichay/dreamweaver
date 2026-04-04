@@ -43,6 +43,7 @@ export default function GeschichtenPage() {
   const [filterFormat, setFilterFormat] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/geschichten")
@@ -177,6 +178,26 @@ export default function GeschichtenPage() {
   };
 
   const isInQueue = (id: string) => queue.some((q) => q.id === id);
+
+  const deleteGeschichte = async (g: GeschichteWithProfil) => {
+    const title = getTitle(g);
+    if (!confirm(`"${title}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return;
+    setDeletingId(g.id);
+    try {
+      const res = await fetch(`/api/geschichten/${g.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setGeschichten((prev) => prev.filter((s) => s.id !== g.id));
+        setQueue((prev) => prev.filter((q) => q.id !== g.id));
+        if (expandedId === g.id) setExpandedId(null);
+      } else {
+        const data = await res.json().catch(() => ({ error: "Fehler" }));
+        setAudioError(data.error || "Löschen fehlgeschlagen");
+      }
+    } catch {
+      setAudioError("Netzwerk-Fehler beim Löschen");
+    }
+    setDeletingId(null);
+  };
 
   if (loading) {
     return (
@@ -453,6 +474,18 @@ export default function GeschichtenPage() {
                           }}
                         >
                           {generatingAudioId === g.id ? "Audio wird erzeugt..." : "Audio neu erzeugen"}
+                        </button>
+
+                        <button
+                          className="text-xs text-white/30 hover:text-red-400 transition-colors disabled:opacity-40"
+                          disabled={deletingId === g.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteGeschichte(g);
+                          }}
+                          title="Geschichte löschen"
+                        >
+                          {deletingId === g.id ? "..." : "✕"}
                         </button>
                       </div>
 

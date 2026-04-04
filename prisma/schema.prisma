@@ -23,9 +23,23 @@ model HoererProfil {
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
   geschichten             Geschichte[]
+  events                  ProfilEvent[]
 
   @@map("KindProfil")
   @@index([userId])
+}
+
+model ProfilEvent {
+  id              String       @id @default(cuid())
+  hoererProfilId  String
+  hoererProfil    HoererProfil @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
+  feld            String       // "interessen", "herausforderungen", "tags", "lieblingstier", etc.
+  aktion          String       // "added" | "removed" | "changed"
+  wert            String       // der Wert der hinzugefügt/entfernt/geändert wurde
+  alterWert       String?      // vorheriger Wert (nur bei "changed")
+  createdAt       DateTime     @default(now())
+
+  @@index([hoererProfilId, createdAt])
 }
 
 model Geschichte {
