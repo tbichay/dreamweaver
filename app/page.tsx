@@ -24,6 +24,7 @@ export default async function LandingPage() {
             fill
             className="object-cover object-center"
             priority
+            unoptimized
           />
           {/* Bottom fade into next section */}
           <div className="absolute inset-0 bg-gradient-to-t from-[#1a2e1a] via-transparent to-transparent" />
@@ -85,6 +86,7 @@ export default async function LandingPage() {
               alt="Koda — der weise Koala"
               fill
               className="object-contain rounded-3xl"
+              unoptimized
             />
           </div>
           <div>
@@ -120,7 +122,7 @@ export default async function LandingPage() {
             {/* Step 1 */}
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 relative">
-                <Image src="/api/images/koda-waving.png" alt="Profil erstellen" fill className="object-contain rounded-2xl" />
+                <Image src="/api/images/koda-waving.png" alt="Profil erstellen" fill className="object-contain rounded-2xl" unoptimized />
               </div>
               <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 1</div>
               <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Profil erstellen</h3>
@@ -131,7 +133,7 @@ export default async function LandingPage() {
             {/* Step 2 */}
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 relative">
-                <Image src="/api/images/koda-thinking.png" alt="Thema wählen" fill className="object-contain rounded-2xl" />
+                <Image src="/api/images/koda-thinking.png" alt="Thema wählen" fill className="object-contain rounded-2xl" unoptimized />
               </div>
               <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 2</div>
               <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Thema wählen</h3>
@@ -204,7 +206,7 @@ export default async function LandingPage() {
       <section className="relative z-10 py-24 px-6 text-center">
         <div className="max-w-2xl mx-auto">
           <div className="w-28 h-28 mx-auto mb-8 relative">
-            <Image src="/api/images/koda-portrait.png" alt="Koda" fill className="object-contain rounded-3xl" />
+            <Image src="/api/images/koda-portrait.png" alt="Koda" fill className="object-contain rounded-3xl" unoptimized />
           </div>
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-[#f5eed6]">
             Koda wartet auf dich

@@ -241,7 +241,7 @@ function ResultContent() {
         {phase === "generating-text" && storyText.length === 0 && (
           <div className="card p-12 text-center">
             <div className="float mx-auto mb-4 w-32 h-32 relative">
-              <Image src="/api/images/koda-thinking.png" alt="Koda denkt nach" fill className="object-contain rounded-2xl" />
+              <Image src="/api/images/koda-thinking.png" alt="Koda denkt nach" fill className="object-contain rounded-2xl" unoptimized />
             </div>
             <p className="text-white/60 text-lg">Koda denkt nach...</p>
             <p className="text-white/40 text-sm mt-2">Gleich beginnt deine Geschichte</p>
@@ -265,10 +265,10 @@ function ResultContent() {
           <div className="card p-8 text-center">
             <div className="flex items-center justify-center gap-4 mb-4">
               <div className="float w-20 h-20 relative">
-                <Image src="/api/images/koda-thinking.png" alt="Koda" fill className="object-contain rounded-2xl" />
+                <Image src="/api/images/koda-thinking.png" alt="Koda" fill className="object-contain rounded-2xl" unoptimized />
               </div>
               <div className="float w-20 h-20 relative" style={{ animationDelay: "0.5s" }}>
-                <Image src="/api/images/kiki-portrait.png" alt="Kiki" fill className="object-contain rounded-2xl" />
+                <Image src="/api/images/kiki-portrait.png" alt="Kiki" fill className="object-contain rounded-2xl" unoptimized />
               </div>
             </div>
             <p className="text-white/60">Koda und Kiki bereiten das Hörspiel vor...</p>

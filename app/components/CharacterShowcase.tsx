@@ -222,6 +222,7 @@ export default function CharacterShowcase() {
                   fill
                   className="object-cover"
                   sizes="192px"
+                  unoptimized
                 />
               </div>
             ))}
@@ -288,6 +289,7 @@ export default function CharacterShowcase() {
                   width={48}
                   height={48}
                   className="object-cover w-full h-full"
+                  unoptimized
                 />
               </div>
               <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-white/40 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
