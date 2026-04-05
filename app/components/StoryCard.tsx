@@ -172,12 +172,12 @@ export default function StoryCard({
         <h3 className="font-medium text-[#f5eed6] text-sm leading-tight line-clamp-2">
           {title}
         </h3>
-        <div className="flex items-center gap-1.5 mt-1 text-xs text-white/35">
+        <div className="flex items-center gap-1 mt-1 text-[11px] text-white/35 flex-wrap">
           <span>{kindName}</span>
           <span>·</span>
-          <span>{formatInfo?.emoji} {formatInfo?.label}</span>
+          <span className="truncate max-w-[120px]">{formatInfo?.emoji} {formatInfo?.label}</span>
           <span>·</span>
-          <span>{new Date(createdAt).toLocaleDateString("de-DE", { day: "numeric", month: "short" })}</span>
+          <span className="shrink-0">{new Date(createdAt).toLocaleDateString("de-DE", { day: "numeric", month: "short" })}</span>
         </div>
         {zusammenfassung && (
           <p className="text-xs text-white/25 mt-1 line-clamp-1">{zusammenfassung}</p>

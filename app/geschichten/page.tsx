@@ -525,10 +525,20 @@ export default function GeschichtenPage() {
                       <div className="flex-1 min-w-0 flex flex-col justify-center">
                         <div className="flex items-center gap-2">
                           <span className="px-1.5 py-0.5 bg-[#d4a853]/20 text-[#d4a853] rounded text-[9px] font-medium shrink-0">Einführung</span>
-                          <h3 className="font-medium text-[#f5eed6] text-sm truncate">Willkommen am KoalaTree!</h3>
                         </div>
-                        <p className="text-xs text-white/35 mt-1">Koda und seine Freunde stellen sich vor</p>
+                        <h3 className="font-medium text-[#f5eed6] text-sm mt-1 leading-tight">Willkommen am KoalaTree!</h3>
+                        <p className="text-xs text-white/35 mt-0.5">Koda und seine Freunde stellen sich vor</p>
                       </div>
+                      {/* Dismiss button */}
+                      <button
+                        className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/20 text-white/30 hover:text-white/70 hover:bg-black/40 flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100"
+                        onClick={(e) => { e.stopPropagation(); setHasWelcome(false); setPlayingWelcome(false); }}
+                        title="Ausblenden"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     </div>
                   )}
 
