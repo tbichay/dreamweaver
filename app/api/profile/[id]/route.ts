@@ -17,7 +17,10 @@ export async function GET(
 
   if (!profil) return Response.json({ error: "Not found" }, { status: 404 });
 
-  return Response.json(profil);
+  return Response.json({
+    ...profil,
+    avatarUrl: profil.avatarUrl ? `/api/avatars/${profil.id}` : null,
+  });
 }
 
 export async function PUT(
