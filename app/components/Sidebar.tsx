@@ -72,7 +72,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 h-14 shrink-0 border-b border-white/5">
         <Link href="/dashboard" className="flex items-center gap-2 min-h-[44px]">
-          <Image src="/api/icons/logo.png" alt="KoalaTree" height={28} width={28} className="object-contain rounded" unoptimized />
+          <Image src="/logo.png" alt="KoalaTree" height={28} width={28} className="object-contain rounded" />
           {!collapsed && <span className="text-[#f5eed6] font-semibold text-sm">KoalaTree</span>}
         </Link>
         <button
