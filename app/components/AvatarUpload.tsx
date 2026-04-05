@@ -150,9 +150,9 @@ export default function AvatarUpload({ currentImage, fallback, size = 80, onUplo
 
       {/* Crop Modal */}
       {showCropper && imageSrc && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col">
-          {/* Crop Area */}
-          <div className="flex-1 relative">
+        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+          {/* Crop Area — fixed height to prevent resize flicker */}
+          <div className="relative w-full" style={{ height: "calc(100dvh - 120px)" }}>
             <Cropper
               image={imageSrc}
               crop={crop}
@@ -166,8 +166,9 @@ export default function AvatarUpload({ currentImage, fallback, size = 80, onUplo
             />
           </div>
 
-          {/* Zoom Slider */}
-          <div className="px-8 py-3 bg-[#1a2e1a]">
+          {/* Bottom controls */}
+          <div className="bg-[#1a2e1a] px-6 py-4 space-y-3">
+            {/* Zoom Slider */}
             <input
               type="range"
               min={1}
@@ -177,23 +178,22 @@ export default function AvatarUpload({ currentImage, fallback, size = 80, onUplo
               onChange={(e) => setZoom(Number(e.target.value))}
               className="w-full accent-[#4a7c59]"
             />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-between px-6 py-4 bg-[#1a2e1a] border-t border-white/10">
-            <button
-              onClick={handleCancel}
-              className="text-white/60 hover:text-white transition-colors text-sm"
-            >
-              Abbrechen
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={uploading}
-              className="btn-primary text-sm px-6 py-2 disabled:opacity-50"
-            >
-              {uploading ? "Wird hochgeladen..." : "Speichern"}
-            </button>
+            {/* Actions */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={handleCancel}
+                className="text-white/60 hover:text-white transition-colors text-sm"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={uploading}
+                className="btn-primary text-sm px-6 py-2 disabled:opacity-50"
+              >
+                {uploading ? "Wird hochgeladen..." : "Speichern"}
+              </button>
+            </div>
           </div>
         </div>
       )}
