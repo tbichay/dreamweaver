@@ -310,8 +310,24 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   }, [isPlaying, hasError]);
 
   const toggleFullscreen = useCallback(() => {
+    // Audio-State bewahren beim Fullscreen-Toggle
+    const audio = audioRef.current;
+    const wasPlaying = audio && !audio.paused;
+    const currentPos = audio?.currentTime || 0;
+
     setFullscreen(!isFullscreen);
     setControlsVisible(true);
+
+    // Audio sofort wiederherstellen falls es durch Re-Render pausiert wurde
+    if (wasPlaying) {
+      requestAnimationFrame(() => {
+        const a = audioRef.current;
+        if (a && a.paused) {
+          a.currentTime = currentPos;
+          a.play().catch(() => {});
+        }
+      });
+    }
   }, [isFullscreen, setFullscreen]);
 
   // Auto-hide Controls in Fullscreen nach 3 Sekunden
@@ -333,13 +349,48 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
     return () => { if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current); };
   }, [isFullscreen, isPlaying]);
 
-  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const [isSeeking, setIsSeeking] = useState(false);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+
+  const seekFromEvent = useCallback((clientX: number) => {
     const audio = audioRef.current;
-    if (!audio || !duration || isLoading) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
+    const bar = progressBarRef.current;
+    if (!audio || !duration || !bar) return;
+    const rect = bar.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     audio.currentTime = ratio * duration;
+  }, [duration]);
+
+  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+    seekFromEvent(e.clientX);
   };
+
+  // Drag-to-seek (Mouse)
+  const onSeekMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsSeeking(true);
+    seekFromEvent(e.clientX);
+
+    const onMove = (ev: MouseEvent) => seekFromEvent(ev.clientX);
+    const onUp = () => {
+      setIsSeeking(false);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  // Drag-to-seek (Touch)
+  const onSeekTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsSeeking(true);
+    seekFromEvent(e.touches[0].clientX);
+  };
+
+  const onSeekTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isSeeking) seekFromEvent(e.touches[0].clientX);
+  };
+
+  const onSeekTouchEnd = () => setIsSeeking(false);
 
   const skipBack = () => {
     const audio = audioRef.current;
@@ -556,7 +607,14 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
             <div className="h-full w-1/3 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent rounded-full" />
           </div>
         ) : (
-          <div className="relative h-2 bg-white/10 rounded-full cursor-pointer group" onClick={seek}>
+          <div
+            ref={progressBarRef}
+            className="relative h-2 bg-white/10 rounded-full cursor-pointer group touch-none"
+            onMouseDown={onSeekMouseDown}
+            onTouchStart={onSeekTouchStart}
+            onTouchMove={onSeekTouchMove}
+            onTouchEnd={onSeekTouchEnd}
+          >
             {/* Buffer progress (subtle light bar behind everything) */}
             {buffered > 0 && buffered < 99 && (
               <div
@@ -604,10 +662,12 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
               </div>
             </div>
 
-            {/* Scrubber dot */}
+            {/* Scrubber dot — visible on hover + during drag */}
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-              style={{ left: `calc(${progress}% - 6px)` }}
+              className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md transition-opacity ${
+                isSeeking ? "opacity-100 scale-110" : "opacity-0 group-hover:opacity-100"
+              }`}
+              style={{ left: `calc(${progress}% - 8px)` }}
             />
           </div>
         )}
