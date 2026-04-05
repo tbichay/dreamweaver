@@ -9,22 +9,25 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.id) return new Response("Unauthorized", { status: 401 });
-  const userId = session.user.id;
+  const userId = session?.user?.id;
 
   const { id } = await params;
 
   const geschichte = await prisma.geschichte.findUnique({
     where: { id },
-    select: { audioUrl: true, userId: true },
+    select: { audioUrl: true, userId: true, shareSlug: true },
   });
 
   if (!geschichte || !geschichte.audioUrl) {
     return new Response("Not found", { status: 404 });
   }
 
-  if (geschichte.userId !== userId) {
-    return new Response("Forbidden", { status: 403 });
+  // Zugriff: Owner ODER geteilte Geschichte (hat shareSlug)
+  const isOwner = userId && geschichte.userId === userId;
+  const isShared = !!geschichte.shareSlug;
+
+  if (!isOwner && !isShared) {
+    return new Response(userId ? "Forbidden" : "Unauthorized", { status: userId ? 403 : 401 });
   }
 
   try {

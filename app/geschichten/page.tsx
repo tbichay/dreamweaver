@@ -300,6 +300,7 @@ export default function GeschichtenPage() {
                         title={getTitle(activeStory)}
                         knownDuration={activeStory.audioDauerSek}
                         autoPlay={autoPlay}
+                        onShare={() => shareStory(activeStory)}
                         onEnded={() => {
                           setAutoPlay(true); // Nächste Story auch auto-play
                           // Auto-play nächste in der Queue oder nächste gefilterte Story
