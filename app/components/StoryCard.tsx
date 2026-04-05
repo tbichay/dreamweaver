@@ -86,19 +86,25 @@ export default function StoryCard({
       <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-lg bg-[#1a2e1a] overflow-hidden shrink-0">
         {chars.length > 0 ? (
           <div
-            className="absolute inset-0 grid"
-            style={{
-              gridTemplateColumns: chars.length === 1 ? "1fr" : "1fr 1fr",
-              gridTemplateRows: chars.length <= 2 ? "1fr" : chars.length <= 4 ? "1fr 1fr" : "1fr 1fr 1fr",
-            }}
+            className="absolute inset-0 flex flex-wrap"
           >
             {chars.map((charId) => {
               const char = CHARACTERS[charId];
+              // Calculate cell size: fills container evenly
+              const cols = chars.length === 1 ? 1 : chars.length <= 4 ? 2 : 3;
+              const widthPct = 100 / cols;
+              const rows = Math.ceil(chars.length / cols);
+              const heightPct = 100 / rows;
               return (
                 <div
                   key={charId}
                   className="relative overflow-hidden"
-                  style={{ borderBottom: "1px solid rgba(26,46,26,0.8)", borderRight: "1px solid rgba(26,46,26,0.8)" }}
+                  style={{
+                    width: `${widthPct}%`,
+                    height: `${heightPct}%`,
+                    borderBottom: "1px solid rgba(26,46,26,0.8)",
+                    borderRight: "1px solid rgba(26,46,26,0.8)",
+                  }}
                 >
                   <Image
                     src={char.portrait}
