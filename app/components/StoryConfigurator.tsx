@@ -43,7 +43,9 @@ export default function StoryConfigurator({ kindProfilId, kindName, alter = 5, o
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
       <div className="text-center">
-        <div className="text-4xl mb-2">🐨</div>
+        <div className="mx-auto mb-2 w-16 h-16 relative">
+          <img src="/api/images/koda-waving.png" alt="Koda" className="w-full h-full object-contain rounded-xl" />
+        </div>
         <h1 className="text-3xl font-bold mb-2">
           Geschichte für {kindName}
         </h1>

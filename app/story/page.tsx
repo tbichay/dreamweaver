@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { StoryConfig } from "@/lib/types";
 import { berechneAlter } from "@/lib/utils";
 import { useProfile } from "@/lib/profile-context";
@@ -46,7 +47,9 @@ function StoryPageContent() {
         <main className="relative flex-1 flex flex-col items-center justify-center px-4 py-8 pb-24 sm:pb-8">
           <Stars />
           <div className="relative z-10 text-center max-w-md">
-            <div className="text-6xl mb-4">🐨</div>
+            <div className="mx-auto mb-4 w-24 h-24 relative">
+              <Image src="/api/images/koda-waving.png" alt="Koda" fill className="object-contain rounded-2xl" unoptimized />
+            </div>
             <h2 className="text-2xl font-bold mb-2 text-[#f5eed6]">Willkommen!</h2>
             <p className="text-white/50 mb-6">
               Erstelle zuerst ein Profil, damit Koda die perfekte Geschichte erzählen kann.
