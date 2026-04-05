@@ -1,13 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import Stars from "./components/Stars";
 import CharacterShowcase from "./components/CharacterShowcase";
 
 export default async function LandingPage() {
-  const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  // Eingeloggte User zum Dashboard weiterleiten (ohne auth() aufzurufen)
+  const cookieStore = await cookies();
+  const hasSession = cookieStore.has("__Secure-authjs.session-token") || cookieStore.has("authjs.session-token");
+  if (hasSession) redirect("/dashboard");
   return (
     <main className="relative flex flex-col min-h-screen overflow-hidden">
       <Stars />
