@@ -11,15 +11,45 @@ export async function GET(
 
   const { id } = await params;
 
-  const profil = await prisma.hoererProfil.findFirst({
+  // Check own profile first
+  let profil = await prisma.hoererProfil.findFirst({
     where: { id, userId },
   });
 
-  if (!profil) return Response.json({ error: "Not found" }, { status: 404 });
+  let isShared = false;
+  let sichtbarkeit: string[] = [];
+
+  if (!profil) {
+    // Check shared access
+    const zugriff = await prisma.profilZugriff.findFirst({
+      where: { hoererProfilId: id, userId },
+      include: { hoererProfil: true },
+    });
+
+    if (!zugriff) return Response.json({ error: "Not found" }, { status: 404 });
+
+    profil = zugriff.hoererProfil;
+    isShared = true;
+    sichtbarkeit = zugriff.sichtbarkeit;
+  }
+
+  const sichtbar = new Set(sichtbarkeit);
 
   return Response.json({
     ...profil,
     avatarUrl: profil.avatarUrl ? `/api/avatars/${profil.id}` : null,
+    // Privacy: filter fields for shared profiles
+    ...(isShared ? {
+      interessen: sichtbar.has("interessen") ? profil.interessen : [],
+      charaktereigenschaften: sichtbar.has("charaktereigenschaften") ? profil.charaktereigenschaften : [],
+      herausforderungen: sichtbar.has("herausforderungen") ? profil.herausforderungen : [],
+      tags: sichtbar.has("tags") ? profil.tags : [],
+      rolle: "ZUHOERER",
+      isShared: true,
+    } : {
+      rolle: "BESITZER",
+      isShared: false,
+    }),
   });
 }
 

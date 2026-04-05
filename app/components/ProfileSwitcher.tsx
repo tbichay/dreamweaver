@@ -40,7 +40,40 @@ export default function ProfileSwitcher({ variant, onClose }: ProfileSwitcherPro
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  if (!profiles.length || !activeProfile) return null;
+  if (!profiles.length || !activeProfile) {
+    // Empty state: no profiles yet
+    if (variant === "sidebar") {
+      return (
+        <div className="px-2 mb-1">
+          <Link
+            href="/dashboard?new=1"
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-full bg-[#4a7c59]/30 flex items-center justify-center text-lg shrink-0">
+              <svg className="w-5 h-5 text-[#a8d5b8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[#a8d5b8]">Profil erstellen</p>
+              <p className="text-[10px] text-white/30">Damit Koda loslegen kann</p>
+            </div>
+          </Link>
+        </div>
+      );
+    }
+    return (
+      <Link
+        href="/dashboard?new=1"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm text-[#a8d5b8] hover:bg-white/5 transition-colors min-h-[36px]"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        <span className="text-xs">Profil erstellen</span>
+      </Link>
+    );
+  }
 
   const alter = activeProfile.geburtsdatum ? berechneAlter(activeProfile.geburtsdatum) : activeProfile.alter ?? 0;
   const tagCount = (activeProfile.interessen?.length || 0) + (activeProfile.charaktereigenschaften?.length || 0);

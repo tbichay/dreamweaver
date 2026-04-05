@@ -5,8 +5,11 @@ import Link from "next/link";
 import Stars from "../../components/Stars";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function SignInPage() {
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
@@ -76,7 +79,7 @@ export default function SignInPage() {
     const params = new URLSearchParams({
       token: code,
       email,
-      callbackUrl: "/dashboard",
+      callbackUrl,
     });
     window.location.href = `/api/auth/callback/resend?${params}`;
   }

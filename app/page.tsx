@@ -59,7 +59,7 @@ export default async function LandingPage() {
             KoalaTree
           </h1>
           <p className="text-xl md:text-2xl text-white/90 mb-8 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] max-w-xl mx-auto">
-            Dein weiser Freund im magischen Baum
+            Personalisierte Audio-Geschichten — für Kinder und Erwachsene
           </p>
           <Link
             href="/sign-up"
@@ -96,17 +96,17 @@ export default async function LandingPage() {
               Stell dir vor...
             </h2>
             <p className="text-lg text-white/70 leading-relaxed mb-4">
-              ...dein Kind hätte einen weisen Freund, der jede Nacht eine Geschichte erzählt.
-              Nicht irgendeine Geschichte — <span className="text-[#d4a853]">eine Geschichte nur für dein Kind</span>.
-              Mit seinem Namen, seinen Interessen, seinen Herausforderungen.
+              ...du hättest einen weisen Freund, der genau die richtige Geschichte erzählt.
+              Nicht irgendeine — <span className="text-[#d4a853]">eine Geschichte nur für dich</span>.
+              Mit deinem Namen, deinen Themen, deinen Herausforderungen.
             </p>
             <p className="text-lg text-white/70 leading-relaxed mb-4">
               KoalaTree ist dieser Freund. Ein alter, weiser Koala namens <span className="text-[#a8d5b8] font-semibold">Koda</span> sitzt
-              in einem magischen Eukalyptusbaum und erzählt Geschichten, die dein Kind unterbewusst stärken —
-              Selbstbewusstsein, Mut, Dankbarkeit.
+              in einem magischen Eukalyptusbaum und erzählt Geschichten, die unterbewusst stärken —
+              <span className="text-white/90">für Kinder</span> zum Einschlafen und <span className="text-white/90">für Erwachsene</span> zum Reflektieren und Loslassen.
             </p>
             <p className="text-lg text-white/60 italic">
-              Verpackt in ein persönliches Audio-Hörspiel. Jeden Abend neu.
+              Verpackt in ein persönliches Audio-Hörspiel. Von 3 bis 99 — Koda passt alles an.
             </p>
           </div>
         </div>
@@ -129,7 +129,7 @@ export default async function LandingPage() {
               <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 1</div>
               <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Profil erstellen</h3>
               <p className="text-white/60 text-sm leading-relaxed">
-                Erzähl Koda von deinem Kind — Name, Alter, Interessen, Charakter. Je mehr er weiß, desto persönlicher wird die Geschichte.
+                Erstelle ein Profil — für dein Kind oder für dich selbst. Name, Alter, Interessen. Je mehr Koda weiß, desto persönlicher wird die Geschichte.
               </p>
             </div>
             {/* Step 2 */}
@@ -140,7 +140,7 @@ export default async function LandingPage() {
               <div className="text-[#d4a853] font-bold text-sm mb-2">SCHRITT 2</div>
               <h3 className="text-xl font-bold mb-3 text-[#f5eed6]">Thema wählen</h3>
               <p className="text-white/60 text-sm leading-relaxed">
-                Wähle ein Format und ein pädagogisches Ziel — Traumreise, Abenteuer, Weisheitsgeschichte. Koda passt alles an.
+                Traumreise, Abenteuer, Meditation, Reflexion — wähle Format und Fokus. Koda passt Ton und Tiefe an jedes Alter an.
               </p>
             </div>
             {/* Step 3 */}
@@ -183,12 +183,12 @@ export default async function LandingPage() {
           </h2>
           <div className="grid md:grid-cols-2 gap-6">
             {[
-              { icon: "✨", title: "100% persönlich", desc: "Jede Geschichte ist einzigartig — mit dem Namen, den Interessen und den Themen deines Kindes." },
-              { icon: "🧠", title: "Pädagogisch wertvoll", desc: "Unterbewusste positive Botschaften stärken Selbstbewusstsein, Mut und Dankbarkeit." },
-              { icon: "💾", title: "Koda erinnert sich", desc: "Der weise Koala kennt die Geschichte deines Kindes und referenziert vergangene Erlebnisse." },
+              { icon: "✨", title: "100% persönlich", desc: "Jede Geschichte ist einzigartig — mit deinem Namen, deinen Interessen und deinen Themen." },
+              { icon: "🧠", title: "Mehr als Unterhaltung", desc: "Unterbewusste positive Botschaften stärken Selbstbewusstsein, Mut und Achtsamkeit — in jedem Alter." },
+              { icon: "💾", title: "Koda erinnert sich", desc: "Der weise Koala kennt deine Geschichte und referenziert vergangene Erlebnisse." },
               { icon: "📈", title: "Wächst mit", desc: "Von 3 bis 99 — Koda passt Ton, Sprache und Tiefe an jedes Alter an." },
-              { icon: "🎧", title: "Echtes Hörspiel", desc: "Professionelle Audio-Generierung mit warmer Erzählstimme. Nicht robotisch — lebendig." },
-              { icon: "🌙", title: "Perfekt zum Einschlafen", desc: "Meditative Strukturen, sanfte Übergänge und ein liebevolles Fazit am Ende jeder Geschichte." },
+              { icon: "🎧", title: "Echtes Hörspiel", desc: "Professionelle Audio-Generierung mit warmen Stimmen. Nicht robotisch — lebendig." },
+              { icon: "🧘", title: "Auch für Erwachsene", desc: "Geführte Meditationen, Reflexionen und Weisheitsgeschichten. Stress loslassen, neue Perspektiven finden." },
             ].map((feature) => (
               <div key={feature.title} className="card p-6 flex gap-4">
                 <div className="text-3xl shrink-0">{feature.icon}</div>

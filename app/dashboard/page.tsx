@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { HoererProfil, STORY_FORMATE, StoryFormat } from "@/lib/types";
 import { useProfile } from "@/lib/profile-context";
 import Stars from "../components/Stars";
@@ -272,16 +273,51 @@ function DashboardContent() {
               )}
 
               {profile.length === 0 && (
-                <div className="text-center mb-8">
-                  <button
-                    className="btn-primary px-6 py-2.5 text-sm"
-                    onClick={() => { setEditProfil(undefined); setShowForm(true); }}
-                  >
-                    Los geht&apos;s — Erstelle dein erstes Profil
-                  </button>
-                  <p className="text-white/60 text-sm mt-4">
-                    Koda möchte dich kennenlernen, damit er die perfekte Geschichte erzählen kann.
-                  </p>
+                <div className="mb-8">
+                  <div className="card p-6 md:p-8 text-center">
+                    <div className="mx-auto mb-5 w-24 h-24 relative">
+                      <Image src="/api/images/koda-waving.png" alt="Koda" fill className="object-contain rounded-2xl" unoptimized />
+                    </div>
+                    <h2 className="text-xl font-bold text-[#f5eed6] mb-2">
+                      Koda erzählt Geschichten nur für dich
+                    </h2>
+                    <p className="text-white/50 text-sm mb-6 max-w-md mx-auto">
+                      Personalisierte Audio-Geschichten — für Kinder zum Einschlafen und für Erwachsene zum Reflektieren, Meditieren und Loslassen.
+                    </p>
+
+                    <p className="text-xs text-white/40 mb-4 uppercase tracking-wider">Für wen soll Koda erzählen?</p>
+
+                    <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
+                      <button
+                        onClick={() => { setEditProfil(undefined); setShowForm(true); }}
+                        className="card p-5 hover:border-[#4a7c59]/40 transition-all text-center group"
+                      >
+                        <div className="text-3xl mb-2">👶</div>
+                        <p className="text-sm font-medium text-[#f5eed6] group-hover:text-[#a8d5b8] transition-colors">Für ein Kind</p>
+                        <p className="text-[10px] text-white/30 mt-1">Gute-Nacht-Geschichten, Abenteuer, Mut & Fantasie</p>
+                      </button>
+                      <button
+                        onClick={() => { setEditProfil(undefined); setShowForm(true); }}
+                        className="card p-5 hover:border-[#4a7c59]/40 transition-all text-center group"
+                      >
+                        <div className="text-3xl mb-2">🧘</div>
+                        <p className="text-sm font-medium text-[#f5eed6] group-hover:text-[#a8d5b8] transition-colors">Für mich selbst</p>
+                        <p className="text-[10px] text-white/30 mt-1">Meditation, Reflexion, Weisheit & innere Ruhe</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* WelcomeStory Teaser */}
+                  {hasOnboardingAudio && !onboardingDismissed && (
+                    <div className="mt-4 text-center">
+                      <button
+                        className="text-xs text-[#a8d5b8]/60 hover:text-[#a8d5b8] transition-colors"
+                        onClick={() => {}}
+                      >
+                        Koda kurz kennenlernen?
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
