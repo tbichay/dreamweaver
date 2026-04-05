@@ -455,7 +455,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       )}
 
       {/* ═══ Visual Stage: Character Portrait ═══ */}
-      <div className={`relative flex flex-col items-center ${isFullscreen ? "flex-1 justify-center" : "mb-6"}`}>
+      <div className={`relative flex flex-col items-center ${isFullscreen ? "flex-1 justify-center pointer-events-none" : "mb-6"}`}>
         {/* Glow */}
         <div
           className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-all duration-1000 opacity-50 ${
@@ -559,9 +559,9 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
 
         </div>{/* End visual stage */}
 
-        {/* Controls overlay — auto-hides in fullscreen */}
+        {/* Controls overlay — auto-hides in fullscreen, z-20 above visual stage */}
         <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0" : "opacity-100"} ${
-          isFullscreen ? "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4" : ""
+          isFullscreen ? "absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-16 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4" : ""
         }`}>
 
         {/* Character dots */}
@@ -832,7 +832,7 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
       {isFullscreen && (
         <button
           onClick={toggleFullscreen}
-          className={`absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/50 text-white/70 hover:text-white flex items-center justify-center transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0"}`}
+          className={`absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-black/50 text-white/70 hover:text-white flex items-center justify-center transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0"}`}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
