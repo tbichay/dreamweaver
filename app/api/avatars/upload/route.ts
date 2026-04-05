@@ -35,12 +35,14 @@ export async function POST(request: Request) {
     // Upload (überschreibt automatisch wenn existiert)
     const blobPath = `avatars/${type}/${targetId}.webp`;
     const blob = await put(blobPath, processed, {
-      access: "public",
+      access: "private",
       contentType: "image/webp",
       addRandomSuffix: false,
     });
 
-    // DB updaten
+    // DB updaten (speichere Blob-URL intern, gebe Proxy-URL zurück)
+    const proxyUrl = `/api/avatars/${targetId}`;
+
     if (type === "user") {
       if (targetId !== session.user.id) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -50,7 +52,6 @@ export async function POST(request: Request) {
         data: { image: blob.url },
       });
     } else if (type === "profile") {
-      // Prüfen ob Profil dem User gehört
       const profile = await prisma.hoererProfil.findFirst({
         where: { id: targetId, userId: session.user.id },
       });
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "type must be 'user' or 'profile'" }, { status: 400 });
     }
 
-    return Response.json({ url: blob.url });
+    return Response.json({ url: proxyUrl });
   } catch (error) {
     console.error("[Avatar Upload]", error);
     const msg = error instanceof Error ? error.message : "Upload fehlgeschlagen";

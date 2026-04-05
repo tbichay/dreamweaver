@@ -15,6 +15,7 @@ const publicPaths = [
   "/api/icons",
   "/api/auth",
   "/api/account/check-email",
+  "/api/avatars",
   "/share",
 ];
 

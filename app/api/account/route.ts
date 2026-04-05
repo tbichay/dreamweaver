@@ -21,7 +21,11 @@ export async function GET() {
 
   if (!user) return Response.json({ error: "User not found" }, { status: 404 });
 
-  return Response.json(user);
+  // Proxy-URL für Avatar statt roher Blob-URL
+  return Response.json({
+    ...user,
+    image: user.image ? `/api/avatars/${user.id}` : null,
+  });
 }
 
 // PUT: Account aktualisieren (Name, Image)

@@ -11,7 +11,13 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return Response.json(profile, {
+  // Avatar-URLs als Proxy-URLs zurückgeben
+  const mapped = profile.map((p) => ({
+    ...p,
+    avatarUrl: p.avatarUrl ? `/api/avatars/${p.id}` : null,
+  }));
+
+  return Response.json(mapped, {
     headers: { "Cache-Control": "private, no-store" },
   });
 }
