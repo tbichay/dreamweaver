@@ -183,6 +183,9 @@ export interface HoererProfil {
   avatarUrl?: string;    // Profil-Avatar URL
   createdAt?: string;
   updatedAt?: string;
+  // Sharing fields (added by API)
+  rolle?: "BESITZER" | "ZUHOERER";
+  isShared?: boolean;
 }
 
 // Backwards compatibility

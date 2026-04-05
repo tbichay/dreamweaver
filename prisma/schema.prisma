@@ -79,8 +79,54 @@ model HoererProfil {
   updatedAt               DateTime @updatedAt
   geschichten             Geschichte[]
   events                  ProfilEvent[]
+  einladungen             ProfilEinladung[]
+  zugriffe                ProfilZugriff[]
 
   @@map("KindProfil")
+  @@index([userId])
+}
+
+// ── Profil-Sharing ──
+
+enum EinladungStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+enum ProfilRolle {
+  BESITZER
+  ZUHOERER
+}
+
+model ProfilEinladung {
+  id              String           @id @default(cuid())
+  hoererProfilId  String
+  hoererProfil    HoererProfil     @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
+  eingeladenEmail String
+  eingeladenVon   String           // userId des Besitzers
+  status          EinladungStatus  @default(PENDING)
+  rolle           ProfilRolle      @default(ZUHOERER)
+  sichtbarkeit    String[]         // Konfigurierbar: ["interessen", "charaktereigenschaften"] etc.
+  token           String           @unique @default(cuid())
+  createdAt       DateTime         @default(now())
+  acceptedAt      DateTime?
+  acceptedById    String?
+
+  @@index([hoererProfilId])
+  @@index([eingeladenEmail])
+}
+
+model ProfilZugriff {
+  id             String       @id @default(cuid())
+  hoererProfilId String
+  hoererProfil   HoererProfil @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
+  userId         String
+  rolle          ProfilRolle
+  sichtbarkeit   String[]     // Kopiert von Einladung bei Akzeptieren
+  createdAt      DateTime     @default(now())
+
+  @@unique([hoererProfilId, userId])
   @@index([userId])
 }
 

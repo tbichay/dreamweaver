@@ -86,6 +86,9 @@ export default function ProfileSwitcher({ variant, onClose }: ProfileSwitcherPro
                     <img src={p.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
                   ) : getProfileEmoji(p.name)}</span>
                   <span className="truncate">{p.name}</span>
+                  {p.isShared && (
+                    <span className="text-[9px] text-white/30 bg-white/5 px-1.5 py-0.5 rounded shrink-0">Geteilt</span>
+                  )}
                   {isActive && (
                     <svg className="w-3.5 h-3.5 ml-auto text-[#a8d5b8] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />

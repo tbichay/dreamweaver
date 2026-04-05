@@ -6,18 +6,48 @@ export async function GET() {
   if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.user.id;
 
-  const profile = await prisma.hoererProfil.findMany({
+  // Owned profiles
+  const ownedProfiles = await prisma.hoererProfil.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
   });
 
-  // Avatar-URLs als Proxy-URLs zurückgeben
-  const mapped = profile.map((p) => ({
+  // Shared profiles (via ProfilZugriff)
+  const zugriffe = await prisma.profilZugriff.findMany({
+    where: { userId },
+    include: {
+      hoererProfil: true,
+    },
+  });
+
+  // Map owned profiles with rolle
+  const ownedMapped = ownedProfiles.map((p) => ({
     ...p,
     avatarUrl: p.avatarUrl ? `/api/avatars/${p.id}` : null,
+    rolle: "BESITZER" as const,
+    isShared: false,
   }));
 
-  return Response.json(mapped, {
+  // Map shared profiles — filter out private fields based on sichtbarkeit
+  const sharedMapped = zugriffe
+    .filter((z) => z.hoererProfil.userId !== userId) // exclude own profiles
+    .map((z) => {
+      const p = z.hoererProfil;
+      const sichtbar = new Set(z.sichtbarkeit);
+      return {
+        ...p,
+        avatarUrl: p.avatarUrl ? `/api/avatars/${p.id}` : null,
+        // Filter private fields based on sichtbarkeit
+        interessen: sichtbar.has("interessen") ? p.interessen : [],
+        charaktereigenschaften: sichtbar.has("charaktereigenschaften") ? p.charaktereigenschaften : [],
+        herausforderungen: sichtbar.has("herausforderungen") ? p.herausforderungen : [],
+        tags: sichtbar.has("tags") ? p.tags : [],
+        rolle: z.rolle,
+        isShared: true,
+      };
+    });
+
+  return Response.json([...ownedMapped, ...sharedMapped], {
     headers: { "Cache-Control": "private, no-store" },
   });
 }
