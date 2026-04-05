@@ -4,17 +4,15 @@ import Image from "next/image";
 import Stars from "../../components/Stars";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const searchParams = useSearchParams();
-  const isVerify = searchParams.get("verify") === "1";
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -22,14 +20,49 @@ export default function SignInPage() {
     try {
       const result = await signIn("resend", {
         email,
-        callbackUrl: "/dashboard",
         redirect: false,
       });
 
       if (result?.error) {
         setError("Etwas ist schiefgelaufen. Bitte versuche es erneut.");
       } else {
-        setSent(true);
+        setStep("code");
+      }
+    } catch {
+      setError("Etwas ist schiefgelaufen. Bitte versuche es erneut.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      // Auth.js Callback direkt aufrufen mit dem Code als Token
+      const callbackUrl = "/dashboard";
+      const res = await fetch(
+        `/api/auth/callback/resend?` +
+          new URLSearchParams({
+            token: code,
+            email,
+            callbackUrl,
+          }),
+        { redirect: "manual" }
+      );
+
+      if (res.status === 302 || res.status === 200) {
+        const location = res.headers.get("location");
+        if (location?.includes("/error")) {
+          setError("Ungültiger oder abgelaufener Code. Bitte fordere einen neuen an.");
+        } else {
+          // Erfolg — Session-Cookie wurde gesetzt, redirect zum Dashboard
+          window.location.href = callbackUrl;
+        }
+      } else {
+        setError("Ungültiger oder abgelaufener Code.");
       }
     } catch {
       setError("Etwas ist schiefgelaufen. Bitte versuche es erneut.");
@@ -46,31 +79,15 @@ export default function SignInPage() {
           <Image src="/api/icons/logo.png" alt="KoalaTree" fill className="object-contain" />
         </div>
         <p className="text-white/60">
-          {isVerify || sent
-            ? "Prüfe dein E-Mail-Postfach"
-            : "Melde dich an, um Geschichten zu hören"}
+          {step === "email"
+            ? "Melde dich an, um Geschichten zu hören"
+            : `Code gesendet an ${email}`}
         </p>
       </div>
 
       <div className="relative z-10 w-full max-w-sm">
-        {sent || isVerify ? (
-          <div className="card p-8 text-center">
-            <div className="text-4xl mb-4">✉️</div>
-            <h2 className="text-lg font-semibold text-[#f5eed6] mb-2">
-              Magic Link gesendet!
-            </h2>
-            <p className="text-white/60 text-sm mb-6">
-              Wir haben dir einen Link per E-Mail geschickt. Klicke darauf, um dich anzumelden.
-            </p>
-            <button
-              onClick={() => { setSent(false); setEmail(""); }}
-              className="text-[#a8d5b8] text-sm hover:text-[#c8e5d0] transition-colors"
-            >
-              Andere E-Mail verwenden
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="card p-8">
+        {step === "email" ? (
+          <form onSubmit={handleSendCode} className="card p-8">
             <label htmlFor="email" className="block text-sm text-white/70 mb-2">
               E-Mail-Adresse
             </label>
@@ -83,9 +100,7 @@ export default function SignInPage() {
               placeholder="deine@email.de"
               className="w-full px-4 py-3 rounded-xl bg-white/[0.08] border border-white/15 text-[#f5eed6] placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#4a7c59]/50 focus:border-[#4a7c59] transition-colors"
             />
-            {error && (
-              <p className="text-red-400 text-sm mt-2">{error}</p>
-            )}
+            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
             <button
               type="submit"
               disabled={loading}
@@ -95,7 +110,49 @@ export default function SignInPage() {
                 boxShadow: "0 4px 16px rgba(61,107,74,0.3)",
               }}
             >
-              {loading ? "Wird gesendet..." : "Magic Link senden"}
+              {loading ? "Wird gesendet..." : "Login-Code senden"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyCode} className="card p-8">
+            <label htmlFor="code" className="block text-sm text-white/70 mb-2">
+              6-stelliger Code
+            </label>
+            <input
+              id="code"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              required
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="000000"
+              className="w-full px-4 py-4 rounded-xl bg-white/[0.08] border border-white/15 text-[#f5eed6] text-center text-2xl tracking-[0.5em] font-mono placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-[#4a7c59]/50 focus:border-[#4a7c59] transition-colors"
+            />
+            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading || code.length !== 6}
+              className="w-full mt-4 py-3 rounded-xl font-semibold text-[#f5eed6] transition-all disabled:opacity-50"
+              style={{
+                background: "linear-gradient(135deg, #4a7c59, #3d6b4a)",
+                boxShadow: "0 4px 16px rgba(61,107,74,0.3)",
+              }}
+            >
+              {loading ? "Wird geprüft..." : "Anmelden"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStep("email");
+                setCode("");
+                setError("");
+              }}
+              className="w-full mt-3 text-[#a8d5b8] text-sm hover:text-[#c8e5d0] transition-colors"
+            >
+              Anderen Code anfordern
             </button>
           </form>
         )}
