@@ -74,8 +74,23 @@ function DashboardContent() {
       setShowForm(true);
       window.history.replaceState(null, "", "/dashboard");
     }
+
+    // Handled in separate effect below
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchProfile]);
+
+  // ?edit=ID → Profil bearbeiten (wenn Profile geladen)
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && profile.length > 0 && !showForm) {
+      const p = profile.find((pr) => pr.id === editId);
+      if (p) {
+        setEditProfil(p);
+        setShowForm(true);
+        window.history.replaceState(null, "", "/dashboard");
+      }
+    }
+  }, [profile, searchParams, showForm]);
 
   // Auto-detect check-in needs when profiles load
   useEffect(() => {

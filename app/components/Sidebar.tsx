@@ -136,24 +136,38 @@ export default function Sidebar() {
         {profiles.map((p) => {
           const isActive = activeProfile?.id === p.id;
           return (
-            <button
-              key={p.id}
-              onClick={() => setActiveProfile(p.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm min-h-[40px] transition-colors ${
-                isActive
-                  ? "bg-[#3d6b4a]/20 text-[#a8d5b8]"
-                  : "text-white/40 hover:text-white/70 hover:bg-white/5"
-              }`}
-              title={collapsed ? p.name : undefined}
-            >
-              <span className="text-lg shrink-0">{getProfileEmoji(p.name)}</span>
-              {!collapsed && <span className="truncate">{p.name}</span>}
-              {isActive && !collapsed && (
-                <svg className="w-3 h-3 ml-auto shrink-0 text-[#a8d5b8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+            <div key={p.id} className="group/profile flex items-center">
+              <button
+                onClick={() => setActiveProfile(p.id)}
+                className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-xl text-sm min-h-[40px] transition-colors ${
+                  isActive
+                    ? "bg-[#3d6b4a]/20 text-[#a8d5b8]"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                }`}
+                title={collapsed ? p.name : undefined}
+              >
+                <span className="text-lg shrink-0">{p.avatarUrl ? (
+                  <img src={p.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                ) : getProfileEmoji(p.name)}</span>
+                {!collapsed && <span className="truncate">{p.name}</span>}
+                {isActive && !collapsed && (
+                  <svg className="w-3 h-3 ml-auto shrink-0 text-[#a8d5b8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+              {!collapsed && (
+                <Link
+                  href={`/dashboard?edit=${p.id}`}
+                  className="p-1.5 text-white/20 hover:text-white/60 opacity-0 group-hover/profile:opacity-100 transition-all shrink-0"
+                  title="Profil bearbeiten"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </Link>
               )}
-            </button>
+            </div>
           );
         })}
         <Link

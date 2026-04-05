@@ -51,22 +51,37 @@ function ProfileSwitcher() {
           {profiles.map((p) => {
             const isActive = p.id === activeProfile.id;
             return (
-              <button
-                key={p.id}
-                onClick={() => { setActiveProfile(p.id); setOpen(false); }}
-                className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
-                  isActive ? "bg-[#3d6b4a]/30 text-[#a8d5b8] font-medium" : "text-white/60 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <span>{getProfileEmoji(p.name)}</span>
-                <span className="truncate">{p.name}</span>
-                {isActive && <svg className="w-3.5 h-3.5 ml-auto text-[#a8d5b8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-              </button>
+              <div key={p.id} className="flex items-center">
+                <button
+                  onClick={() => { setActiveProfile(p.id); setOpen(false); }}
+                  className={`flex-1 flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
+                    isActive ? "bg-[#3d6b4a]/30 text-[#a8d5b8] font-medium" : "text-white/60 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <span>{p.avatarUrl ? (
+                    <img src={p.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+                  ) : getProfileEmoji(p.name)}</span>
+                  <span className="truncate">{p.name}</span>
+                  {isActive && <svg className="w-3.5 h-3.5 ml-auto text-[#a8d5b8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                </button>
+              </div>
             );
           })}
           <div className="border-t border-white/5">
+            {activeProfile && (
+              <Link
+                href={`/dashboard?edit=${activeProfile.id}`}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#a8d5b8]/60 hover:text-[#a8d5b8] hover:bg-white/5 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Profil aktualisieren
+              </Link>
+            )}
             <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/40 hover:text-white hover:bg-white/5 transition-colors">
-              Profile verwalten
+              Alle Profile verwalten
             </Link>
           </div>
         </div>
