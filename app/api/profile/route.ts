@@ -44,6 +44,7 @@ export async function GET() {
         tags: sichtbar.has("tags") ? p.tags : [],
         rolle: z.rolle,
         isShared: true,
+        sichtbarkeit: z.sichtbarkeit,
       };
     });
 

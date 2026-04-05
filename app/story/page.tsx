@@ -73,6 +73,34 @@ function StoryPageContent() {
     ? berechneAlter(activeProfile.geburtsdatum)
     : activeProfile.alter ?? 5;
 
+  // Shared profile without story creation permission
+  const canCreate = !activeProfile.isShared || activeProfile.sichtbarkeit?.includes("geschichten-erstellen");
+
+  if (!canCreate) {
+    return (
+      <PageTransition>
+        <main className="relative flex-1 flex flex-col items-center justify-center px-4 py-8 pb-24 sm:pb-8">
+          <Stars />
+          <div className="relative z-10 text-center max-w-md">
+            <div className="mx-auto mb-4 w-24 h-24 relative">
+              <Image src="/api/images/koda-waving.png" alt="Koda" fill className="object-contain rounded-2xl" unoptimized />
+            </div>
+            <h2 className="text-xl font-bold mb-2 text-[#f5eed6]">Nur zum Anhören</h2>
+            <p className="text-white/50 mb-4">
+              Du hast Zugang zu {activeProfile.name}s Geschichten, aber keine Berechtigung neue zu erstellen.
+            </p>
+            <button
+              className="btn-primary text-sm px-6 py-2"
+              onClick={() => router.push("/geschichten")}
+            >
+              Zur Bibliothek
+            </button>
+          </div>
+        </main>
+      </PageTransition>
+    );
+  }
+
   return (
     <PageTransition>
       <main className="relative flex-1 flex flex-col items-center px-4 py-8 pb-24 sm:pb-8">

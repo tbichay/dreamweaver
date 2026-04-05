@@ -12,7 +12,8 @@ export async function GET(
 
   const { id } = await params;
 
-  const geschichte = await prisma.geschichte.findFirst({
+  // Try own story first
+  let geschichte = await prisma.geschichte.findFirst({
     where: { id, userId },
     include: {
       hoererProfil: {
@@ -21,12 +22,31 @@ export async function GET(
     },
   });
 
+  // If not own, check shared profile access
+  if (!geschichte) {
+    const story = await prisma.geschichte.findUnique({
+      where: { id },
+      include: {
+        hoererProfil: {
+          select: { id: true, name: true, alter: true, geburtsdatum: true, geschlecht: true },
+        },
+      },
+    });
+    if (story) {
+      const zugriff = await prisma.profilZugriff.findFirst({
+        where: { hoererProfilId: story.hoererProfilId, userId },
+      });
+      if (zugriff) geschichte = story;
+    }
+  }
+
   if (!geschichte) return Response.json({ error: "Not found" }, { status: 404 });
 
-  // backwards compat
   return Response.json({
     ...geschichte,
+    audioUrl: geschichte.audioUrl && geschichte.audioUrl !== "local" ? `/api/audio/${geschichte.id}` : null,
     kindProfil: geschichte.hoererProfil,
+    isOwn: geschichte.userId === userId,
   });
 }
 

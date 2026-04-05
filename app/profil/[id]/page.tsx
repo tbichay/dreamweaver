@@ -15,10 +15,11 @@ import HelpAudio from "@/app/components/HelpAudio";
 type Tab = "interessen" | "entwicklung" | "details" | "teilen";
 
 const SICHTBARKEIT_OPTIONS = [
-  { key: "interessen", label: "Interessen", emoji: "⭐" },
-  { key: "charaktereigenschaften", label: "Eigenschaften", emoji: "💪" },
-  { key: "herausforderungen", label: "Aktuelle Themen", emoji: "🌱" },
-  { key: "tags", label: "Sonstige Tags", emoji: "🏷️" },
+  { key: "geschichten-erstellen", label: "Geschichten erstellen", emoji: "✨", section: "rechte" },
+  { key: "interessen", label: "Interessen", emoji: "⭐", section: "profil" },
+  { key: "charaktereigenschaften", label: "Eigenschaften", emoji: "💪", section: "profil" },
+  { key: "herausforderungen", label: "Aktuelle Themen", emoji: "🌱", section: "profil" },
+  { key: "tags", label: "Sonstige Tags", emoji: "🏷️", section: "profil" },
 ];
 
 interface Einladung {
@@ -122,11 +123,30 @@ function TeilenTab({ profilId, profilName }: { profilId: string; profilName: str
             onKeyDown={(e) => e.key === "Enter" && handleInvite()}
           />
 
-          {/* Sichtbarkeit */}
+          {/* Rechte */}
           <div>
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Was darf die Person sehen?</p>
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Rechte</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <div className="px-3 py-1.5 rounded-lg text-xs bg-[#4a7c59]/15 text-[#a8d5b8]/60 border border-[#4a7c59]/20">
+                📚 Geschichten anhören (immer)
+              </div>
+              {SICHTBARKEIT_OPTIONS.filter(o => o.section === "rechte").map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => toggleSichtbarkeit(opt.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                    sichtbarkeit.includes(opt.key)
+                      ? "bg-[#4a7c59]/30 text-[#a8d5b8] border border-[#4a7c59]/40"
+                      : "bg-white/5 text-white/40 border border-white/10"
+                  }`}
+                >
+                  {opt.emoji} {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Profil-Infos sichtbar</p>
             <div className="flex flex-wrap gap-2">
-              {SICHTBARKEIT_OPTIONS.map((opt) => (
+              {SICHTBARKEIT_OPTIONS.filter(o => o.section === "profil").map((opt) => (
                 <button
                   key={opt.key}
                   onClick={() => toggleSichtbarkeit(opt.key)}

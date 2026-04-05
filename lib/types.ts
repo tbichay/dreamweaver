@@ -186,6 +186,7 @@ export interface HoererProfil {
   // Sharing fields (added by API)
   rolle?: "BESITZER" | "ZUHOERER";
   isShared?: boolean;
+  sichtbarkeit?: string[]; // permissions for shared profiles
 }
 
 // Backwards compatibility

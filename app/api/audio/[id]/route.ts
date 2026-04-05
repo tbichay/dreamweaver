@@ -15,18 +15,26 @@ export async function GET(
 
   const geschichte = await prisma.geschichte.findUnique({
     where: { id },
-    select: { audioUrl: true, userId: true, shareSlug: true },
+    select: { audioUrl: true, userId: true, shareSlug: true, hoererProfilId: true },
   });
 
   if (!geschichte || !geschichte.audioUrl) {
     return new Response("Not found", { status: 404 });
   }
 
-  // Zugriff: Owner ODER geteilte Geschichte (hat shareSlug)
+  // Zugriff: Owner ODER geteilte Geschichte (hat shareSlug) ODER Profil-Zugriff
   const isOwner = userId && geschichte.userId === userId;
-  const isShared = !!geschichte.shareSlug;
+  const isPublicShared = !!geschichte.shareSlug;
+  let hasProfilAccess = false;
 
-  if (!isOwner && !isShared) {
+  if (!isOwner && !isPublicShared && userId) {
+    const zugriff = await prisma.profilZugriff.findFirst({
+      where: { hoererProfilId: geschichte.hoererProfilId, userId },
+    });
+    hasProfilAccess = !!zugriff;
+  }
+
+  if (!isOwner && !isPublicShared && !hasProfilAccess) {
     return new Response(userId ? "Forbidden" : "Unauthorized", { status: userId ? 403 : 401 });
   }
 

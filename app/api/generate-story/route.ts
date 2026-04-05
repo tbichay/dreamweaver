@@ -20,11 +20,23 @@ export async function POST(request: Request) {
       config: StoryConfig;
     };
 
-    // Fetch profile from DB
-    const dbProfil = await prisma.hoererProfil.findFirst({
+    // Fetch profile from DB — own or shared with "geschichten-erstellen" permission
+    let dbProfil = await prisma.hoererProfil.findFirst({
       where: { id: profilId, userId },
     });
-    if (!dbProfil) return Response.json({ error: "Profil nicht gefunden" }, { status: 404 });
+
+    if (!dbProfil) {
+      // Check shared access with story creation permission
+      const zugriff = await prisma.profilZugriff.findFirst({
+        where: { hoererProfilId: profilId, userId },
+        include: { hoererProfil: true },
+      });
+      if (zugriff && zugriff.sichtbarkeit.includes("geschichten-erstellen")) {
+        dbProfil = zugriff.hoererProfil;
+      } else {
+        return Response.json({ error: "Profil nicht gefunden oder keine Berechtigung" }, { status: 404 });
+      }
+    }
 
     // Fetch previous stories for Koala memory
     const previousStories = await prisma.geschichte.findMany({
