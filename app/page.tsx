@@ -36,7 +36,7 @@ export default async function LandingPage() {
 
         {/* Nav */}
         <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-4">
-          <Image src="/logo.png" alt="KoalaTree" height={28} width={96} className="object-contain drop-shadow-md max-h-[28px] w-auto" />
+          <Image src="/api/icons/logo.png" alt="KoalaTree" height={28} width={96} className="object-contain drop-shadow-md max-h-[28px] w-auto" />
           <div className="flex items-center gap-3">
             <Link
               href="/sign-in"

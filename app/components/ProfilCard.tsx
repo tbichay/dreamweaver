@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { HoererProfil } from "@/lib/types";
 import { berechneAlter } from "@/lib/utils";
+import AvatarUpload from "./AvatarUpload";
 
 interface Props {
   profil: HoererProfil;
@@ -10,9 +12,11 @@ interface Props {
   onEdit?: (profil: HoererProfil) => void;
   onHistory?: (profil: HoererProfil) => void;
   onCheckIn?: (profil: HoererProfil) => void;
+  onAvatarChange?: (profilId: string, avatarUrl: string | null) => void;
 }
 
-export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHistory, onCheckIn }: Props) {
+export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHistory, onCheckIn, onAvatarChange }: Props) {
+  const [avatarUrl, setAvatarUrl] = useState(profil.avatarUrl);
   const alter = profil.geburtsdatum
     ? berechneAlter(profil.geburtsdatum)
     : profil.alter ?? 0;
@@ -26,12 +30,33 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHisto
     <div className="card p-5 cursor-pointer group" onClick={() => onSelect(profil)}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-[#3d6b4a]/20 flex items-center justify-center text-2xl overflow-hidden">
-            {profil.avatarUrl ? (
-              <img src={profil.avatarUrl} alt={profil.name} className="w-full h-full object-cover" />
-            ) : (
-              profil.geschlecht === "w" ? "👧" : profil.geschlecht === "m" ? "👦" : alter >= 18 ? "🧑" : "🧒"
-            )}
+          <div onClick={(e) => e.stopPropagation()}>
+            <AvatarUpload
+              currentImage={avatarUrl}
+              fallback={<span className="text-xl">{profil.geschlecht === "w" ? "👧" : profil.geschlecht === "m" ? "👦" : alter >= 18 ? "🧑" : "🧒"}</span>}
+              size={48}
+              onUpload={async (blob) => {
+                const formData = new FormData();
+                formData.append("file", blob, "avatar.png");
+                formData.append("type", "profile");
+                formData.append("id", profil.id);
+                const res = await fetch("/api/avatars/upload", { method: "POST", body: formData });
+                const data = await res.json();
+                if (data.url) {
+                  setAvatarUrl(data.url);
+                  onAvatarChange?.(profil.id, data.url);
+                }
+              }}
+              onRemove={async () => {
+                await fetch("/api/avatars/upload", {
+                  method: "DELETE",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ type: "profile", id: profil.id }),
+                });
+                setAvatarUrl(undefined);
+                onAvatarChange?.(profil.id, null);
+              }}
+            />
           </div>
           <div>
             <h3 className="font-bold text-lg">{profil.name}</h3>

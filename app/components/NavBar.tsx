@@ -159,7 +159,7 @@ export default function NavBar() {
       <nav className="sticky top-0 z-30 w-full bg-[#1a2e1a]/90 backdrop-blur-sm border-b border-white/5 md:hidden">
         <div className="px-4 h-12 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center shrink-0 min-h-[44px]">
-            <Image src="/logo.png" alt="KoalaTree" height={24} width={80} className="object-contain max-h-[24px] w-auto" />
+            <Image src="/api/icons/logo.png" alt="KoalaTree" height={24} width={80} className="object-contain max-h-[24px] w-auto" unoptimized />
           </Link>
           <div className="flex items-center gap-2">
             <ProfileSwitcher />

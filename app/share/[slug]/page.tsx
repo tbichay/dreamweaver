@@ -76,7 +76,7 @@ export default async function SharedStoryPage({ params }: Props) {
       <nav className="sticky top-0 z-30 bg-[#1a2e1a]/90 backdrop-blur-sm border-b border-white/5 px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="KoalaTree" height={32} width={110} className="object-contain" />
+            <Image src="/api/icons/logo.png" alt="KoalaTree" height={32} width={110} className="object-contain" />
           </Link>
           <Link
             href="/sign-up"
