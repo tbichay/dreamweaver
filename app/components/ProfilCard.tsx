@@ -26,8 +26,12 @@ export default function ProfilCard({ profil, onSelect, onDelete, onEdit, onHisto
     <div className="card p-5 cursor-pointer group" onClick={() => onSelect(profil)}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-[#3d6b4a]/20 flex items-center justify-center text-2xl">
-            {profil.geschlecht === "w" ? "👧" : profil.geschlecht === "m" ? "👦" : alter >= 18 ? "🧑" : "🧒"}
+          <div className="w-12 h-12 rounded-full bg-[#3d6b4a]/20 flex items-center justify-center text-2xl overflow-hidden">
+            {profil.avatarUrl ? (
+              <img src={profil.avatarUrl} alt={profil.name} className="w-full h-full object-cover" />
+            ) : (
+              profil.geschlecht === "w" ? "👧" : profil.geschlecht === "m" ? "👦" : alter >= 18 ? "🧑" : "🧒"
+            )}
           </div>
           <div>
             <h3 className="font-bold text-lg">{profil.name}</h3>

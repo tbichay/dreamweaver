@@ -180,6 +180,7 @@ export interface HoererProfil {
   charaktereigenschaften: string[];
   herausforderungen?: string[];
   tags?: string[];       // Freie Tags
+  avatarUrl?: string;    // Profil-Avatar URL
   createdAt?: string;
   updatedAt?: string;
 }

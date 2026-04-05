@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import PageTransition from "../components/PageTransition";
+import AvatarUpload from "../components/AvatarUpload";
 
 interface AccountData {
   id: string;
@@ -103,13 +104,28 @@ export default function AccountPage() {
           {/* Profile Section */}
           <div className="card p-6 mb-4">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-full bg-[#3d6b4a] text-[#f5eed6] text-2xl font-bold flex items-center justify-center shrink-0">
-                {account.image ? (
-                  <img src={account.image} alt="" className="w-full h-full rounded-full object-cover" />
-                ) : (
-                  initial
-                )}
-              </div>
+              <AvatarUpload
+                currentImage={account.image}
+                fallback={<span className="text-2xl font-bold">{initial}</span>}
+                size={64}
+                onUpload={async (blob) => {
+                  const formData = new FormData();
+                  formData.append("file", blob, "avatar.png");
+                  formData.append("type", "user");
+                  formData.append("id", account.id);
+                  const res = await fetch("/api/avatars/upload", { method: "POST", body: formData });
+                  const data = await res.json();
+                  if (data.url) setAccount((prev) => prev ? { ...prev, image: data.url } : prev);
+                }}
+                onRemove={async () => {
+                  await fetch("/api/avatars/upload", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ type: "user", id: account.id }),
+                  });
+                  setAccount((prev) => prev ? { ...prev, image: null } : prev);
+                }}
+              />
               <div>
                 <p className="text-[#f5eed6] font-medium">{account.name || account.email}</p>
                 <p className="text-white/40 text-sm">{account.email}</p>

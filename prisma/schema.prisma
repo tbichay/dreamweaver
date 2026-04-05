@@ -65,6 +65,7 @@ model HoererProfil {
   id                      String   @id @default(cuid())
   userId                  String
   name                    String
+  avatarUrl               String?
   geburtsdatum            DateTime?  // NEU — Geburtsdatum statt festes Alter
   alter                   Int?       // DEPRECATED — bleibt für Abwärtskompatibilität
   geschlecht              String?
