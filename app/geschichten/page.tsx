@@ -431,9 +431,9 @@ export default function GeschichtenPage() {
               </div>
             ) : (
               <>
-                {/* ═══ Search & Filters — compact single row ═══ */}
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="relative flex-1">
+                {/* ═══ Search & Filters — search dominant, selects compact ═══ */}
+                <div className="flex items-center gap-1.5 mb-3">
+                  <div className="relative flex-1 min-w-0">
                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -448,9 +448,9 @@ export default function GeschichtenPage() {
                   <select
                     value={filterFormat}
                     onChange={(e) => setFilterFormat(e.target.value)}
-                    className="w-auto text-xs py-2"
+                    className="text-[11px] py-1.5 px-2 shrink-0 max-w-[100px]"
                   >
-                    <option value="all">Alle Formate</option>
+                    <option value="all">Format</option>
                     {usedFormats.map((f) => {
                       const info = STORY_FORMATE[f as StoryFormat];
                       return <option key={f} value={f}>{info?.emoji} {info?.label || f}</option>;
@@ -459,10 +459,10 @@ export default function GeschichtenPage() {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as SortBy)}
-                    className="w-auto text-xs py-2"
+                    className="text-[11px] py-1.5 px-2 shrink-0 max-w-[80px]"
                   >
-                    <option value="newest">Neueste</option>
-                    <option value="oldest">Älteste</option>
+                    <option value="newest">Neu</option>
+                    <option value="oldest">Alt</option>
                     <option value="name">A-Z</option>
                   </select>
                 </div>
