@@ -418,7 +418,7 @@ export default function ProfilEditPage() {
             <div className="space-y-4">
               <div className="card p-4">
                 <h3 className="text-sm font-medium text-[#f5eed6] mb-3 flex items-center gap-2">
-                  <span>🌱</span> Profil-Entwicklung
+                  <span>🌱</span> Profil-Entwicklung <HelpAudio clipId="entwicklung" />
                 </h3>
                 <p className="text-sm text-white/50 mb-4">
                   Hier siehst du, wie sich {profil.name}s Interessen und Themen über die Zeit verändert haben.

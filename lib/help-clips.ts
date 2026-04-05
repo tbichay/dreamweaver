@@ -65,6 +65,12 @@ export const HELP_CLIPS: Record<string, HelpClip> = {
     text: "[KODA] Hier kannst du ein besonderes Thema angeben. Vielleicht beschäftigt dich etwas Bestimmtes, oder du hast Lust auf eine ganz besondere Geschichte. Ich merke mir das für die Zukunft.",
     label: "Koda erklärt",
   },
+  "entwicklung": {
+    id: "entwicklung",
+    characterId: "sage",
+    text: "[SAGE] Hier siehst du, wie sich dein Profil über die Zeit verändert hat. Neue Interessen, andere Herausforderungen — alles wird festgehalten. Koda nutzt diese Entwicklung, um in den Geschichten subtil darauf einzugehen. Wachstum sichtbar gemacht.",
+    label: "Sage erklärt",
+  },
   "bibliothek": {
     id: "bibliothek",
     characterId: "nuki",
