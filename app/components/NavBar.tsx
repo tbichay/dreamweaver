@@ -151,9 +151,16 @@ function UserMenu() {
           <div className="px-4 py-3 border-b border-white/5">
             <p className="text-xs text-white/40 truncate">{email}</p>
           </div>
+          <Link
+            href="/account"
+            onClick={() => setOpen(false)}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/5 min-h-[44px] transition-colors"
+          >
+            Konto verwalten
+          </Link>
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/5 min-h-[44px] transition-colors"
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/5 min-h-[44px] transition-colors border-t border-white/5"
           >
             Abmelden
           </button>
