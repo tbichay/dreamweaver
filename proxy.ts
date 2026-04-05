@@ -10,9 +10,11 @@ const publicPaths = [
   "/datenschutz",
   "/barrierefreiheit",
   "/api/audio/onboarding",
+  "/api/audio",  // Audio-Proxy auch für Share-Links ohne Login
   "/api/images",
   "/api/icons",
   "/api/auth",
+  "/share",
 ];
 
 function isPublic(pathname: string): boolean {

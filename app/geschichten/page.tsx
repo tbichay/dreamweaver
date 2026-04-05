@@ -167,6 +167,32 @@ export default function GeschichtenPage() {
     setQueue((prev) => [...prev, ...newItems]);
   };
 
+  const shareStory = async (g: GeschichteWithProfil) => {
+    try {
+      const res = await fetch(`/api/geschichten/${g.id}/share`, { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        // Try native share, fallback to clipboard
+        if (navigator.share) {
+          await navigator.share({
+            title: getTitle(g),
+            text: g.zusammenfassung || `Eine Geschichte für ${g.kindProfil.name}`,
+            url: data.url,
+          });
+        } else {
+          await navigator.clipboard.writeText(data.url);
+          // Brief visual feedback
+          setAudioError(null);
+          alert("Link kopiert!");
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        console.error("Share failed:", err);
+      }
+    }
+  };
+
   const deleteGeschichte = async (g: GeschichteWithProfil) => {
     const title = getTitle(g);
     if (!confirm(`"${title}" wirklich löschen?`)) return;
@@ -458,6 +484,7 @@ export default function GeschichtenPage() {
                       onAddToQueue={() => addToQueue(g)}
                       onOpenFullView={() => router.push(`/story/result?id=${g.id}`)}
                       onDelete={() => deleteGeschichte(g)}
+                      onShare={hasPlayableAudio(g.audioUrl) ? () => shareStory(g) : undefined}
                       onDownload={hasPlayableAudio(g.audioUrl) ? () => {
                         const a = document.createElement("a");
                         a.href = g.audioUrl!;

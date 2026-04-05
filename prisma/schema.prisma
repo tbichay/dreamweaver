@@ -111,6 +111,7 @@ model Geschichte {
   audioDauerSek   Float?      // Audio-Dauer in Sekunden — gespeichert bei Generierung, erspart preload
   timeline        Json?       // Audio-Timeline: [{ characterId, startMs, endMs }] — wer spricht wann
   zusammenfassung String?     // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
+  shareSlug       String?     @unique // Öffentlicher Share-Link Slug
   createdAt       DateTime    @default(now())
 
   @@index([userId])
