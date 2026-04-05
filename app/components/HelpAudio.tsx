@@ -5,6 +5,10 @@ import Image from "next/image";
 import { CHARACTERS } from "@/lib/types";
 import { HELP_CLIPS } from "@/lib/help-clips";
 
+function getPortraitUrl(characterId: string): string {
+  return `/api/images/${characterId}-portrait.png`;
+}
+
 interface Props {
   clipId: string;
   size?: "sm" | "md";
@@ -143,7 +147,7 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
           }}
         >
           <Image
-            src={char.portrait}
+            src={getPortraitUrl(clip.characterId)}
             alt={char.name}
             width={iconSize}
             height={iconSize}
@@ -170,7 +174,7 @@ export default function HelpAudio({ clipId, size = "sm" }: Props) {
               className="w-7 h-7 rounded-full overflow-hidden border shrink-0"
               style={{ borderColor: `${char.color}60` }}
             >
-              <Image src={char.portrait} alt={char.name} width={28} height={28} className="object-cover" unoptimized />
+              <Image src={getPortraitUrl(clip.characterId)} alt={char.name} width={28} height={28} className="object-cover" unoptimized />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium truncate" style={{ color: char.color }}>{char.name}</p>
