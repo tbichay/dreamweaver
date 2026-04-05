@@ -2,10 +2,12 @@
 
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { HoererProfil } from "@/lib/types";
+import Link from "next/link";
+import { HoererProfil, STORY_FORMATE, StoryFormat } from "@/lib/types";
 import { useProfile } from "@/lib/profile-context";
 import Stars from "../components/Stars";
 import WelcomeStory from "../components/WelcomeStory";
+import StoryCard from "../components/StoryCard";
 import ProfilForm from "../components/ProfilForm";
 import ProfilCard from "../components/ProfilCard";
 import ProfilHistory from "../components/ProfilHistory";
@@ -30,6 +32,12 @@ function DashboardContent() {
   const [historyProfil, setHistoryProfil] = useState<HoererProfil | null>(null);
   const [checkInProfil, setCheckInProfil] = useState<{ profil: HoererProfil; reason: CheckInReason } | null>(null);
   const [checkInDismissed, setCheckInDismissed] = useState<Set<string>>(new Set());
+  const [recentStories, setRecentStories] = useState<Array<{
+    id: string; titel?: string; format: string; audioUrl?: string;
+    audioDauerSek?: number; zusammenfassung?: string; createdAt: string;
+    timeline?: Array<{ characterId: string; startMs: number; endMs: number }>;
+    kindProfil: { name: string; alter: number; geschlecht?: string };
+  }>>([]);
 
   const fetchProfile = useCallback(async () => {
     const res = await fetch("/api/profile");
@@ -54,6 +62,12 @@ function DashboardContent() {
     // Check if user dismissed onboarding
     const dismissed = localStorage.getItem("onboarding-dismissed");
     if (dismissed) setOnboardingDismissed(true);
+
+    // Fetch recent stories
+    fetch("/api/geschichten")
+      .then((r) => r.json())
+      .then((stories) => setRecentStories(stories.slice(0, 6)))
+      .catch(() => {});
 
     // Auto-open form if ?new=1
     if (searchParams.get("new") === "1") {
@@ -171,17 +185,19 @@ function DashboardContent() {
   return (
     <>
       <PageTransition>
-      <main className="relative flex-1 flex flex-col items-center px-4 py-8 pb-24 sm:pb-8">
+      <main className="relative flex-1 flex flex-col items-center px-4 py-6 pb-24 md:pb-6">
         <Stars />
 
-        <div className="relative z-10 w-full max-w-2xl">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2 text-[#f5eed6]">
-              Hörer-Profile
+        <div className="relative z-10 w-full max-w-3xl">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-[#f5eed6]">
+              {profile.length === 0 ? "Willkommen bei KoalaTree!" : "Start"}
             </h1>
-            <p className="text-white/50 text-sm">
-              Für wen soll Koda heute erzählen?
-            </p>
+            {profile.length > 0 && (
+              <p className="text-white/40 text-sm mt-1">
+                Für wen soll Koda heute erzählen?
+              </p>
+            )}
           </div>
 
           {/* Onboarding Story — Vorstellungsgeschichte mit Visual Player */}
@@ -260,12 +276,12 @@ function DashboardContent() {
                 </div>
               )}
 
-              <div className="text-center">
+              <div className="text-center mb-8">
                 <button
-                  className="btn-primary text-lg px-8 py-3"
+                  className="btn-primary px-6 py-2.5 text-sm"
                   onClick={() => { setEditProfil(undefined); setShowForm(true); }}
                 >
-                  {profile.length > 0 ? "Neues Profil erstellen" : "Los geht's — Erstelle dein erstes Profil"}
+                  {profile.length > 0 ? "Neues Profil" : "Los geht's — Erstelle dein erstes Profil"}
                 </button>
                 {profile.length === 0 && (
                   <p className="text-white/40 text-sm mt-4">
@@ -273,6 +289,64 @@ function DashboardContent() {
                   </p>
                 )}
               </div>
+
+              {/* Quick Actions */}
+              {profile.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 mb-8">
+                  <Link
+                    href="/story"
+                    className="card p-4 flex items-center gap-3 hover:border-[#4a7c59]/30"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-[#4a7c59]/20 flex items-center justify-center text-lg">✨</div>
+                    <div>
+                      <p className="text-sm font-medium text-[#f5eed6]">Neue Geschichte</p>
+                      <p className="text-xs text-white/30">Koda erzählt</p>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/geschichten"
+                    className="card p-4 flex items-center gap-3 hover:border-[#4a7c59]/30"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-[#4a7c59]/20 flex items-center justify-center text-lg">📚</div>
+                    <div>
+                      <p className="text-sm font-medium text-[#f5eed6]">Bibliothek</p>
+                      <p className="text-xs text-white/30">{recentStories.length > 0 ? `${recentStories.length}+ Geschichten` : "Alle anhören"}</p>
+                    </div>
+                  </Link>
+                </div>
+              )}
+
+              {/* Zuletzt generiert */}
+              {recentStories.length > 0 && (
+                <div className="mb-8">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-lg font-semibold text-[#f5eed6]">Zuletzt generiert</h2>
+                    <Link href="/geschichten" className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors">
+                      Alle anzeigen
+                    </Link>
+                  </div>
+                  <div className="space-y-1">
+                    {recentStories.slice(0, 4).map((g) => (
+                      <StoryCard
+                        key={g.id}
+                        id={g.id}
+                        titel={g.titel}
+                        format={g.format}
+                        zusammenfassung={g.zusammenfassung}
+                        audioDauerSek={g.audioDauerSek}
+                        audioUrl={g.audioUrl}
+                        timeline={g.timeline}
+                        kindName={g.kindProfil.name}
+                        createdAt={g.createdAt}
+                        onPlay={() => router.push(`/geschichten`)}
+                        onAddToQueue={() => {}}
+                        onOpenFullView={() => router.push(`/story/result?id=${g.id}`)}
+                        onDelete={() => {}}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
