@@ -55,6 +55,9 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(knownDuration || 0);
   const [buffered, setBuffered] = useState(0); // 0-100 percent buffered
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Wenn wir die Dauer kennen, sofort als "bereit" markieren
   const [isLoading, setIsLoading] = useState(!knownDuration);
   const [hasError, setHasError] = useState(false);
@@ -305,6 +308,30 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
     }
   }, [isPlaying, hasError]);
 
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((v) => !v);
+    setControlsVisible(true);
+  }, []);
+
+  // Auto-hide Controls in Fullscreen nach 3 Sekunden
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    if (isFullscreen && isPlaying) {
+      controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+    }
+  }, [isFullscreen, isPlaying]);
+
+  // Controls-Timer starten wenn Fullscreen + Playing
+  useEffect(() => {
+    if (isFullscreen && isPlaying) {
+      controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+    } else {
+      setControlsVisible(true);
+    }
+    return () => { if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current); };
+  }, [isFullscreen, isPlaying]);
+
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current;
     if (!audio || !duration || isLoading) return;
@@ -354,7 +381,15 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
   }) : [];
 
   return (
-    <div className="card p-6 overflow-hidden">
+    <div
+      className={`overflow-hidden transition-all ${
+        isFullscreen
+          ? "fixed inset-0 z-50 bg-black flex flex-col"
+          : "card p-6"
+      }`}
+      onClick={isFullscreen ? showControls : undefined}
+      onMouseMove={isFullscreen ? showControls : undefined}
+    >
       <audio ref={audioRef} src={audioUrl} preload="auto" />
 
       {/* Error banner */}
@@ -463,6 +498,9 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
             </p>
           )}
         </div>
+
+        {/* Controls overlay — auto-hides in fullscreen */}
+        <div className={`transition-opacity duration-300 ${isFullscreen && !controlsVisible ? "opacity-0" : "opacity-100"}`}>
 
         {/* Character dots */}
         {timelineChars.length > 1 && (
@@ -701,8 +739,35 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
           >
             Herunterladen
           </a>
+          {/* Fullscreen Toggle */}
+          <button
+            onClick={toggleFullscreen}
+            className="text-xs text-[#a8d5b8] hover:text-[#c8e5d0] transition-colors flex items-center gap-1"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {isFullscreen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+              )}
+            </svg>
+            {isFullscreen ? "Beenden" : "Vollbild"}
+          </button>
         </div>
       </div>
+      </div>{/* end controls overlay */}
+
+      {/* Fullscreen close button (always visible) */}
+      {isFullscreen && (
+        <button
+          onClick={toggleFullscreen}
+          className={`absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/50 text-white/70 hover:text-white flex items-center justify-center transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0"}`}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

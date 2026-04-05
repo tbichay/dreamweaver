@@ -86,11 +86,12 @@ export default function GeschichtenPage() {
     [geschichten]
   );
 
+  // Profil-Wechsel → Filter automatisch anpassen
   useEffect(() => {
-    if (activeProfile && filterKind === "all" && kindNames.includes(activeProfile.name)) {
+    if (activeProfile && kindNames.includes(activeProfile.name)) {
       setFilterKind(activeProfile.name);
     }
-  }, [activeProfile, kindNames, filterKind]);
+  }, [activeProfile?.id, kindNames]);
 
   const usedFormats = useMemo(
     () => [...new Set(geschichten.map((g) => g.format))],
