@@ -3,49 +3,47 @@ import { prisma } from "@/lib/db";
 
 export async function GET() {
   const session = await auth();
-  if (!session?.user?.id) return Response.json({ jobs: [] });
+  if (!session?.user?.id) return Response.json({ jobs: [], filmJobs: [] });
 
   const userId = session.user.id;
 
-  const activeJobs = await prisma.generationJob.findMany({
-    where: {
-      userId,
-      status: { in: ["PENDING", "PROCESSING"] },
-    },
+  // Audio jobs
+  const activeAudioJobs = await prisma.generationJob.findMany({
+    where: { userId, status: { in: ["PENDING", "PROCESSING"] } },
     orderBy: { createdAt: "asc" },
-    include: {
-      geschichte: { select: { titel: true, id: true } },
-    },
+    include: { geschichte: { select: { titel: true, id: true } } },
   });
 
-  // Calculate positions
-  const allActive = await prisma.generationJob.findMany({
-    where: { status: { in: ["PENDING", "PROCESSING"] } },
+  const jobs = activeAudioJobs.map((job) => ({
+    id: job.id,
+    geschichteId: job.geschichteId,
+    type: "audio" as const,
+    status: job.status,
+    titel: job.geschichte.titel,
+    step: job.status === "PROCESSING" ? "Audio wird generiert..." : "In der Warteschlange",
+  }));
+
+  // Film jobs
+  const activeFilmJobs = await prisma.filmJob.findMany({
+    where: { userId, status: { in: ["PENDING", "PROCESSING"] } },
     orderBy: { createdAt: "asc" },
-    select: { id: true, status: true, startedAt: true },
+    include: { geschichte: { select: { titel: true, id: true } } },
   });
 
-  const jobs = activeJobs.map((job) => {
-    const position = allActive.findIndex((a) => a.id === job.id);
-    const processingSeconds = job.status === "PROCESSING" && job.startedAt
-      ? Math.round((Date.now() - job.startedAt.getTime()) / 1000)
-      : 0;
+  const filmJobs = activeFilmJobs.map((job) => ({
+    id: job.id,
+    geschichteId: job.geschichteId,
+    type: "film" as const,
+    status: job.status,
+    titel: job.geschichte.titel,
+    progress: job.progress,
+    scenesComplete: job.scenesComplete,
+    scenesTotal: job.scenesTotal,
+    step: job.progress || (job.status === "PROCESSING" ? "Film wird generiert..." : "In der Warteschlange"),
+  }));
 
-    return {
-      id: job.id,
-      geschichteId: job.geschichteId,
-      status: job.status,
-      titel: job.geschichte.titel,
-      position: Math.max(0, position),
-      step: job.status === "PROCESSING"
-        ? processingSeconds < 10 ? "Vorbereitung..."
-          : processingSeconds < 30 ? "Stimmen werden generiert..."
-          : processingSeconds < 90 ? "Charaktere sprechen..."
-          : processingSeconds < 180 ? "Sound-Effekte..."
-          : "Audio wird gemischt..."
-        : undefined,
-    };
-  });
-
-  return Response.json({ jobs }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json(
+    { jobs: [...jobs, ...filmJobs] },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }
