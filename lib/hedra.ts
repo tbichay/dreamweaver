@@ -164,3 +164,102 @@ export async function downloadVideo(url: string): Promise<Buffer> {
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
+
+// --- Kling Scene Video (Image-to-Video, no audio) ---
+
+async function getKlingModelId(): Promise<string> {
+  const res = await fetch(`${BASE_URL}/models`, { headers: headers() });
+  if (!res.ok) throw new Error(`Hedra models error: ${res.status}`);
+  const models = await res.json() as Array<{ id: string; name: string; type: string; requires_audio_input: boolean }>;
+
+  // Prefer Kling V3 Pro Image-to-Video
+  const klingV3 = models.find((m) => m.name.includes("Kling V3 Pro I") && m.type === "video" && !m.requires_audio_input);
+  if (klingV3) return klingV3.id;
+
+  // Fallback: Kling 2.1 Master I2V
+  const kling21 = models.find((m) => m.name.includes("Kling 2.1") && m.name.includes("I2V") && !m.requires_audio_input);
+  if (kling21) return kling21.id;
+
+  // Fallback: any Kling I2V model
+  const anyKling = models.find((m) => m.name.includes("Kling") && m.name.includes("I2V") && !m.requires_audio_input);
+  if (anyKling) return anyKling.id;
+
+  throw new Error("No Kling Image-to-Video model found");
+}
+
+interface GenerateSceneOptions {
+  imageBuffer: Buffer;
+  prompt: string;
+  aspectRatio?: "16:9" | "9:16" | "1:1";
+  resolution?: "540p" | "720p";
+}
+
+/**
+ * Generate an animated scene video from a still image using Kling via Hedra API.
+ * No audio — just visual animation (camera movement, environment animation).
+ */
+export async function generateSceneVideo(options: GenerateSceneOptions): Promise<string> {
+  const {
+    imageBuffer,
+    prompt,
+    aspectRatio = "16:9",
+    resolution = "720p",
+  } = options;
+
+  console.log("[Kling] Starting scene video generation...");
+
+  // 1. Get Kling model
+  const modelId = await getKlingModelId();
+  console.log(`[Kling] Model: ${modelId}`);
+
+  // 2. Upload image
+  const imageAssetId = await createAsset("scene.png", "image");
+  await uploadAsset(imageAssetId, imageBuffer, "scene.png", "image/png");
+  console.log(`[Kling] Image uploaded: ${imageAssetId}`);
+
+  // 3. Create generation (no audio)
+  const genRes = await fetch(`${BASE_URL}/generations`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({
+      type: "video",
+      ai_model_id: modelId,
+      start_keyframe_id: imageAssetId,
+      generated_video_inputs: {
+        text_prompt: prompt,
+        resolution,
+        aspect_ratio: aspectRatio,
+      },
+    }),
+  });
+
+  if (!genRes.ok) throw new Error(`Kling generation error: ${genRes.status} — ${await genRes.text()}`);
+  const genData = await genRes.json();
+  const generationId = genData.id;
+  console.log(`[Kling] Generation started: ${generationId}`);
+
+  // 4. Poll for completion
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < POLL_TIMEOUT) {
+    const statusRes = await fetch(`${BASE_URL}/generations/${generationId}/status`, {
+      headers: headers(),
+    });
+
+    if (!statusRes.ok) throw new Error(`Kling status error: ${statusRes.status}`);
+    const statusData = await statusRes.json() as { status: string; url?: string; error_message?: string };
+
+    if (statusData.status === "complete" && statusData.url) {
+      console.log(`[Kling] Scene video ready!`);
+      return statusData.url;
+    }
+
+    if (statusData.status === "error") {
+      throw new Error(`Kling generation failed: ${statusData.error_message || "Unknown"}`);
+    }
+
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+  }
+
+  throw new Error("Kling generation timed out");
+}
