@@ -11,6 +11,7 @@ import { useProfile } from "@/lib/profile-context";
 import { SkeletonStoryCard } from "../components/Skeleton";
 import PageTransition from "../components/PageTransition";
 import HelpAudio from "../components/HelpAudio";
+import QueueBanner from "../components/QueueBanner";
 
 interface TimelineEntry {
   characterId: string;
@@ -431,6 +432,9 @@ export default function GeschichtenPage() {
               </div>
             ) : (
               <>
+                {/* ═══ Queue Banner ═══ */}
+                <QueueBanner />
+
                 {/* ═══ Search & Filters — search dominant, selects compact ═══ */}
                 <div className="flex items-center gap-1.5 mb-3">
                   <div className="relative flex-1 min-w-0">

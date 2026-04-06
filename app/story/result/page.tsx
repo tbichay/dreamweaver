@@ -43,6 +43,8 @@ function ResultContent() {
   const [queueJobId, setQueueJobId] = useState<string | null>(null);
   const [queuePosition, setQueuePosition] = useState(0);
   const [queueEstimate, setQueueEstimate] = useState(0);
+  const [queueStep, setQueueStep] = useState("");
+  const [queueStatus, setQueueStatus] = useState<"PENDING" | "PROCESSING">("PENDING");
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const initialized = useRef(false);
 
@@ -185,6 +187,8 @@ function ResultContent() {
           } else {
             setQueuePosition(status.position ?? 0);
             setQueueEstimate(status.estimatedMinutes ?? 2);
+            setQueueStep(status.step || "");
+            setQueueStatus(status.status || "PENDING");
           }
         } catch {
           // ignore polling errors
@@ -360,26 +364,36 @@ function ResultContent() {
             {phase === "queued" && (
               <>
                 <p className="text-white/60 text-lg font-medium mb-1">
-                  {queuePosition > 0
-                    ? `Position ${queuePosition + 1} in der Warteschlange`
-                    : "Deine Geschichte wird gerade erzählt..."}
+                  {queueStatus === "PROCESSING"
+                    ? "Deine Geschichte wird gerade erzählt..."
+                    : queuePosition > 0
+                      ? `Position ${queuePosition + 1} in der Warteschlange`
+                      : "Gleich geht es los..."}
                 </p>
+
+                {/* Step indicator */}
+                {queueStep && (
+                  <p className="text-[#a8d5b8] text-sm mb-2">{queueStep}</p>
+                )}
+
                 <p className="text-white/40 text-sm">
-                  {queuePosition > 0
-                    ? `Geschätzte Wartezeit: ~${queueEstimate} Minuten`
-                    : "Audio wird generiert — gleich fertig!"}
+                  {queueStatus === "PROCESSING"
+                    ? "Das dauert ca. 2–3 Minuten"
+                    : queuePosition > 0
+                      ? `Geschätzte Wartezeit: ~${queueEstimate} Minuten`
+                      : "Warten auf freien Platz..."}
                 </p>
 
                 {/* Progress indicator */}
                 <div className="mt-4 h-1.5 bg-white/10 rounded-full overflow-hidden max-w-xs mx-auto">
                   <div
-                    className="h-full bg-[#a8d5b8] rounded-full transition-all duration-500"
-                    style={{ width: queuePosition === 0 ? "60%" : "20%", animation: "shimmer 2s ease-in-out infinite" }}
+                    className="h-full bg-[#a8d5b8] rounded-full shimmer"
+                    style={{ width: queueStatus === "PROCESSING" ? "70%" : "15%" }}
                   />
                 </div>
 
                 <p className="text-white/30 text-xs mt-4">
-                  Du kannst die Seite verlassen — wir benachrichtigen dich per E-Mail wenn die Geschichte fertig ist.
+                  Du kannst die Seite verlassen — wir benachrichtigen dich per E-Mail.
                 </p>
               </>
             )}
@@ -401,12 +415,25 @@ function ResultContent() {
 
         {phase === "error" && (
           <div className="card p-6 border-red-500/30 bg-red-500/10 text-center">
-            <p className="text-red-300 mb-3">{error}</p>
-            {profilId && config && (
-              <button className="btn-primary" onClick={() => generateStory(profilId, config)}>
-                Nochmal versuchen
-              </button>
+            <div className="mx-auto mb-3 w-12 h-12 relative">
+              <Image src="/api/images/koda-thinking.png" alt="Koda" fill className="object-contain rounded-xl opacity-60" unoptimized />
+            </div>
+            <p className="text-red-300 mb-1">{error}</p>
+            {error.includes("Kontingent") && (
+              <p className="text-white/40 text-xs mb-3">Das ElevenLabs Audio-Kontingent ist aufgebraucht. Bitte warte bis es sich erneuert oder upgrade den Plan.</p>
             )}
+            <div className="flex gap-2 justify-center mt-3">
+              {geschichteId && (
+                <button className="btn-primary text-sm px-4 py-2" onClick={generateAudio}>
+                  Erneut versuchen
+                </button>
+              )}
+              {profilId && config && (
+                <button className="text-sm text-white/50 hover:text-white/80 px-4 py-2" onClick={() => generateStory(profilId, config)}>
+                  Neue Geschichte
+                </button>
+              )}
+            </div>
           </div>
         )}
 

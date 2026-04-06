@@ -12,6 +12,7 @@ import StoryCard from "../components/StoryCard";
 import ProfilForm from "../components/ProfilForm";
 import KodaCheckIn from "../components/KodaCheckIn";
 import HelpAudio from "../components/HelpAudio";
+import QueueBanner from "../components/QueueBanner";
 import { SkeletonCard } from "../components/Skeleton";
 import PageTransition from "../components/PageTransition";
 import { shouldShowCheckIn, CheckInReason } from "@/lib/check-in-triggers";
@@ -324,6 +325,9 @@ function DashboardContent() {
                   )}
                 </div>
               )}
+
+              {/* Queue Banner */}
+              <QueueBanner />
 
               {/* Quick Actions */}
               {profile.length > 0 && activeProfile && (
