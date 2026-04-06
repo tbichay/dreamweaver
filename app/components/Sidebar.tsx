@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useProfile } from "@/lib/profile-context";
+import { useFullscreen } from "@/lib/fullscreen-context";
 import { useState } from "react";
 import ProfileSwitcher from "./ProfileSwitcher";
 
@@ -41,6 +42,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { activeProfile } = useProfile();
+  const { isFullscreen } = useFullscreen();
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -86,7 +88,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`hidden md:flex flex-col h-screen sticky top-0 bg-[#162816] border-r border-white/5 transition-all duration-200 ${
+      className={`${isFullscreen ? "hidden" : "hidden md:flex"} flex-col h-screen sticky top-0 bg-[#162816] border-r border-white/5 transition-all duration-200 ${
         collapsed ? "w-[72px]" : "w-56"
       }`}
     >

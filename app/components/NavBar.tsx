@@ -7,6 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useProfile } from "@/lib/profile-context";
 import { useState, useRef, useEffect } from "react";
 import ProfileSwitcher from "./ProfileSwitcher";
+import { useFullscreen } from "@/lib/fullscreen-context";
 
 function UserAvatarImg({ userId, initial, size }: { userId?: string; initial: string; size: number }) {
   const [err, setErr] = useState(false);
@@ -145,6 +146,7 @@ function BottomSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 export default function NavBar() {
   const pathname = usePathname();
   const { activeProfile } = useProfile();
+  const { isFullscreen } = useFullscreen();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const profilHref = activeProfile ? `/profil/${activeProfile.id}` : "/dashboard";
@@ -170,8 +172,8 @@ export default function NavBar() {
 
   return (
     <>
-      {/* Mobile Top Bar */}
-      <nav className="sticky top-0 z-30 w-full bg-[#1a2e1a]/90 backdrop-blur-sm border-b border-white/5 md:hidden">
+      {/* Mobile Top Bar — hidden in fullscreen */}
+      <nav className={`sticky top-0 z-30 w-full bg-[#1a2e1a]/90 backdrop-blur-sm border-b border-white/5 md:hidden ${isFullscreen ? "hidden" : ""}`}>
         <div className="px-4 h-12 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center shrink-0 min-h-[44px]">
             <Image src="/api/icons/logo.png" alt="KoalaTree" height={24} width={80} className="object-contain max-h-[24px] w-auto" unoptimized />
@@ -183,8 +185,8 @@ export default function NavBar() {
         </div>
       </nav>
 
-      {/* Mobile Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#1a2e1a]/95 backdrop-blur-sm border-t border-white/5 md:hidden pb-[env(safe-area-inset-bottom)]">
+      {/* Mobile Bottom Bar — hidden in fullscreen */}
+      <div className={`fixed bottom-0 left-0 right-0 z-30 bg-[#1a2e1a]/95 backdrop-blur-sm border-t border-white/5 md:hidden pb-[env(safe-area-inset-bottom)] ${isFullscreen ? "hidden" : ""}`}>
         <div className="flex items-end">
           {/* Tab 1: Start */}
           {renderTab(MOBILE_TABS[0], pathname)}
