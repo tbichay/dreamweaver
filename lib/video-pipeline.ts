@@ -1,15 +1,14 @@
 /**
- * KoalaTree Video Pipeline
+ * KoalaTree Video Pipeline — Incremental Scene Processing
  *
- * Orchestrates the full Story → Film generation:
- * 1. AI Director analyzes story → scene list
- * 2. Per scene: Hedra lip-sync OR Kling scene animation
- * 3. Download all clips
- * 4. Upload assembled film to Vercel Blob
+ * Designed for Vercel's 5-minute function limit:
+ * Each cron run processes ONE scene, then exits.
+ * The cron runs every 2 minutes, so scenes are processed sequentially.
  *
- * Note: ffmpeg concat runs on the server. On Vercel, the individual clips
- * are stored and a simple concat is done via fetch + buffer manipulation.
- * For full transitions/music, use the local script (scripts/create-trailer.mjs).
+ * Flow:
+ * 1. First run: AI Director analyzes story → saves scenes to DB
+ * 2. Each subsequent run: Generate one scene video (Hedra/Kling)
+ * 3. When all scenes done: Mark as COMPLETED
  */
 
 import { prisma } from "./db";
@@ -17,21 +16,12 @@ import { analyzeStoryForFilm, type FilmScene, type TimelineEntry } from "./video
 import { generateVideo, generateSceneVideo, downloadVideo } from "./hedra";
 import { put, get, list } from "@vercel/blob";
 
-// --- Types ---
-
-export interface FilmGenerationResult {
-  videoUrl: string;
-  scenes: FilmScene[];
-  totalDurationSek: number;
-}
-
-// --- Portrait loader ---
+// --- Helpers ---
 
 async function loadPortraitBuffer(characterId: string): Promise<Buffer> {
   const filename = `${characterId}-portrait.png`;
-
-  // Try blob store first
   const { blobs } = await list({ prefix: `images/${filename}`, limit: 1 });
+
   if (blobs.length > 0) {
     const result = await get(blobs[0].url, { access: "private" });
     if (result?.stream) {
@@ -46,26 +36,15 @@ async function loadPortraitBuffer(characterId: string): Promise<Buffer> {
     }
   }
 
-  // Fallback: fetch from app
   const baseUrl = process.env.AUTH_URL || "https://www.koalatree.ai";
   const res = await fetch(`${baseUrl}/api/images/${filename}`);
   if (!res.ok) throw new Error(`Portrait not found: ${characterId}`);
   return Buffer.from(await res.arrayBuffer());
 }
 
-// --- Audio segment extraction ---
-
-async function loadAudioBuffer(geschichteId: string): Promise<Buffer> {
-  const geschichte = await prisma.geschichte.findUnique({
-    where: { id: geschichteId },
-    select: { audioUrl: true },
-  });
-
-  if (!geschichte?.audioUrl) throw new Error("No audio URL found");
-
-  const result = await get(geschichte.audioUrl, { access: "private" });
+async function loadAudioBuffer(audioUrl: string): Promise<Buffer> {
+  const result = await get(audioUrl, { access: "private" });
   if (!result?.stream) throw new Error("Could not load audio");
-
   const chunks: Uint8Array[] = [];
   const reader = result.stream.getReader();
   while (true) {
@@ -76,120 +55,156 @@ async function loadAudioBuffer(geschichteId: string): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-// --- Main Pipeline ---
+// --- Step 1: Analyze Story → Create Scenes ---
 
-export async function generateFilm(geschichteId: string): Promise<FilmGenerationResult> {
-  console.log(`[Film] Starting film generation for story ${geschichteId}`);
-
-  // 1. Load story data
+export async function analyzeAndSaveScenes(geschichteId: string): Promise<FilmScene[]> {
   const geschichte = await prisma.geschichte.findUnique({
     where: { id: geschichteId },
-    select: {
-      id: true,
-      text: true,
-      titel: true,
-      audioUrl: true,
-      audioDauerSek: true,
-      timeline: true,
-    },
+    select: { text: true, timeline: true },
   });
 
-  if (!geschichte) throw new Error("Story not found");
-  if (!geschichte.text) throw new Error("Story has no text");
-  if (!geschichte.audioUrl) throw new Error("Story has no audio — generate audio first");
+  if (!geschichte?.text) throw new Error("Story has no text");
 
   const timeline = (geschichte.timeline as unknown as TimelineEntry[]) || [];
-
-  // 2. AI Director — analyze story and create scene list
-  console.log("[Film] Running AI Director...");
   const scenes = await analyzeStoryForFilm(geschichte.text, timeline);
-  console.log(`[Film] Director created ${scenes.length} scenes`);
 
-  // 3. Load full audio
-  const fullAudioBuffer = await loadAudioBuffer(geschichteId);
-  console.log(`[Film] Audio loaded: ${fullAudioBuffer.byteLength} bytes`);
+  // Save scenes to the Geschichte
+  await prisma.geschichte.update({
+    where: { id: geschichteId },
+    data: { filmScenes: JSON.parse(JSON.stringify(scenes)) },
+  });
 
-  // 4. Generate video clips for each scene (sequentially to respect rate limits)
-  const clips: { scene: FilmScene; videoBuffer: Buffer }[] = [];
+  return scenes;
+}
 
-  for (let i = 0; i < scenes.length; i++) {
-    const scene = scenes[i];
-    console.log(`[Film] Generating scene ${i + 1}/${scenes.length}: ${scene.type} — ${scene.sceneDescription.substring(0, 50)}...`);
+// --- Step 2: Generate ONE Scene Video ---
 
-    try {
-      let videoUrl: string;
+export async function generateOneScene(
+  geschichteId: string,
+  sceneIndex: number,
+  scene: FilmScene,
+  fullAudioBuffer: Buffer
+): Promise<string> {
+  console.log(`[Film] Scene ${sceneIndex}: ${scene.type} — ${scene.sceneDescription.substring(0, 60)}...`);
 
-      if (scene.type === "dialog" && scene.characterId) {
-        // Lip-sync: Hedra Character-3 (portrait + audio segment)
-        const portraitBuffer = await loadPortraitBuffer(scene.characterId);
+  let videoUrl: string;
 
-        // For dialog scenes, we pass the full audio and let Hedra handle it
-        // (Hedra Character-3 works best with the actual speech audio)
-        // In a production pipeline, we'd slice the audio segment here
-        videoUrl = await generateVideo({
-          imageBuffer: portraitBuffer,
-          audioBuffer: fullAudioBuffer, // TODO: slice to scene.audioStartMs-audioEndMs
-          prompt: scene.sceneDescription,
-          aspectRatio: "9:16",
-          resolution: "720p",
-        });
-      } else {
-        // Landscape/Transition: Kling scene animation
-        // Use a KoalaTree landscape illustration as base
-        // For now, use Koda's portrait as placeholder (replace with scene illustrations later)
-        const sceneImageBuffer = await loadPortraitBuffer("koda");
-
-        videoUrl = await generateSceneVideo({
-          imageBuffer: sceneImageBuffer,
-          prompt: `${scene.sceneDescription}. ${scene.mood}. Camera: ${scene.camera}. KoalaTree animated style, warm colors, magical forest atmosphere.`,
-          aspectRatio: "9:16",
-          resolution: "720p",
-        });
-      }
-
-      const videoBuffer = await downloadVideo(videoUrl);
-      clips.push({ scene, videoBuffer });
-      console.log(`[Film] Scene ${i + 1} done: ${videoBuffer.byteLength} bytes`);
-    } catch (err) {
-      console.error(`[Film] Scene ${i + 1} failed:`, err);
-      // Continue with remaining scenes — don't fail entire film for one scene
-    }
+  if (scene.type === "dialog" && scene.characterId) {
+    // Lip-sync via Hedra Character-3
+    const portraitBuffer = await loadPortraitBuffer(scene.characterId);
+    videoUrl = await generateVideo({
+      imageBuffer: portraitBuffer,
+      audioBuffer: fullAudioBuffer, // Full audio — Hedra handles timing
+      prompt: scene.sceneDescription,
+      aspectRatio: "9:16",
+      resolution: "720p",
+    });
+  } else {
+    // Landscape/Transition via Kling
+    const sceneImageBuffer = await loadPortraitBuffer(scene.characterId || "koda");
+    videoUrl = await generateSceneVideo({
+      imageBuffer: sceneImageBuffer,
+      prompt: `${scene.sceneDescription}. ${scene.mood}. Camera: ${scene.camera}. KoalaTree animated style, warm colors, magical forest.`,
+      aspectRatio: "9:16",
+      resolution: "720p",
+    });
   }
 
-  if (clips.length === 0) {
-    throw new Error("No scenes could be generated");
-  }
-
-  // 5. For now, upload individual clips and the first clip as the "film"
-  // Full concat requires ffmpeg (local script) or a cloud video editor
-  // TODO: Replace with proper concat when ffmpeg/Remotion is available
-
-  // Upload each clip
-  const clipUrls: string[] = [];
-  for (let i = 0; i < clips.length; i++) {
-    const blob = await put(
-      `films/${geschichteId}/scene-${i}.mp4`,
-      clips[i].videoBuffer,
-      { access: "private", contentType: "video/mp4", allowOverwrite: true }
-    );
-    clipUrls.push(blob.url);
-  }
-
-  // Upload the "film" as the first clip for now
-  // (proper concat happens via local ffmpeg script or cloud service)
-  const filmBlob = await put(
-    `films/${geschichteId}/film.mp4`,
-    clips[0].videoBuffer, // Placeholder — first scene only
+  // Download and store
+  const videoBuffer = await downloadVideo(videoUrl);
+  const blob = await put(
+    `films/${geschichteId}/scene-${String(sceneIndex).padStart(3, "0")}.mp4`,
+    videoBuffer,
     { access: "private", contentType: "video/mp4", allowOverwrite: true }
   );
 
-  console.log(`[Film] Uploaded ${clips.length} scenes + film placeholder`);
+  console.log(`[Film] Scene ${sceneIndex} stored: ${videoBuffer.byteLength} bytes`);
+  return blob.url;
+}
 
-  const totalDuration = scenes.reduce((sum, s) => sum + s.durationHint, 0);
+// --- Step 3: Process Next Pending Scene (called by cron) ---
+
+export async function processNextScene(jobId: string): Promise<{
+  done: boolean;
+  sceneIndex: number;
+  scenesTotal: number;
+}> {
+  const job = await prisma.filmJob.findUnique({
+    where: { id: jobId },
+    include: {
+      geschichte: {
+        select: { id: true, text: true, audioUrl: true, filmScenes: true, timeline: true },
+      },
+    },
+  });
+
+  if (!job) throw new Error("Job not found");
+
+  const geschichteId = job.geschichteId;
+
+  // Step 1: If no scenes yet, run Director
+  let scenes = job.geschichte.filmScenes as unknown as FilmScene[] | null;
+
+  if (!scenes || scenes.length === 0) {
+    console.log("[Film] Running AI Director...");
+    await prisma.filmJob.update({
+      where: { id: jobId },
+      data: { progress: "Szenen werden analysiert..." },
+    });
+
+    scenes = await analyzeAndSaveScenes(geschichteId);
+
+    await prisma.filmJob.update({
+      where: { id: jobId },
+      data: { scenesTotal: scenes.length, progress: `${scenes.length} Szenen geplant` },
+    });
+
+    console.log(`[Film] Director: ${scenes.length} scenes`);
+    // Return — next cron run will process scene 0
+    return { done: false, sceneIndex: -1, scenesTotal: scenes.length };
+  }
+
+  // Step 2: Find next unprocessed scene
+  const nextIndex = job.scenesComplete;
+
+  if (nextIndex >= scenes.length) {
+    // All scenes done!
+    return { done: true, sceneIndex: nextIndex, scenesTotal: scenes.length };
+  }
+
+  const scene = scenes[nextIndex];
+
+  // Update progress
+  const charName = scene.characterId
+    ? scene.characterId.charAt(0).toUpperCase() + scene.characterId.slice(1)
+    : "Szene";
+  await prisma.filmJob.update({
+    where: { id: jobId },
+    data: { progress: `Szene ${nextIndex + 1}/${scenes.length}: ${charName} — ${scene.type}` },
+  });
+
+  // Load audio
+  if (!job.geschichte.audioUrl) throw new Error("No audio URL");
+  const audioBuffer = await loadAudioBuffer(job.geschichte.audioUrl);
+
+  // Generate this scene
+  await generateOneScene(geschichteId, nextIndex, scene, audioBuffer);
+
+  // Update progress
+  const newComplete = nextIndex + 1;
+  await prisma.filmJob.update({
+    where: { id: jobId },
+    data: {
+      scenesComplete: newComplete,
+      progress: newComplete >= scenes.length
+        ? "Alle Szenen fertig!"
+        : `${newComplete}/${scenes.length} Szenen fertig`,
+    },
+  });
 
   return {
-    videoUrl: filmBlob.url,
-    scenes,
-    totalDurationSek: totalDuration,
+    done: newComplete >= scenes.length,
+    sceneIndex: nextIndex,
+    scenesTotal: scenes.length,
   };
 }
