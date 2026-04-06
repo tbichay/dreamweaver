@@ -23,14 +23,18 @@ const PORTRAITS: Record<string, string> = {
   nuki: "nuki-portrait.png",
 };
 
+// Optimized prompts for Hedra Character-3 lip-sync quality:
+// - Front-facing, clear facial features
+// - Emotional tone matching the character
+// - "speaking directly to camera" for best lip-sync
 const PROMPTS: Record<string, string> = {
-  koda: "A wise, warm koala character speaking gently with kind eyes and subtle head movements. Natural blinking and gentle expressions.",
-  kiki: "A playful, energetic kookaburra character speaking with enthusiasm. Expressive eyes, occasional head tilts, cheerful demeanor.",
-  luna: "A dreamy, gentle owl character speaking softly with wise, calm expressions. Slow blinks, serene movements.",
-  mika: "A brave, energetic dingo character speaking with confidence. Alert expressions, occasional ear movements.",
-  pip: "A curious, bouncy platypus character speaking with excitement. Wide eyes, eager expressions, animated movements.",
-  sage: "A thoughtful, philosophical wombat speaking slowly and deliberately. Deep, contemplative expressions.",
-  nuki: "A cheerful, sunny quokka speaking with warmth and joy. Big smile, happy expressions, welcoming demeanor.",
+  koda: "Front-facing portrait of a wise koala character speaking directly to camera. Warm, gentle tone. Natural lip movements synchronized to speech. Kind eyes with subtle blinks. Slight head movements. Calm, fatherly demeanor. Warm lighting.",
+  kiki: "Front-facing portrait of a playful kookaburra character speaking directly to camera. Enthusiastic, excited tone. Animated lip movements matching energetic speech. Bright expressive eyes, occasional playful head tilts. Cheerful, fun energy.",
+  luna: "Front-facing portrait of a dreamy owl character speaking directly to camera. Soft, gentle tone. Graceful lip movements matching calm speech. Slow deliberate blinks, serene expression. Moonlit ambiance, mystical feeling.",
+  mika: "Front-facing portrait of a brave dingo character speaking directly to camera. Confident, encouraging tone. Strong lip movements matching bold speech. Alert bright eyes, determined expression. Warm sunset lighting.",
+  pip: "Front-facing portrait of a curious platypus character speaking directly to camera. Excited, bouncy tone. Quick animated lip movements matching enthusiastic speech. Wide curious eyes, eager expression. Bright cheerful lighting.",
+  sage: "Front-facing portrait of a thoughtful wombat character speaking directly to camera. Slow, philosophical tone. Deliberate lip movements matching measured speech. Deep contemplative eyes, gentle wisdom. Soft earth-toned lighting.",
+  nuki: "Front-facing portrait of a cheerful quokka character speaking directly to camera. Warm, joyful tone. Natural lip movements matching happy speech. Big bright smile, welcoming expression. Golden warm lighting.",
 };
 
 // GET: List existing marketing videos
