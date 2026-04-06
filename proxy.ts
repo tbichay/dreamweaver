@@ -10,13 +10,18 @@ const publicPaths = [
   "/datenschutz",
   "/barrierefreiheit",
   "/api/audio/onboarding",
-  "/api/audio",  // Audio-Proxy auch für Share-Links ohne Login
+  "/api/audio/help",   // Help-Audio Clips (public)
+  "/api/audio",        // Audio-Proxy auch für Share-Links ohne Login
   "/api/images",
   "/api/icons",
   "/api/auth",
   "/api/account/check-email",
   "/api/avatars",
+  "/api/cron",         // Vercel Cron Jobs (auth via CRON_SECRET header)
+  "/api/invite",       // Invitation acceptance (public, auth checked in handler)
+  "/api/admin/onboarding", // Onboarding status check
   "/share",
+  "/einladung",        // Invitation acceptance page
 ];
 
 function isPublic(pathname: string): boolean {
