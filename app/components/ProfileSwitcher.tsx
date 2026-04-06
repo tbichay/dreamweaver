@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { useProfile } from "@/lib/profile-context";
 import { berechneAlter } from "@/lib/utils";
 
@@ -28,8 +29,20 @@ interface ProfileSwitcherProps {
 
 export default function ProfileSwitcher({ variant, onClose }: ProfileSwitcherProps) {
   const { profiles, activeProfile, setActiveProfile } = useProfile();
+  const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const switchProfile = (id: string) => {
+    setActiveProfile(id);
+    setOpen(false);
+    onClose?.();
+    // If on a profile page, navigate to the new profile
+    if (pathname?.startsWith("/profil/")) {
+      router.push(`/profil/${id}`);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -111,7 +124,7 @@ export default function ProfileSwitcher({ variant, onClose }: ProfileSwitcherPro
               return (
                 <button
                   key={p.id}
-                  onClick={() => { setActiveProfile(p.id); setOpen(false); }}
+                  onClick={() => switchProfile(p.id)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                     isActive ? "bg-[#3d6b4a]/30 text-[#a8d5b8] font-medium" : "text-white/60 hover:text-white hover:bg-white/5"
                   }`}
@@ -171,7 +184,7 @@ export default function ProfileSwitcher({ variant, onClose }: ProfileSwitcherPro
             return (
               <button
                 key={p.id}
-                onClick={() => { setActiveProfile(p.id); setOpen(false); onClose?.(); }}
+                onClick={() => switchProfile(p.id)}
                 className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
                   isActive ? "bg-[#3d6b4a]/30 text-[#a8d5b8] font-medium" : "text-white/60 hover:text-white hover:bg-white/5"
                 }`}
