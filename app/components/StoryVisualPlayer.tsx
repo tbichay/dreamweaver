@@ -448,12 +448,10 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         isFullscreen
           ? isNativeFullscreen
             ? "bg-black flex flex-col w-full h-full"
-            : "fixed inset-0 z-50 bg-black flex flex-col h-[100dvh] max-h-[100dvh]"
+            : "fixed inset-0 z-[9999] bg-black flex flex-col"
           : "card p-6"
       }`}
-      onClick={isFullscreen ? showControls : undefined}
       onMouseMove={isFullscreen ? showControls : undefined}
-      onTouchStart={isFullscreen ? showControls : undefined}
     >
       <audio ref={audioRef} src={audioUrl} preload="auto" />
 
@@ -467,8 +465,11 @@ export default function StoryVisualPlayer({ audioUrl, timeline, title, artwork, 
         </div>
       )}
 
-      {/* ═══ Visual Stage: Character Portrait — z-0, pointer-events-none in FS ═══ */}
-      <div className={`flex flex-col items-center ${isFullscreen ? "relative flex-1 justify-center pointer-events-none z-0" : "relative mb-6"}`}>
+      {/* ═══ Visual Stage: Character Portrait — tap here to show controls in FS ═══ */}
+      <div
+        className={`flex flex-col items-center ${isFullscreen ? "relative flex-1 justify-center z-0" : "relative mb-6"}`}
+        onClick={isFullscreen ? showControls : undefined}
+      >
         {/* Glow */}
         <div
           className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-all duration-1000 opacity-50 ${
