@@ -32,12 +32,14 @@ interface Props {
   createdAt: string;
   isPlaying?: boolean;
   isInQueue?: boolean;
+  videoUrl?: string;
   onPlay: () => void;
   onAddToQueue: () => void;
   onOpenFullView: () => void;
   onDelete: () => void;
   onDownload?: () => void;
   onShare?: () => void;
+  onGenerateFilm?: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -48,8 +50,8 @@ function formatDuration(seconds: number): string {
 
 export default function StoryCard({
   titel, format, zusammenfassung, audioDauerSek, audioUrl, timeline,
-  kindName, createdAt, isPlaying, isInQueue,
-  onPlay, onAddToQueue, onOpenFullView, onDelete, onDownload, onShare,
+  kindName, createdAt, isPlaying, isInQueue, videoUrl,
+  onPlay, onAddToQueue, onOpenFullView, onDelete, onDownload, onShare, onGenerateFilm,
 }: Props) {
   const formatInfo = STORY_FORMATE[format as StoryFormat];
   const [showMenu, setShowMenu] = useState(false);
@@ -239,6 +241,26 @@ export default function StoryCard({
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
               Vollansicht
             </button>
+            {hasAudio && onGenerateFilm && !videoUrl && (
+              <button
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[#a8d5b8]/70 hover:text-[#a8d5b8] hover:bg-white/5 transition-colors"
+                onClick={() => { onGenerateFilm(); setShowMenu(false); }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                Film generieren
+              </button>
+            )}
+            {videoUrl && (
+              <a
+                href={videoUrl}
+                target="_blank"
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[#a8d5b8]/70 hover:text-[#a8d5b8] hover:bg-white/5 transition-colors"
+                onClick={() => setShowMenu(false)}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                Film anschauen
+              </a>
+            )}
             {hasAudio && onDownload && (
               <button
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors"

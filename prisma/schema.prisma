@@ -159,8 +159,11 @@ model Geschichte {
   timeline        Json?       // Audio-Timeline: [{ characterId, startMs, endMs }] — wer spricht wann
   zusammenfassung String?     // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
   shareSlug       String?     @unique // Öffentlicher Share-Link Slug
+  videoUrl        String?     // Film-Video Vercel Blob URL
+  filmScenes      Json?       // Film-Szenen: FilmScene[] from video-director
   createdAt       DateTime    @default(now())
   generationJob   GenerationJob?
+  filmJob         FilmJob?
 
   @@index([userId])
   @@index([hoererProfilId])
@@ -182,6 +185,27 @@ model GenerationJob {
   userId         String
   status         GenerationStatus @default(PENDING)
   error          String?          // Last error message
+  retryCount     Int              @default(0)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+// ── Film Generation Queue ──
+
+model FilmJob {
+  id             String           @id @default(cuid())
+  geschichteId   String           @unique
+  geschichte     Geschichte       @relation(fields: [geschichteId], references: [id], onDelete: Cascade)
+  userId         String
+  status         GenerationStatus @default(PENDING)
+  progress       String?          // "Szene 3/12: Koda spricht..."
+  scenesTotal    Int?
+  scenesComplete Int              @default(0)
+  error          String?
   retryCount     Int              @default(0)
   startedAt      DateTime?
   completedAt    DateTime?
