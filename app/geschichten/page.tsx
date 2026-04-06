@@ -571,6 +571,23 @@ export default function GeschichtenPage() {
                         a.download = `${getTitle(g).replace(/[^a-zA-ZäöüÄÖÜß0-9 ]/g, "").trim()}.wav`;
                         a.click();
                       } : undefined}
+                      onGenerateFilm={hasPlayableAudio(g.audioUrl) ? async () => {
+                        try {
+                          const res = await fetch("/api/generate-film", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ geschichteId: g.id }),
+                          });
+                          const data = await res.json();
+                          if (data.status === "COMPLETED" && data.videoUrl) {
+                            window.open(data.videoUrl, "_blank");
+                          } else {
+                            alert("Film wird generiert! Du bekommst eine Email wenn er fertig ist.");
+                          }
+                        } catch {
+                          alert("Fehler beim Starten der Film-Generierung");
+                        }
+                      } : undefined}
                     />
                   ))}
                 </div>
