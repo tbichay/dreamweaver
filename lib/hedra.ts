@@ -24,9 +24,18 @@ function headers(contentType = true): Record<string, string> {
 async function getModelId(): Promise<string> {
   const res = await fetch(`${BASE_URL}/models`, { headers: headers() });
   if (!res.ok) throw new Error(`Hedra models error: ${res.status} — ${await res.text()}`);
-  const models = await res.json();
+  const models = await res.json() as Array<{ id: string; name: string; type: string; requires_audio_input: boolean }>;
   if (!models?.length) throw new Error("No Hedra models available");
-  return models[0].id;
+
+  // Find Hedra Character 3 (talking head with audio) — the best model for lip-sync
+  const character3 = models.find((m) => m.name.includes("Character 3") && m.requires_audio_input);
+  if (character3) return character3.id;
+
+  // Fallback: any video model that requires audio
+  const audioModel = models.find((m) => m.type === "video" && m.requires_audio_input);
+  if (audioModel) return audioModel.id;
+
+  throw new Error("No suitable Hedra video model found (need audio-capable model)");
 }
 
 // --- Asset upload ---
