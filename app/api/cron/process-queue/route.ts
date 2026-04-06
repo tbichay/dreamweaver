@@ -8,6 +8,11 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const emailFrom = process.env.EMAIL_FROM || "KoalaTree <noreply@koalatree.ai>";
 const STALE_MINUTES = 5; // Jobs stuck in PROCESSING for > 5 min are considered stale
 
+function getBaseUrl(): string {
+  // Use AUTH_URL or NEXTAUTH_URL (custom domain) first, never the deployment-specific VERCEL_URL
+  return process.env.AUTH_URL || process.env.NEXTAUTH_URL || "https://koalatree.ai";
+}
+
 export async function GET(request: Request) {
   // Auth: Vercel Cron sends Authorization header with CRON_SECRET
   const authHeader = request.headers.get("authorization");
@@ -132,7 +137,7 @@ export async function GET(request: Request) {
       if (user?.email) {
         const profilName = nextJob.geschichte.hoererProfil?.name || "Dein Kind";
         const storyTitle = nextJob.geschichte.titel || "Neue Geschichte";
-        const baseUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+        const baseUrl = getBaseUrl();
 
         await resend.emails.send({
           from: emailFrom,
