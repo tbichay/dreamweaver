@@ -61,6 +61,35 @@ async function loadPortrait(characterId: string): Promise<Buffer | null> {
   return null;
 }
 
+// ── Helper: load blob by exact path ──────────────────────────────────
+async function loadBlobBuffer(blobPath: string): Promise<Buffer | null> {
+  try {
+    const { blobs } = await list({ prefix: blobPath, limit: 1 });
+    if (blobs.length === 0) return null;
+    const result = await get(blobs[0].url, { access: "private" });
+    if (!result || result.statusCode !== 200 || !result.stream) return null;
+    const reader = result.stream.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    return Buffer.concat(chunks);
+  } catch {
+    return null;
+  }
+}
+
+// ── Helper: load references.json ─────────────────────────────────────
+async function loadReferences(): Promise<Record<string, string>> {
+  try {
+    const buf = await loadBlobBuffer("studio/references.json");
+    if (buf) return JSON.parse(buf.toString("utf-8"));
+  } catch { /* ignore */ }
+  return {};
+}
+
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.email || session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
@@ -154,17 +183,52 @@ export async function POST(request: Request) {
       prompt += "\n\nNO noise, NO grain. Bold saturated colors.";
     }
 
-    // Load reference portraits for characters in this scene
+    // Load ALL reference images: character portraits + landscape/style references
     const referenceBuffers: { id: string; buffer: Buffer }[] = [];
+    const refs = await loadReferences();
+
+    // 1. Character portrait references
     if (refCharIds.length > 0) {
-      console.log(`[Scene Image] Loading reference portraits for: ${refCharIds.join(", ")}`);
-      // Limit to 10 refs (API max is 16 but we need room for prompt)
-      for (const cid of refCharIds.slice(0, 10)) {
+      console.log(`[Scene Image] Loading character refs: ${refCharIds.join(", ")}`);
+      for (const cid of refCharIds.slice(0, 7)) {
         const buf = await loadPortrait(cid);
         if (buf) {
-          referenceBuffers.push({ id: cid, buffer: buf });
-          console.log(`[Scene Image] Loaded ref: ${cid} (${(buf.byteLength / 1024).toFixed(0)}KB)`);
+          referenceBuffers.push({ id: `char:${cid}`, buffer: buf });
+          console.log(`[Scene Image] Loaded char ref: ${cid} (${(buf.byteLength / 1024).toFixed(0)}KB)`);
         }
+      }
+    }
+
+    // 2. Landscape / style references from references.json
+    // Load matching landscape ref if generating a landscape of same type
+    if (type === "landscape" && landscapeId && refs[`landscape:${landscapeId}`]) {
+      const buf = await loadBlobBuffer(refs[`landscape:${landscapeId}`]);
+      if (buf) {
+        referenceBuffers.push({ id: `landscape:${landscapeId}`, buffer: buf });
+        console.log(`[Scene Image] Loaded landscape ref: ${landscapeId} (${(buf.byteLength / 1024).toFixed(0)}KB)`);
+      }
+    }
+
+    // Also load any general landscape refs for group/character scenes (style consistency)
+    if (type === "group" || type === "character") {
+      const mainLandscapeRef = refs["landscape:koalatree_full"];
+      if (mainLandscapeRef && referenceBuffers.length < 14) {
+        const buf = await loadBlobBuffer(mainLandscapeRef);
+        if (buf) {
+          referenceBuffers.push({ id: "landscape:koalatree_full", buffer: buf });
+          console.log(`[Scene Image] Loaded style ref: koalatree_full (${(buf.byteLength / 1024).toFixed(0)}KB)`);
+        }
+      }
+    }
+
+    // 3. Background refs
+    for (const [key, path] of Object.entries(refs)) {
+      if (!key.startsWith("background:")) continue;
+      if (referenceBuffers.length >= 15) break;
+      const buf = await loadBlobBuffer(path);
+      if (buf) {
+        referenceBuffers.push({ id: key, buffer: buf });
+        console.log(`[Scene Image] Loaded bg ref: ${key} (${(buf.byteLength / 1024).toFixed(0)}KB)`);
       }
     }
 

@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
-import { list, del } from "@vercel/blob";
+import { list, del, put, get } from "@vercel/blob";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
+const REFS_PATH = "studio/references.json";
 
 interface Asset {
   name: string;
@@ -14,16 +15,47 @@ interface Asset {
   uploadedAt: string;
 }
 
+// References map: "landscape:koalatree_full" → blobPath, "character:koda" → blobPath, etc.
+type ReferencesMap = Record<string, string>;
+
 async function checkAdmin() {
   const session = await auth();
   if (!session?.user?.email || session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return false;
   return true;
 }
 
+async function loadReferences(): Promise<ReferencesMap> {
+  try {
+    const { blobs } = await list({ prefix: REFS_PATH, limit: 1 });
+    if (blobs.length === 0) return {};
+    const result = await get(blobs[0].url, { access: "private" });
+    if (!result || result.statusCode !== 200 || !result.stream) return {};
+    const reader = result.stream.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+async function saveReferences(refs: ReferencesMap): Promise<void> {
+  await put(REFS_PATH, JSON.stringify(refs, null, 2), {
+    access: "private",
+    contentType: "application/json",
+    allowOverwrite: true,
+  });
+}
+
 // GET: List all assets
 export async function GET() {
   if (!(await checkAdmin())) return Response.json({ error: "Unauthorized" }, { status: 403 });
 
+  const references = await loadReferences();
   const assets: Asset[] = [];
 
   const prefixes = [
@@ -149,6 +181,7 @@ export async function GET() {
   return Response.json({
     assets,
     grouped,
+    references,
     stats: {
       total: assets.length,
       images: assets.filter((a) => a.type === "image").length,
@@ -157,6 +190,27 @@ export async function GET() {
       totalSize: assets.reduce((s, a) => s + a.size, 0),
     },
   });
+}
+
+// PUT: Set or remove a reference image
+export async function PUT(request: Request) {
+  if (!(await checkAdmin())) return Response.json({ error: "Unauthorized" }, { status: 403 });
+
+  const { refKey, assetPath } = await request.json() as { refKey: string; assetPath: string | null };
+
+  if (!refKey) return Response.json({ error: "refKey required" }, { status: 400 });
+
+  const refs = await loadReferences();
+
+  if (assetPath) {
+    refs[refKey] = assetPath;
+  } else {
+    delete refs[refKey];
+  }
+
+  await saveReferences(refs);
+
+  return Response.json({ references: refs });
 }
 
 // DELETE: Remove an asset from blob
