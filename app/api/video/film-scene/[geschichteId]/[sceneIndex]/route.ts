@@ -29,10 +29,21 @@ export async function GET(
     const result = await get(clip.url, { access: "private" });
     if (!result?.stream) return new Response("Unavailable", { status: 503 });
 
-    return new Response(result.stream, {
+    // Read full buffer for proper Content-Length (required for video playback/seeking)
+    const reader = result.stream.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    return new Response(buffer, {
       headers: {
         "Content-Type": "video/mp4",
-        ...(result.blob.size ? { "Content-Length": String(result.blob.size) } : {}),
+        "Content-Length": String(buffer.byteLength),
+        "Accept-Ranges": "bytes",
         "Cache-Control": "private, max-age=3600",
       },
     });
