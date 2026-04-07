@@ -167,10 +167,18 @@ export async function downloadVideo(url: string): Promise<Buffer> {
 
 // --- Kling Scene Video (Image-to-Video, no audio) ---
 
-async function getKlingModelId(): Promise<string> {
+async function getKlingModelId(withReference = false): Promise<string> {
   const res = await fetch(`${BASE_URL}/models`, { headers: headers() });
   if (!res.ok) throw new Error(`Hedra models error: ${res.status}`);
   const models = await res.json() as Array<{ id: string; name: string; type: string; requires_audio_input: boolean }>;
+
+  // If reference images needed, use IR2V models (Image + Reference to Video)
+  if (withReference) {
+    const ir2v = models.find((m) => m.name.includes("Kling O1 IR2V") && m.type === "video");
+    if (ir2v) return ir2v.id;
+    const anyIR2V = models.find((m) => m.name.includes("IR2V") && m.type === "video");
+    if (anyIR2V) return anyIR2V.id;
+  }
 
   // Prefer Kling V3 Pro Image-to-Video
   const klingV3 = models.find((m) => m.name.includes("Kling V3 Pro I") && m.type === "video" && !m.requires_audio_input);
@@ -192,6 +200,8 @@ interface GenerateSceneOptions {
   prompt: string;
   aspectRatio?: "16:9" | "9:16" | "1:1";
   resolution?: "540p" | "720p";
+  /** Reference images for character consistency (max 3) */
+  referenceImages?: Buffer[];
 }
 
 /**
@@ -204,33 +214,53 @@ export async function generateSceneVideo(options: GenerateSceneOptions): Promise
     prompt,
     aspectRatio = "16:9",
     resolution = "720p",
+    referenceImages,
   } = options;
 
-  console.log("[Kling] Starting scene video generation...");
+  const hasRefs = referenceImages && referenceImages.length > 0;
+  console.log(`[Kling] Starting scene video generation... ${hasRefs ? `(${referenceImages.length} reference images)` : "(no references)"}`);
 
-  // 1. Get Kling model
-  const modelId = await getKlingModelId();
+  // 1. Get Kling model (IR2V if reference images, I2V otherwise)
+  const modelId = await getKlingModelId(hasRefs);
   console.log(`[Kling] Model: ${modelId}`);
 
-  // 2. Upload image
+  // 2. Upload scene image (start frame)
   const imageAssetId = await createAsset("scene.png", "image");
   await uploadAsset(imageAssetId, imageBuffer, "scene.png", "image/png");
-  console.log(`[Kling] Image uploaded: ${imageAssetId}`);
+  console.log(`[Kling] Scene image uploaded: ${imageAssetId}`);
 
-  // 3. Create generation (no audio)
+  // 3. Upload reference images (character portraits for consistency)
+  const referenceImageIds: string[] = [];
+  if (hasRefs) {
+    for (let i = 0; i < Math.min(referenceImages.length, 3); i++) {
+      const refId = await createAsset(`reference-${i}.png`, "image");
+      await uploadAsset(refId, referenceImages[i], `reference-${i}.png`, "image/png");
+      referenceImageIds.push(refId);
+      console.log(`[Kling] Reference ${i + 1} uploaded: ${refId}`);
+    }
+  }
+
+  // 4. Create generation
+  const genBody: Record<string, unknown> = {
+    type: "video",
+    ai_model_id: modelId,
+    start_keyframe_id: imageAssetId,
+    generated_video_inputs: {
+      text_prompt: prompt,
+      resolution,
+      aspect_ratio: aspectRatio,
+    },
+  };
+
+  // Add reference images if available
+  if (referenceImageIds.length > 0) {
+    genBody.reference_image_ids = referenceImageIds;
+  }
+
   const genRes = await fetch(`${BASE_URL}/generations`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({
-      type: "video",
-      ai_model_id: modelId,
-      start_keyframe_id: imageAssetId,
-      generated_video_inputs: {
-        text_prompt: prompt,
-        resolution,
-        aspect_ratio: aspectRatio,
-      },
-    }),
+    body: JSON.stringify(genBody),
   });
 
   if (!genRes.ok) throw new Error(`Kling generation error: ${genRes.status} — ${await genRes.text()}`);

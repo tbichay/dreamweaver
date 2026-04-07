@@ -193,11 +193,22 @@ export async function POST(request: Request) {
 
       console.log(`[Scene Clip] Landscape prompt with movement: ${animationPrompt.substring(0, 100)}...`);
 
+      // Load character portrait as reference image for consistency
+      const referenceImages: Buffer[] = [];
+      if (scene.characterId) {
+        try {
+          const charRef = await loadPortrait(scene.characterId);
+          referenceImages.push(charRef);
+          console.log(`[Scene Clip] Character reference loaded: ${scene.characterId}`);
+        } catch { /* no reference available */ }
+      }
+
       videoUrl = await generateSceneVideo({
         imageBuffer: sceneImage,
         prompt: animationPrompt,
         aspectRatio: "9:16",
         resolution: "720p",
+        referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
       });
     }
 
