@@ -99,11 +99,64 @@ export async function POST(request: Request) {
         });
       }
     } else {
-      // Landscape/Transition — Kling I2V
+      // Landscape/Transition — Kling I2V with automatic movement
       const sceneImage = await loadPortrait(scene.characterId || "koda");
+
+      // Auto-detect movement keywords from scene description
+      const desc = (scene.sceneDescription + " " + (scene.mood || "")).toLowerCase();
+      const movements: string[] = [];
+
+      if (desc.includes("baum") || desc.includes("tree") || desc.includes("blätter") || desc.includes("leaves")) {
+        movements.push("Leaves gently swaying in warm breeze, branches subtly moving");
+      }
+      if (desc.includes("wasser") || desc.includes("water") || desc.includes("bach") || desc.includes("stream") || desc.includes("fluss")) {
+        movements.push("Water flowing gently over rocks, rippling surface reflections");
+      }
+      if (desc.includes("strand") || desc.includes("beach") || desc.includes("meer") || desc.includes("ocean") || desc.includes("wellen") || desc.includes("waves")) {
+        movements.push("Gentle ocean waves rolling onto shore, foam spreading on sand, water reflecting sunlight");
+      }
+      if (desc.includes("wind") || desc.includes("gras") || desc.includes("grass") || desc.includes("wiese") || desc.includes("meadow")) {
+        movements.push("Tall grass swaying rhythmically in gentle wind, wildflowers bobbing");
+      }
+      if (desc.includes("nacht") || desc.includes("night") || desc.includes("mond") || desc.includes("moon") || desc.includes("sterne") || desc.includes("stars")) {
+        movements.push("Fireflies floating and glowing softly, stars twinkling, gentle moonlight shifting");
+      }
+      if (desc.includes("feuer") || desc.includes("fire") || desc.includes("lagerfeuer") || desc.includes("campfire")) {
+        movements.push("Fire crackling and flickering, warm light dancing on surroundings, sparks floating up");
+      }
+      if (desc.includes("regen") || desc.includes("rain")) {
+        movements.push("Gentle rain falling, droplets creating ripples, mist rising");
+      }
+      if (desc.includes("schnee") || desc.includes("snow")) {
+        movements.push("Soft snowflakes drifting down slowly, settling on branches");
+      }
+      if (desc.includes("sonnenuntergang") || desc.includes("sunset") || desc.includes("golden")) {
+        movements.push("Warm golden light slowly shifting, long shadows moving subtly");
+      }
+
+      // Default movement if nothing specific detected
+      if (movements.length === 0) {
+        movements.push("Gentle ambient movement, leaves swaying, particles floating in light");
+      }
+
+      // Camera movement
+      const cameraMap: Record<string, string> = {
+        "slow-pan": "Slow cinematic camera pan across the scene",
+        "zoom-in": "Slow smooth zoom into the center of the scene",
+        "zoom-out": "Slow smooth zoom out revealing the full scene",
+        "wide": "Static wide shot with subtle parallax depth",
+        "medium": "Gentle camera drift, slight movement",
+        "close-up": "Slow push-in close-up shot",
+      };
+      const cameraMovement = cameraMap[scene.camera || "wide"] || cameraMap.wide;
+
+      const animationPrompt = `${scene.sceneDescription}. ${movements.join(". ")}. ${cameraMovement}. Smooth natural animation, no sudden movements. KoalaTree animated style, warm colors, Disney 1994 aesthetic.`;
+
+      console.log(`[Scene Clip] Landscape prompt with movement: ${animationPrompt.substring(0, 100)}...`);
+
       videoUrl = await generateSceneVideo({
         imageBuffer: sceneImage,
-        prompt: `${scene.sceneDescription}. ${scene.mood || ""}. Camera: ${scene.camera || "wide"}. KoalaTree animated style, warm colors.`,
+        prompt: animationPrompt,
         aspectRatio: "9:16",
         resolution: "720p",
       });
