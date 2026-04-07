@@ -168,7 +168,17 @@ export async function processNextScene(jobId: string): Promise<{
   const nextIndex = job.scenesComplete;
 
   if (nextIndex >= scenes.length) {
-    // All scenes done!
+    // All scenes done — mastering step
+    await prisma.filmJob.update({
+      where: { id: jobId },
+      data: { progress: "🎬 Mastering: Film wird zusammengeschnitten..." },
+    });
+
+    // Note: Full mastering with ffmpeg (color grading, transitions, music)
+    // runs via the local script: node scripts/master-film.mjs <geschichteId>
+    // On Vercel, we just mark the individual clips as done.
+    // The mastering script downloads clips, processes, and re-uploads.
+
     return { done: true, sceneIndex: nextIndex, scenesTotal: scenes.length };
   }
 
