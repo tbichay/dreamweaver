@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import FilmTimeline from "./FilmTimeline";
+import FilmPlayer from "./FilmPlayer";
 import MasteringPanel, { type MasteringSettings, DEFAULT_MASTERING_SETTINGS } from "./MasteringPanel";
 import PromptVersions, { type PromptVersion } from "./PromptVersions";
 
@@ -64,6 +65,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const [mastering, setMastering] = useState<MasteringSettings>(DEFAULT_MASTERING_SETTINGS);
   const [error, setError] = useState("");
+  const [filmMode, setFilmMode] = useState(false); // true = play all clips as film
 
   // Load project with existing clips
   useEffect(() => {
@@ -243,25 +245,53 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr,300px] gap-4">
           {/* Left: Preview + Timeline + Mastering */}
           <div className="space-y-3">
-            {/* Video Preview */}
-            <div className="bg-black rounded-xl overflow-hidden aspect-[9/16] max-h-[450px] relative">
-              {currentScene?.videoUrl ? (
-                <video key={currentScene.videoUrl} src={currentScene.videoUrl} controls className="w-full h-full object-contain" />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-white/30">
-                  {currentScene?.characterId && (
-                    <div className="w-16 h-16 rounded-xl overflow-hidden mb-2 opacity-40">
-                      <Image src={`/api/images/${currentScene.characterId}-portrait.png`} alt="" width={64} height={64} className="object-cover" unoptimized />
-                    </div>
-                  )}
-                  <p className="text-[10px]">Noch kein Clip</p>
-                  <p className="text-[8px] mt-1 text-white/15">~{currentScene ? estimateCredits(currentScene) : 0} Credits</p>
-                </div>
-              )}
-              <div className="absolute top-2 left-2 bg-black/60 text-white/60 text-[9px] px-1.5 py-0.5 rounded-full">
-                {selectedScene + 1}/{scenes.length}
-              </div>
+            {/* Preview Toggle */}
+            <div className="flex gap-1 mb-2">
+              <button
+                onClick={() => setFilmMode(false)}
+                className={`flex-1 text-[10px] py-1.5 rounded-lg transition-all ${!filmMode ? "bg-[#3d6b4a]/30 text-[#a8d5b8]" : "text-white/30 hover:text-white/50"}`}
+              >
+                🎬 Einzelner Clip
+              </button>
+              <button
+                onClick={() => setFilmMode(true)}
+                disabled={completedScenes < 2}
+                className={`flex-1 text-[10px] py-1.5 rounded-lg transition-all ${filmMode ? "bg-[#3d6b4a]/30 text-[#a8d5b8]" : "text-white/30 hover:text-white/50"} disabled:opacity-30`}
+              >
+                🎥 Ganzer Film ({completedScenes} Clips)
+              </button>
             </div>
+
+            {/* Video Preview */}
+            {filmMode ? (
+              <FilmPlayer
+                clips={scenes.map((s, i) => ({
+                  index: i,
+                  videoUrl: s.videoUrl || "",
+                  characterId: s.characterId,
+                }))}
+                onClose={() => setFilmMode(false)}
+              />
+            ) : (
+              <div className="bg-black rounded-xl overflow-hidden aspect-[9/16] max-h-[450px] relative">
+                {currentScene?.videoUrl ? (
+                  <video key={currentScene.videoUrl} src={currentScene.videoUrl} controls className="w-full h-full object-contain" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-white/30">
+                    {currentScene?.characterId && (
+                      <div className="w-16 h-16 rounded-xl overflow-hidden mb-2 opacity-40">
+                        <Image src={`/api/images/${currentScene.characterId}-portrait.png`} alt="" width={64} height={64} className="object-cover" unoptimized />
+                      </div>
+                    )}
+                    <p className="text-[10px]">Noch kein Clip</p>
+                    <p className="text-[8px] mt-1 text-white/15">~{currentScene ? estimateCredits(currentScene) : 0} Credits</p>
+                  </div>
+                )}
+                <div className="absolute top-2 left-2 bg-black/60 text-white/60 text-[9px] px-1.5 py-0.5 rounded-full">
+                  {selectedScene + 1}/{scenes.length}
+                </div>
+              </div>
+            )}
 
             <FilmTimeline scenes={scenes} selectedIndex={selectedScene} onSelect={setSelectedScene} />
 
@@ -270,7 +300,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
               <button onClick={() => setScenes(scenes.map(s => ({ ...s, quality: "premium" })))} className="px-1.5 py-0.5 bg-white/5 rounded hover:text-white/50">Alle Premium</button>
             </div>
 
-            <MasteringPanel settings={mastering} onChange={setMastering} onRender={() => {}} rendering={false} completedScenes={completedScenes} />
+            <MasteringPanel settings={mastering} onChange={setMastering} onRender={() => {}} rendering={false} completedScenes={completedScenes} geschichteId={projectId || undefined} />
           </div>
 
           {/* Right: Scene Editor */}

@@ -212,7 +212,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // Download and store
+    // Download and store video
     const videoBuffer = await downloadVideo(videoUrl);
     const blob = await put(
       `films/${geschichteId}/scene-${String(sceneIndex).padStart(3, "0")}.mp4`,
@@ -220,11 +220,27 @@ export async function POST(request: Request) {
       { access: "private", contentType: "video/mp4", allowOverwrite: true }
     );
 
+    // Store the scene image as "last frame" for frame-chaining
+    // (the actual last video frame would need ffmpeg; we use the input image as proxy)
+    let lastFrameUrl: string | undefined;
+    try {
+      if (scene.characterId) {
+        const portraitForChain = await loadPortrait(scene.characterId);
+        const frameBlob = await put(
+          `films/${geschichteId}/frame-${String(sceneIndex).padStart(3, "0")}.png`,
+          portraitForChain,
+          { access: "private", contentType: "image/png", allowOverwrite: true }
+        );
+        lastFrameUrl = frameBlob.url;
+      }
+    } catch { /* frame save optional */ }
+
     console.log(`[Scene Clip] Done: ${(videoBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
 
     return Response.json({
       videoUrl: `/api/video/film-scene/${geschichteId}/${sceneIndex}`,
       blobUrl: blob.url,
+      lastFrameUrl,
       size: videoBuffer.byteLength,
     });
   } catch (error) {

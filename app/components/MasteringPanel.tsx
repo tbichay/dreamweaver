@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 
+interface RenderInfo {
+  renderCommand: string;
+  instructions: string[];
+  totalClips: number;
+  totalSize: number;
+}
+
 export interface MasteringSettings {
   warmth: number;         // -1 to 1
   musicVolume: number;    // 0 to 0.3
@@ -16,6 +23,7 @@ interface Props {
   onRender: () => void;
   rendering: boolean;
   completedScenes: number;
+  geschichteId?: string;
 }
 
 export const DEFAULT_MASTERING_SETTINGS: MasteringSettings = {
@@ -26,9 +34,24 @@ export const DEFAULT_MASTERING_SETTINGS: MasteringSettings = {
   includeOutro: true,
 };
 
-export default function MasteringPanel({ settings, onChange, onRender, rendering, completedScenes }: Props) {
+export default function MasteringPanel({ settings, onChange, onRender, rendering, completedScenes, geschichteId }: Props) {
+  const [renderInfo, setRenderInfo] = useState<RenderInfo | null>(null);
+  const [showRenderInfo, setShowRenderInfo] = useState(false);
+
   const update = (key: keyof MasteringSettings, value: number | boolean) => {
     onChange({ ...settings, [key]: value });
+  };
+
+  const handleRender = async () => {
+    if (geschichteId) {
+      const res = await fetch(`/api/admin/render-film?geschichteId=${geschichteId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRenderInfo(data);
+        setShowRenderInfo(true);
+      }
+    }
+    onRender();
   };
 
   return (
@@ -115,12 +138,32 @@ export default function MasteringPanel({ settings, onChange, onRender, rendering
       </div>
 
       <button
-        onClick={onRender}
+        onClick={handleRender}
         disabled={rendering || completedScenes < 2}
         className="btn-primary text-xs px-4 py-2 w-full disabled:opacity-40"
       >
         {rendering ? "Wird gerendert..." : `Film rendern (${completedScenes} Szenen)`}
       </button>
+
+      {showRenderInfo && renderInfo && (
+        <div className="mt-3 p-3 bg-white/5 rounded-lg">
+          <p className="text-[10px] text-[#a8d5b8] font-medium mb-2">{renderInfo.totalClips} Clips bereit</p>
+          <div className="space-y-1">
+            {renderInfo.instructions.map((step, i) => (
+              <p key={i} className="text-[9px] text-white/40">{step}</p>
+            ))}
+          </div>
+          <div className="mt-2 p-2 bg-black/30 rounded font-mono text-[9px] text-[#a8d5b8]">
+            {renderInfo.renderCommand}
+          </div>
+          <button
+            onClick={() => navigator.clipboard.writeText(renderInfo.renderCommand)}
+            className="mt-1 text-[8px] text-white/30 hover:text-white/60"
+          >
+            Befehl kopieren
+          </button>
+        </div>
+      )}
     </div>
   );
 }
