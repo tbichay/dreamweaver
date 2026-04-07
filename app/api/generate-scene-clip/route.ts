@@ -122,26 +122,51 @@ export async function POST(request: Request) {
       }
     } else {
       // Landscape/Transition — Kling I2V with automatic movement
-      // Try to load a generated scene image first, fall back to portrait
+      // Priority: 1) Landscape reference from assets, 2) Project scene image, 3) Character portrait
       let sceneImage: Buffer;
       try {
-        // Check for project-specific scene image
-        const { blobs: sceneImgBlobs } = await list({
-          prefix: `films/${geschichteId}/assets/`,
-          limit: 20,
-        });
-        // Find the most recent image for this scene
-        const sceneImgBlob = sceneImgBlobs
-          .filter((b) => b.pathname.endsWith(".png"))
-          .sort((a, b) => (b.uploadedAt?.getTime() || 0) - (a.uploadedAt?.getTime() || 0))[0];
+        // 1. Try landscape reference image from Studio assets (e.g., the KoalaTree image)
+        const { loadReferences } = await import("@/lib/references");
+        const refs = await loadReferences();
 
-        if (sceneImgBlob) {
-          sceneImage = await loadBuffer(sceneImgBlob.url);
-          console.log(`[Scene Clip] Using project scene image: ${sceneImgBlob.pathname}`);
+        // Look for landscape references — try "landscape:koalatree_full" first, then any landscape
+        let landscapeRef: Buffer | null = null;
+        const landscapeKeys = Object.keys(refs).filter((k) => k.startsWith("landscape:"));
+        if (landscapeKeys.length > 0) {
+          const primaryKey = landscapeKeys.find((k) => k.includes("koalatree")) || landscapeKeys[0];
+          const entry = refs[primaryKey];
+          if (entry?.primary) {
+            try {
+              const { blobs: refBlobs } = await list({ prefix: entry.primary, limit: 1 });
+              if (refBlobs.length > 0) {
+                landscapeRef = await loadBuffer(refBlobs[0].url);
+                console.log(`[Scene Clip] Using landscape reference: ${entry.primary}`);
+              }
+            } catch { /* fall through */ }
+          }
+        }
+
+        if (landscapeRef) {
+          sceneImage = landscapeRef;
         } else {
-          const fallbackRefs = await loadCharacterReferences(scene.characterId || "koda", 1);
-          sceneImage = fallbackRefs[0];
-          console.log(`[Scene Clip] No scene image found, using portrait`);
+          // 2. Try project-specific scene image
+          const { blobs: sceneImgBlobs } = await list({
+            prefix: `films/${geschichteId}/assets/`,
+            limit: 20,
+          });
+          const sceneImgBlob = sceneImgBlobs
+            .filter((b) => b.pathname.endsWith(".png"))
+            .sort((a, b) => (b.uploadedAt?.getTime() || 0) - (a.uploadedAt?.getTime() || 0))[0];
+
+          if (sceneImgBlob) {
+            sceneImage = await loadBuffer(sceneImgBlob.url);
+            console.log(`[Scene Clip] Using project scene image: ${sceneImgBlob.pathname}`);
+          } else {
+            // 3. Fall back to character portrait
+            const fallbackRefs = await loadCharacterReferences(scene.characterId || "koda", 1);
+            sceneImage = fallbackRefs[0];
+            console.log(`[Scene Clip] No landscape ref or scene image, using portrait`);
+          }
         }
       } catch {
         const fallbackRefs = await loadCharacterReferences(scene.characterId || "koda", 1);
