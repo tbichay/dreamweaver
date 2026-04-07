@@ -39,32 +39,30 @@ export async function GET(
   }
 
   try {
-    // Use head() to get the blob metadata + downloadUrl (supports Range requests for seeking)
     const result = await get(geschichte.audioUrl, { access: "private" });
 
-    if (!result || !result.blob) {
-      console.error("[Audio Proxy] Blob not found:", geschichte.audioUrl);
+    if (!result || !result.stream) {
+      console.error("[Audio Proxy] Blob not found or empty:", geschichte.audioUrl);
       return new Response("Audio not found", { status: 404 });
     }
 
-    // Redirect to the blob's download URL — it natively supports Range requests,
-    // which is required for the browser to seek (set audio.currentTime)
-    if (result.blob.downloadUrl) {
-      return Response.redirect(result.blob.downloadUrl, 302);
+    // Read full buffer so we can serve with Content-Length (required for seeking)
+    const reader = result.stream.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
     }
-
-    // Fallback: stream (no seeking support)
-    if (!result.stream) {
-      return new Response("Audio not found", { status: 404 });
-    }
+    const buffer = Buffer.concat(chunks);
 
     const contentType = result.blob.contentType || "audio/mpeg";
-    const size = result.blob.size || 0;
 
-    return new Response(result.stream, {
+    return new Response(buffer, {
       headers: {
         "Content-Type": contentType,
-        ...(size > 0 ? { "Content-Length": String(size) } : {}),
+        "Content-Length": String(buffer.byteLength),
+        "Accept-Ranges": "bytes",
         "Cache-Control": "private, max-age=3600",
       },
     });
