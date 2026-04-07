@@ -114,14 +114,44 @@ type Werte: "dialog" | "landscape" | "transition"
 
 export async function analyzeStoryForFilm(
   storyText: string,
-  timeline: TimelineEntry[]
+  timeline: TimelineEntry[],
+  audioDurationSec?: number,
 ): Promise<FilmScene[]> {
   // Parse the story segments for context
   const segments = parseStorySegments(storyText);
 
-  // Calculate useful timing info
-  const firstDialogMs = timeline.length > 0 ? timeline[0].startMs : 0;
-  const lastDialogEndMs = timeline.length > 0 ? timeline[timeline.length - 1].endMs : 0;
+  const hasTimeline = timeline.length > 0;
+  const firstDialogMs = hasTimeline ? timeline[0].startMs : 0;
+  const lastDialogEndMs = hasTimeline ? timeline[timeline.length - 1].endMs : 0;
+  const estimatedDurationSec = audioDurationSec || (hasTimeline ? lastDialogEndMs / 1000 : segments.length * 8);
+
+  // Build timeline section based on whether we have real data
+  let timelineSection: string;
+  if (hasTimeline) {
+    timelineSection = `## Audio-Timeline (exakte Zeiten — verwende diese!):
+${JSON.stringify(timeline, null, 2)}
+
+## Timing-Info:
+- Erster Dialog startet bei: ${firstDialogMs}ms (${(firstDialogMs / 1000).toFixed(1)}s)
+- Letzter Dialog endet bei: ${lastDialogEndMs}ms (${(lastDialogEndMs / 1000).toFixed(1)}s)
+${firstDialogMs > 2000 ? `- Du hast ${(firstDialogMs / 1000).toFixed(1)}s VOR dem ersten Dialog fuer ein visuelles Intro!` : ""}
+
+WICHTIG: Die audioStartMs/audioEndMs fuer Dialog-Szenen MUESSEN exakt den Timeline-Eintraegen entsprechen!`;
+  } else {
+    // No timeline — director must estimate timing from text
+    timelineSection = `## ACHTUNG: Keine exakte Audio-Timeline vorhanden!
+
+Du musst die Zeiten SCHAETZEN basierend auf dem Text. Geschaetzte Audio-Dauer: ~${estimatedDurationSec.toFixed(0)} Sekunden.
+
+Regeln fuer die Schaetzung:
+- Jedes gesprochene Wort dauert ca. 0.4 Sekunden
+- Pausen zwischen Sprechern: ~1-2 Sekunden
+- Zaehle die Woerter pro Segment und rechne: Woerter * 0.4s = Dauer
+- Beginne Dialog-Szenen NICHT bei 0ms — lasse 3-5 Sekunden fuer ein Intro
+- Die Szenen muessen LUECKENLOS aneinander anschliessen (audioEndMs von Szene N = audioStartMs von Szene N+1)
+
+Berechne die Zeiten sorgfaeltig und trage sie in audioStartMs/audioEndMs ein.`;
+  }
 
   // Build the prompt
   const prompt = `Erstelle einen professionellen Film-Szenenplan fuer diese Geschichte.
@@ -129,24 +159,17 @@ export async function analyzeStoryForFilm(
 ## Story-Text:
 ${storyText}
 
-## Audio-Timeline (wann spricht wer):
-${JSON.stringify(timeline, null, 2)}
+${timelineSection}
 
 ## Story-Segmente (geparsed):
 ${segments.map((s, i) => `${i}: [${s.type}] ${s.characterId || s.sfxPrompt || s.ambiencePrompt} — "${s.text.substring(0, 80)}..."`).join("\n")}
-
-## Timing-Info:
-- Erster Dialog startet bei: ${firstDialogMs}ms (${(firstDialogMs / 1000).toFixed(1)}s)
-- Letzter Dialog endet bei: ${lastDialogEndMs}ms (${(lastDialogEndMs / 1000).toFixed(1)}s)
-${firstDialogMs > 2000 ? `- Du hast ${(firstDialogMs / 1000).toFixed(1)}s VOR dem ersten Dialog fuer ein visuelles Intro!` : ""}
 
 ## Anweisungen:
 
 1. **Beginne mit 1-2 landscape-Szenen** BEVOR der erste Charakter spricht:
    - Zeige den KoalaTree von aussen, Kamera gleitet naeher
-   - Zeige Details: Blaetter im Wind, Sonnenstrahlen, Gluehwuermchen
-   - audioStartMs: 0, audioEndMs: ${Math.min(firstDialogMs, 5000)}
-   - Dann erst der erste Dialog-Charakter — er muss IM BILD sein bevor er spricht
+   - Diese Szenen ueberlagern die ERSTEN Sekunden des Audios (stumme Intro-Bilder ueber dem Audio-Start)
+   - Dialog-Szenen starten erst wenn der Charakter im Bild ist
 
 2. **Zwischen Sprecherwechseln**: Fuege kurze transition-Szenen ein
    - Kamera schwenkt von einem Charakter zum naechsten
@@ -158,20 +181,19 @@ ${firstDialogMs > 2000 ? `- Du hast ${(firstDialogMs / 1000).toFixed(1)}s VOR de
 
 4. **Ende**: 1-2 Szenen NACH dem letzten Dialog
    - Kamera zieht langsam zurueck, zeigt den ganzen Baum
-   - Abendstimmung, Ruhe, alle Charaktere im Baum sichtbar
 
 ## Format pro Szene:
 {
   "type": "dialog" | "landscape" | "transition",
   "characterId": "koda" | "kiki" | "luna" | "mika" | "pip" | "sage" | "nuki" | null,
   "spokenText": "Gesprochener Text (kurz, max 100 Zeichen)",
-  "sceneDescription": "2-3 Saetze: AKTION + BEWEGUNG + KOERPERSPRACHE. Was SIEHT der Zuschauer?",
+  "sceneDescription": "2-3 Saetze: AKTION + BEWEGUNG + KOERPERSPRACHE",
   "location": "Wo genau am/im/unter dem KoalaTree",
   "mood": "Stimmung, Licht, Tageszeit, Farben",
   "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out" | "slow-zoom-in" | "slow-zoom-out",
-  "durationHint": Sekunden (geschaetzt),
-  "audioStartMs": exakte Start-Position im Audio,
-  "audioEndMs": exakte End-Position im Audio
+  "durationHint": Sekunden,
+  "audioStartMs": Start-Position in Millisekunden,
+  "audioEndMs": End-Position in Millisekunden
 }
 
 Antworte NUR mit einem JSON-Array.`;

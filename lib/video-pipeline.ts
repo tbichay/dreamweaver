@@ -40,13 +40,13 @@ async function loadAudioBuffer(audioUrl: string): Promise<Buffer> {
 export async function analyzeAndSaveScenes(geschichteId: string): Promise<FilmScene[]> {
   const geschichte = await prisma.geschichte.findUnique({
     where: { id: geschichteId },
-    select: { text: true, timeline: true },
+    select: { text: true, timeline: true, audioDauerSek: true },
   });
 
   if (!geschichte?.text) throw new Error("Story has no text");
 
   const timeline = (geschichte.timeline as unknown as TimelineEntry[]) || [];
-  const scenes = await analyzeStoryForFilm(geschichte.text, timeline);
+  const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined);
 
   // Save scenes to the Geschichte
   await prisma.geschichte.update({

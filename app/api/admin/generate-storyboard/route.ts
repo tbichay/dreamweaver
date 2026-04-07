@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
     const geschichte = await prisma.geschichte.findUnique({
       where: { id: geschichteId },
-      select: { text: true, timeline: true, filmScenes: true },
+      select: { text: true, timeline: true, filmScenes: true, audioDauerSek: true },
     });
 
     if (!geschichte?.text) {
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     }
 
     // Generate storyboard via AI Director
-    const scenes = await analyzeStoryForFilm(geschichte.text, timeline);
+    const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined);
 
     // Save to DB
     await prisma.geschichte.update({
