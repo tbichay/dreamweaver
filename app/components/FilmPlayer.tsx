@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 
 interface Clip {
   index: number;
   videoUrl: string;
   characterId?: string;
-  duration?: number;
 }
 
 interface Props {
@@ -22,33 +21,39 @@ export default function FilmPlayer({ clips, onClose }: Props) {
 
   const playableClips = clips.filter((c) => c.videoUrl);
 
-  useEffect(() => {
-    // Auto-play when clips change
-    if (videoRef.current && isPlaying) {
-      videoRef.current.play().catch(() => {});
-    }
-  }, [currentClip, isPlaying]);
-
-  const handleEnded = () => {
+  const handleEnded = useCallback(() => {
     if (currentClip < playableClips.length - 1) {
-      setCurrentClip(currentClip + 1);
+      // Advance to next clip — autoPlay will start it
+      setCurrentClip((prev) => prev + 1);
     } else {
+      // Film finished — reset
       setIsPlaying(false);
       setCurrentClip(0);
+      setTotalProgress(100);
     }
-  };
+  }, [currentClip, playableClips.length]);
 
-  const handleTimeUpdate = () => {
+  const handleTimeUpdate = useCallback(() => {
     if (!videoRef.current) return;
     const clipProgress = videoRef.current.currentTime / (videoRef.current.duration || 1);
     const overall = (currentClip + clipProgress) / playableClips.length;
     setTotalProgress(overall * 100);
-  };
+  }, [currentClip, playableClips.length]);
 
   const playAll = () => {
     setCurrentClip(0);
     setIsPlaying(true);
-    setTimeout(() => videoRef.current?.play().catch(() => {}), 100);
+    setTotalProgress(0);
+  };
+
+  const togglePlay = () => {
+    if (isPlaying) {
+      videoRef.current?.pause();
+      setIsPlaying(false);
+    } else {
+      setIsPlaying(true);
+      videoRef.current?.play().catch(() => {});
+    }
   };
 
   if (playableClips.length === 0) {
@@ -59,27 +64,28 @@ export default function FilmPlayer({ clips, onClose }: Props) {
     );
   }
 
-  const clip = playableClips[currentClip];
+  const clip = playableClips[Math.min(currentClip, playableClips.length - 1)];
 
   return (
     <div className="relative bg-black rounded-xl overflow-hidden">
-      {/* Video */}
+      {/* Video — key forces remount on clip change, autoPlay continues playback */}
       <div className="aspect-[9/16] max-h-[500px]">
         <video
           ref={videoRef}
-          key={clip.videoUrl}
+          key={`clip-${currentClip}-${clip.videoUrl}`}
           src={clip.videoUrl}
+          autoPlay={isPlaying}
           onEnded={handleEnded}
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          controls={!isPlaying}
+          onPause={() => { if (!videoRef.current?.ended) setIsPlaying(false); }}
+          playsInline
           className="w-full h-full object-contain"
         />
       </div>
 
-      {/* Film progress bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-2">
+      {/* Controls overlay */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2 pt-8">
         {/* Overall progress */}
         <div className="h-1 bg-white/10 rounded-full overflow-hidden mb-2">
           <div
@@ -90,60 +96,57 @@ export default function FilmPlayer({ clips, onClose }: Props) {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {!isPlaying ? (
-              <button
-                onClick={playAll}
-                className="w-8 h-8 rounded-full bg-[#4a7c59]/50 flex items-center justify-center"
-              >
+            {!isPlaying && currentClip === 0 ? (
+              <button onClick={playAll} className="w-8 h-8 rounded-full bg-[#4a7c59]/60 flex items-center justify-center">
                 <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
               </button>
             ) : (
-              <button
-                onClick={() => { videoRef.current?.pause(); setIsPlaying(false); }}
-                className="w-8 h-8 rounded-full bg-[#4a7c59]/50 flex items-center justify-center"
-              >
-                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+              <button onClick={togglePlay} className="w-8 h-8 rounded-full bg-[#4a7c59]/60 flex items-center justify-center">
+                {isPlaying ? (
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                ) : (
+                  <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                )}
               </button>
             )}
             <span className="text-[10px] text-white/50">
-              Clip {currentClip + 1}/{playableClips.length}
+              {currentClip + 1}/{playableClips.length}
             </span>
           </div>
 
-          {/* Clip navigation */}
-          <div className="flex gap-1">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => { setCurrentClip(Math.max(0, currentClip - 1)); }}
+              onClick={() => setCurrentClip(Math.max(0, currentClip - 1))}
               disabled={currentClip === 0}
-              className="text-[10px] text-white/30 hover:text-white/60 disabled:opacity-30 px-1"
+              className="text-white/30 hover:text-white/60 disabled:opacity-30"
             >
-              ←
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <button
-              onClick={() => { setCurrentClip(Math.min(playableClips.length - 1, currentClip + 1)); }}
-              disabled={currentClip === playableClips.length - 1}
-              className="text-[10px] text-white/30 hover:text-white/60 disabled:opacity-30 px-1"
+              onClick={() => setCurrentClip(Math.min(playableClips.length - 1, currentClip + 1))}
+              disabled={currentClip >= playableClips.length - 1}
+              className="text-white/30 hover:text-white/60 disabled:opacity-30"
             >
-              →
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </button>
-          </div>
 
-          {onClose && (
-            <button onClick={onClose} className="text-[10px] text-white/30 hover:text-white/60">
-              ✕
-            </button>
-          )}
+            {onClose && (
+              <button onClick={onClose} className="text-white/30 hover:text-white/60 ml-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Clip dots */}
-      <div className="absolute top-2 left-0 right-0 flex justify-center gap-1">
+      <div className="absolute top-2 left-0 right-0 flex justify-center gap-1 px-4">
         {playableClips.map((_, i) => (
           <button
             key={i}
-            onClick={() => setCurrentClip(i)}
-            className={`w-1.5 h-1.5 rounded-full transition-all ${
-              i === currentClip ? "bg-[#a8d5b8] scale-125" : i < currentClip ? "bg-[#a8d5b8]/40" : "bg-white/20"
+            onClick={() => { setCurrentClip(i); setIsPlaying(true); }}
+            className={`h-1 rounded-full transition-all ${
+              i === currentClip ? "bg-[#a8d5b8] flex-[2]" : i < currentClip ? "bg-[#a8d5b8]/40 flex-1" : "bg-white/20 flex-1"
             }`}
           />
         ))}
