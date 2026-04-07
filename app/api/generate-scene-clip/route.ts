@@ -80,6 +80,15 @@ export async function POST(request: Request) {
       audioSegment = segmentMp3(fullAudio, scene.audioStartMs, scene.audioEndMs);
 
       const segDuration = (scene.audioEndMs - scene.audioStartMs) / 1000;
+      // Safety check: if segment is suspiciously large (>80% of full audio), something went wrong
+      if (audioSegment.byteLength > fullAudio.byteLength * 0.8) {
+        console.error(`[Scene Clip] SEGMENT TOO LARGE! Segment=${audioSegment.byteLength} vs Full=${fullAudio.byteLength}. Forcing byte-offset fallback.`);
+        const bytesPerMs = 16;
+        const startByte = Math.max(0, Math.floor(scene.audioStartMs * bytesPerMs));
+        const endByte = Math.min(fullAudio.byteLength, Math.ceil(scene.audioEndMs * bytesPerMs));
+        audioSegment = Buffer.from(fullAudio.subarray(startByte, endByte));
+      }
+
       console.log(`[Scene Clip] Scene ${sceneIndex}: ${scene.type}, ${segDuration.toFixed(1)}s audio (${scene.audioStartMs}-${scene.audioEndMs}ms), segment ${(audioSegment.byteLength / 1024).toFixed(0)}KB, fullAudio ${(fullAudio.byteLength / 1024).toFixed(0)}KB`);
 
       if (audioSegment.byteLength === 0) {

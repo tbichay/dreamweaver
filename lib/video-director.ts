@@ -105,9 +105,16 @@ Der KoalaTree ist ein riesiger, uralter Eukalyptusbaum. Die Charaktere leben auf
 - Wenn die Timeline erst bei 8000ms startet, nutze 0-8000ms fuer ein schoenes Intro!
 - WICHTIG: Dialog-audioStartMs muss GENAU dem Timeline-Eintrag entsprechen — NICHT verschieben!
 
+## KRITISCH: Szenen-Laenge
+
+- Jede Szene darf MAXIMAL 15 Sekunden Audio haben (audioEndMs - audioStartMs <= 15000)
+- Wenn ein Timeline-Eintrag laenger als 15s ist, TEILE ihn in mehrere Dialog-Szenen auf
+- Beispiel: Koda spricht 40s → 3 Dialog-Szenen a 13-14s mit verschiedenen Kamera-Einstellungen und Aktionen
+- Bei der Aufteilung: Beschreibe in jeder Teil-Szene eine andere Aktion/Kamerabewegung
+
 ## Format
 
-Antworte NUR mit validem JSON — ein Array von Szenen-Objekten. 10-20 Szenen.
+Antworte NUR mit validem JSON — ein Array von Szenen-Objekten. 20-40 Szenen (mehr Szenen = kuerzere Clips = bessere Qualitaet).
 camera Werte: "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out" | "slow-zoom-in" | "slow-zoom-out"
 type Werte: "dialog" | "landscape" | "transition"
 `;
