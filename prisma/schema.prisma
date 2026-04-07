@@ -223,11 +223,13 @@ model FilmProject {
   name            String
   description     String?
   style           Json?    // { warmth, musicVolume, crossfade, quality }
-  characters      String[] // Character IDs used
+  stylePrompt     String?  // Editierbarer Stil-Prompt (Default: Disney 1994)
+  characters      Json?    // Character-Definitionen: Record<string, CharacterDef>
+  characterIds    String[] // Character IDs used (legacy, kept for backwards compat)
   landscapes      String[] // Blob paths of landscape assets
   introVideoUrl   String?  // Reusable intro clip
   outroVideoUrl   String?  // Reusable outro clip
-  referenceImages String[] // Style reference images
+  referenceImages Json?    // Strukturierte Referenz-Map: Record<string, ReferenceEntry>
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

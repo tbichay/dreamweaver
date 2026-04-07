@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 
 interface StudioImage {
@@ -11,16 +11,31 @@ interface StudioImage {
   isActive: boolean;
   size: number;
   uploadedAt: string;
+  /** Blob storage path, e.g. "studio/koda-portrait-abc123.png" */
+  path?: string;
 }
 
+interface ReferenceImage {
+  path: string;
+  label: string;
+  role: "primary" | "side" | "expression" | "pose" | "detail";
+}
+
+interface ReferenceEntry {
+  primary: string;
+  images: ReferenceImage[];
+}
+
+type ReferencesMap = Record<string, ReferenceEntry>;
+
 const CHARACTERS = [
-  { id: "koda", name: "Koda", emoji: "🐨", color: "#a8d5b8" },
-  { id: "kiki", name: "Kiki", emoji: "🐦", color: "#e8c547" },
-  { id: "luna", name: "Luna", emoji: "🦉", color: "#b8a9d4" },
-  { id: "mika", name: "Mika", emoji: "🐕", color: "#d4884a" },
-  { id: "pip", name: "Pip", emoji: "🦫", color: "#6bb5c9" },
-  { id: "sage", name: "Sage", emoji: "🐻", color: "#8a9e7a" },
-  { id: "nuki", name: "Nuki", emoji: "☀️", color: "#f0b85a" },
+  { id: "koda", name: "Koda", emoji: "\u{1F428}", color: "#a8d5b8" },
+  { id: "kiki", name: "Kiki", emoji: "\u{1F426}", color: "#e8c547" },
+  { id: "luna", name: "Luna", emoji: "\u{1F989}", color: "#b8a9d4" },
+  { id: "mika", name: "Mika", emoji: "\u{1F415}", color: "#d4884a" },
+  { id: "pip", name: "Pip", emoji: "\u{1F9AB}", color: "#6bb5c9" },
+  { id: "sage", name: "Sage", emoji: "\u{1F43B}", color: "#8a9e7a" },
+  { id: "nuki", name: "Nuki", emoji: "\u2600\uFE0F", color: "#f0b85a" },
 ];
 
 const POSES = [
@@ -33,11 +48,11 @@ const POSES = [
 ];
 
 const SCENES = [
-  { id: "golden", label: "🌅 Golden" },
-  { id: "blue", label: "🌆 Blau" },
-  { id: "night", label: "🌙 Nacht" },
-  { id: "dawn", label: "🌸 Morgen" },
-  { id: "sunny", label: "☀️ Sonnig" },
+  { id: "golden", label: "\u{1F305} Golden" },
+  { id: "blue", label: "\u{1F306} Blau" },
+  { id: "night", label: "\u{1F319} Nacht" },
+  { id: "dawn", label: "\u{1F338} Morgen" },
+  { id: "sunny", label: "\u2600\uFE0F Sonnig" },
 ];
 
 function formatBytes(bytes: number): string {
@@ -45,19 +60,34 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Build an image URL from a blob path like "studio/koda-portrait-abc.png" */
+function imageUrlFromPath(path: string): string {
+  if (path.startsWith("studio/")) {
+    const fileName = path.replace("studio/", "");
+    return `/api/admin/studio/image/${fileName}`;
+  }
+  if (path.startsWith("images/")) {
+    const fileName = path.replace("images/", "");
+    return `/api/images/${fileName}`;
+  }
+  return `/api/images/${path}`;
+}
+
 export default function PortraitsPage() {
   const [images, setImages] = useState<StudioImage[]>([]);
+  const [references, setReferences] = useState<ReferencesMap>({});
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [activating, setActivating] = useState<string | null>(null);
+  const [refLoading, setRefLoading] = useState<string | null>(null);
   const [genResult, setGenResult] = useState("");
+  const [expandedChars, setExpandedChars] = useState<Set<string>>(new Set());
 
   // Generator state
   const [character, setCharacter] = useState("koda");
   const [pose, setPose] = useState("portrait");
   const [scene, setScene] = useState("golden");
 
-  const loadImages = async () => {
+  const loadImages = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/studio/generate");
       if (res.ok) {
@@ -66,9 +96,22 @@ export default function PortraitsPage() {
       }
     } catch { /* ignore */ }
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { loadImages(); }, []);
+  const loadReferences = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/assets");
+      if (res.ok) {
+        const data = await res.json();
+        setReferences(data.references || {});
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    loadImages();
+    loadReferences();
+  }, [loadImages, loadReferences]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -90,20 +133,89 @@ export default function PortraitsPage() {
     }
   };
 
-  const handleActivate = async (filename: string) => {
-    setActivating(filename);
+  /** Add image to character's reference set */
+  const handleAddRef = async (charId: string, img: StudioImage) => {
+    const key = `${img.filename}:add`;
+    setRefLoading(key);
     try {
-      const res = await fetch("/api/admin/studio/generate", {
+      const assetPath = img.path || `studio/${img.filename}`;
+      const res = await fetch("/api/admin/assets", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename }),
+        body: JSON.stringify({
+          refKey: `portrait:${charId}`,
+          assetPath,
+          action: "add",
+          label: img.baseName,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setGenResult(data.message || "Referenzbild gesetzt!");
-      await loadImages();
+      setReferences(data.references || {});
+      setGenResult("Referenz hinzugefuegt!");
     } catch { /* ignore */ }
-    setActivating(null);
+    setRefLoading(null);
+  };
+
+  /** Remove image from character's reference set */
+  const handleRemoveRef = async (charId: string, path: string) => {
+    const key = `${path}:remove`;
+    setRefLoading(key);
+    try {
+      const res = await fetch("/api/admin/assets", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refKey: `portrait:${charId}`,
+          assetPath: path,
+          action: "remove",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setReferences(data.references || {});
+      setGenResult("Referenz entfernt.");
+    } catch { /* ignore */ }
+    setRefLoading(null);
+  };
+
+  /** Set an image as primary in the reference set */
+  const handleSetPrimary = async (charId: string, path: string) => {
+    const key = `${path}:primary`;
+    setRefLoading(key);
+    try {
+      const res = await fetch("/api/admin/assets", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refKey: `portrait:${charId}`,
+          assetPath: path,
+          action: "primary",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setReferences(data.references || {});
+      setGenResult("Primaerbild gesetzt!");
+    } catch { /* ignore */ }
+    setRefLoading(null);
+  };
+
+  const toggleExpanded = (charId: string) => {
+    setExpandedChars((prev) => {
+      const next = new Set(prev);
+      if (next.has(charId)) next.delete(charId);
+      else next.add(charId);
+      return next;
+    });
+  };
+
+  /** Check if a studio image is in a character's reference set */
+  const isInRefSet = (charId: string, img: StudioImage): boolean => {
+    const entry = references[`portrait:${charId}`];
+    if (!entry) return false;
+    const assetPath = img.path || `studio/${img.filename}`;
+    return entry.images.some((r) => r.path === assetPath);
   };
 
   // Group images by character
@@ -116,44 +228,164 @@ export default function PortraitsPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 pb-24 sm:pb-8">
-      <h1 className="text-xl font-bold text-[#f5eed6] mb-1">🎨 Portraits & Referenzbilder</h1>
+      <h1 className="text-xl font-bold text-[#f5eed6] mb-1">Portraits & Referenzbilder</h1>
       <p className="text-sm text-white/40 mb-6">
-        Generiere Portraits und waehle das <strong className="text-white/60">Referenzbild</strong> pro Charakter.
-        Das Referenzbild wird bei jeder Szenen-Generierung automatisch mitgesendet, damit der Charakter immer gleich aussieht.
+        Generiere Portraits und verwalte <strong className="text-white/60">Referenzbilder</strong> pro Charakter.
+        Mehrere Referenzbilder werden bei jeder Generierung mitgesendet, damit der Charakter konsistent aussieht.
       </p>
 
-      {/* Reference Images Overview */}
+      {/* Multi-Reference Overview */}
       <div className="card p-5 mb-8 border-[#4a7c59]/20">
         <h3 className="text-sm font-medium text-[#f5eed6] mb-1 flex items-center gap-2">
-          📌 Aktive Referenzbilder
+          Aktive Referenzbilder
         </h3>
         <p className="text-[10px] text-white/30 mb-4">
-          Diese Bilder werden automatisch als Vorlage verwendet, wenn ein Charakter in einer Szene erscheint.
-          Klicke &quot;Als Referenz setzen&quot; bei einer Version weiter unten, um sie zu aendern.
+          Diese Bilder werden automatisch als Vorlage verwendet. Das Primaerbild (goldener Rand) hat hoechste Prioritaet.
+          Klicke + um weitere Referenzen hinzuzufuegen.
         </p>
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+
+        <div className="space-y-4">
           {CHARACTERS.map((c) => {
+            const refKey = `portrait:${c.id}`;
+            const entry = references[refKey];
+            const refImages = entry?.images || [];
+            const isExpanded = expandedChars.has(c.id);
             const charImages = grouped[c.id] || [];
-            const hasActive = charImages.some((img) => img.isActive);
+
             return (
-              <div key={c.id} className="text-center">
-                <div className={`aspect-square rounded-xl overflow-hidden bg-[#1a2e1a] border-2 transition-all ${
-                  hasActive ? "border-[#4a7c59] shadow-[0_0_12px_rgba(74,124,89,0.3)]" : "border-red-400/30"
-                }`}>
-                  <Image
-                    src={`/api/images/${c.id}-portrait.png`}
-                    alt={c.name}
-                    width={120}
-                    height={120}
-                    className="w-full h-full object-cover"
-                    unoptimized
-                  />
+              <div key={c.id} className="bg-white/[0.02] rounded-xl p-3">
+                {/* Character header row */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm">{c.emoji}</span>
+                  <span className="text-[11px] font-medium text-[#f5eed6]">{c.name}</span>
+                  {refImages.length > 0 ? (
+                    <span className="text-[8px] text-[#a8d5b8] ml-1">
+                      {refImages.length} Referenz{refImages.length !== 1 ? "en" : ""}
+                    </span>
+                  ) : (
+                    <span className="text-[8px] text-red-400/50 ml-1">Kein Referenzbild</span>
+                  )}
                 </div>
-                <p className="text-[10px] text-white/50 mt-1.5">{c.emoji} {c.name}</p>
-                {hasActive ? (
-                  <p className="text-[8px] text-[#a8d5b8] font-medium">📌 Referenz gesetzt</p>
-                ) : (
-                  <p className="text-[8px] text-red-400/50">Kein Referenzbild</p>
+
+                {/* Reference thumbnails row */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {refImages.map((refImg) => {
+                    const isPrimary = refImg.path === entry?.primary;
+                    const imgUrl = imageUrlFromPath(refImg.path);
+
+                    return (
+                      <div key={refImg.path} className="relative group">
+                        <div
+                          className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                            isPrimary
+                              ? "border-[#d4a853] shadow-[0_0_10px_rgba(212,168,83,0.3)]"
+                              : "border-[#4a7c59]/40"
+                          }`}
+                          onClick={() => !isPrimary && handleSetPrimary(c.id, refImg.path)}
+                          title={isPrimary ? "Primaerbild" : "Klicke um als Primaerbild zu setzen"}
+                        >
+                          <Image
+                            src={imgUrl}
+                            alt={refImg.label}
+                            width={64}
+                            height={64}
+                            className="w-full h-full object-cover"
+                            unoptimized
+                          />
+                        </div>
+
+                        {/* Primary star badge */}
+                        {isPrimary && (
+                          <div className="absolute -top-1 -left-1 w-4 h-4 bg-[#d4a853] rounded-full flex items-center justify-center text-[8px] shadow-md">
+                            <span className="text-black font-bold">{"\u2605"}</span>
+                          </div>
+                        )}
+
+                        {/* Remove button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveRef(c.id, refImg.path);
+                          }}
+                          disabled={refLoading === `${refImg.path}:remove`}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500/80 hover:bg-red-500 rounded-full flex items-center justify-center text-[8px] text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Referenz entfernen"
+                        >
+                          {"\u00D7"}
+                        </button>
+
+                        {/* Label */}
+                        <p className="text-[7px] text-white/40 text-center mt-0.5 max-w-[64px] truncate">
+                          {refImg.label}
+                        </p>
+                      </div>
+                    );
+                  })}
+
+                  {/* Add (+) button */}
+                  {charImages.length > 0 && (
+                    <button
+                      onClick={() => toggleExpanded(c.id)}
+                      className={`w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center transition-all ${
+                        isExpanded
+                          ? "border-[#d4a853]/50 bg-[#d4a853]/10 text-[#d4a853]"
+                          : "border-white/10 hover:border-white/20 text-white/20 hover:text-white/40"
+                      }`}
+                      title="Referenzen verwalten"
+                    >
+                      <span className="text-lg">{isExpanded ? "\u2212" : "+"}</span>
+                    </button>
+                  )}
+
+                  {/* Empty state: no images generated yet */}
+                  {charImages.length === 0 && refImages.length === 0 && (
+                    <div className="w-16 h-16 rounded-lg border-2 border-dashed border-white/5 flex items-center justify-center">
+                      <span className="text-[8px] text-white/15">leer</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Expanded: version gallery for adding references */}
+                {isExpanded && charImages.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-white/5">
+                    <p className="text-[9px] text-white/30 mb-2">
+                      Waehle Versionen aus, um sie als Referenz hinzuzufuegen:
+                    </p>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
+                      {charImages.map((img) => {
+                        const inSet = isInRefSet(c.id, img);
+                        return (
+                          <div key={img.filename} className="relative">
+                            <div className={`aspect-square rounded-lg overflow-hidden border transition-all ${
+                              inSet ? "border-[#4a7c59] ring-1 ring-[#4a7c59]/30" : "border-white/5"
+                            }`}>
+                              <Image
+                                src={img.url}
+                                alt={img.baseName}
+                                width={80}
+                                height={80}
+                                className="w-full h-full object-cover"
+                                unoptimized
+                              />
+                            </div>
+                            {inSet ? (
+                              <div className="absolute bottom-0 inset-x-0 bg-[#4a7c59]/90 text-white text-[7px] text-center py-0.5 font-medium">
+                                Referenz
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleAddRef(c.id, img)}
+                                disabled={refLoading === `${img.filename}:add`}
+                                className="absolute bottom-0 inset-x-0 bg-[#d4a853]/80 hover:bg-[#d4a853] text-black text-[7px] text-center py-0.5 font-medium opacity-0 hover:opacity-100 transition-opacity disabled:opacity-30"
+                              >
+                                {refLoading === `${img.filename}:add` ? "..." : "+ Hinzufuegen"}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
             );
@@ -229,9 +461,9 @@ export default function PortraitsPage() {
             className="px-5 py-2 rounded-lg bg-[#4a7c59] text-white text-xs font-medium hover:bg-[#5a8c69] transition-colors disabled:opacity-30 flex items-center gap-2"
           >
             {generating ? (
-              <><span className="animate-spin">⏳</span> Generiere...</>
+              <><span className="animate-spin">{"\u23F3"}</span> Generiere...</>
             ) : (
-              <>🎨 Portrait generieren</>
+              <>{"\u{1F3A8}"} Portrait generieren</>
             )}
           </button>
           {genResult && (
@@ -242,7 +474,7 @@ export default function PortraitsPage() {
         </div>
 
         <p className="text-[8px] text-white/15 mt-2">
-          GPT-Image-1 · 1024×1024 · Disney-1994 Stil · Versionen werden in studio/ gespeichert
+          GPT-Image-1 &middot; 1024x1024 &middot; Disney-1994 Stil &middot; Versionen werden in studio/ gespeichert
         </p>
       </div>
 
@@ -264,44 +496,47 @@ export default function PortraitsPage() {
                 </h3>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                  {charImages.map((img) => (
-                    <div key={img.filename} className={`card overflow-hidden ${
-                      img.isActive ? "ring-2 ring-[#4a7c59]" : ""
-                    }`}>
-                      <div className="aspect-square bg-[#1a2e1a] relative">
-                        <Image
-                          src={img.url}
-                          alt={img.baseName}
-                          width={200}
-                          height={200}
-                          className="w-full h-full object-cover"
-                          unoptimized
-                        />
-                        {img.isActive && (
-                          <div className="absolute top-1 right-1 bg-[#4a7c59] text-white text-[7px] px-1.5 py-0.5 rounded-full font-medium">
-                            📌 Referenz
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-2">
-                        <p className="text-[9px] text-white/40 truncate">{img.baseName}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <p className="text-[8px] text-white/20">{formatBytes(img.size)}</p>
-                          {!img.isActive ? (
-                            <button
-                              onClick={() => handleActivate(img.filename)}
-                              disabled={activating === img.filename}
-                              className="text-[8px] text-[#d4a853]/60 hover:text-[#d4a853] transition-colors disabled:opacity-30 font-medium"
-                            >
-                              {activating === img.filename ? "..." : "📌 Als Referenz"}
-                            </button>
-                          ) : (
-                            <span className="text-[8px] text-[#a8d5b8]/50">Aktiv</span>
+                  {charImages.map((img) => {
+                    const inSet = isInRefSet(c.id, img);
+                    return (
+                      <div key={img.filename} className={`card overflow-hidden ${
+                        inSet ? "ring-2 ring-[#4a7c59]" : ""
+                      }`}>
+                        <div className="aspect-square bg-[#1a2e1a] relative">
+                          <Image
+                            src={img.url}
+                            alt={img.baseName}
+                            width={200}
+                            height={200}
+                            className="w-full h-full object-cover"
+                            unoptimized
+                          />
+                          {inSet && (
+                            <div className="absolute top-1 right-1 bg-[#4a7c59] text-white text-[7px] px-1.5 py-0.5 rounded-full font-medium">
+                              Referenz
+                            </div>
                           )}
                         </div>
+                        <div className="p-2">
+                          <p className="text-[9px] text-white/40 truncate">{img.baseName}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className="text-[8px] text-white/20">{formatBytes(img.size)}</p>
+                            {!inSet ? (
+                              <button
+                                onClick={() => handleAddRef(c.id, img)}
+                                disabled={refLoading === `${img.filename}:add`}
+                                className="text-[8px] text-[#d4a853]/60 hover:text-[#d4a853] transition-colors disabled:opacity-30 font-medium"
+                              >
+                                {refLoading === `${img.filename}:add` ? "..." : "+ Als Referenz"}
+                              </button>
+                            ) : (
+                              <span className="text-[8px] text-[#a8d5b8]/50">Referenz</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -320,10 +555,11 @@ export default function PortraitsPage() {
         <h3 className="text-sm font-medium text-[#f5eed6] mb-2">So funktioniert&apos;s</h3>
         <div className="space-y-2 text-[10px] text-white/40">
           <p>1. <strong className="text-white/60">Generiere</strong> mehrere Versionen eines Charakters</p>
-          <p>2. <strong className="text-white/60">Vergleiche</strong> die Versionen und waehle die beste</p>
-          <p>3. Klicke <strong className="text-[#d4a853]">📌 Als Referenz</strong> um sie als Master-Bild zu setzen</p>
-          <p>4. Bei jeder Szene mit diesem Charakter wird das Referenzbild automatisch an GPT-Image-1 gesendet</p>
-          <p className="text-white/25 pt-1">→ Der Charakter sieht in allen generierten Bildern gleich aus</p>
+          <p>2. <strong className="text-white/60">Vergleiche</strong> die Versionen und waehle die besten aus</p>
+          <p>3. Klicke <strong className="text-[#d4a853]">+ Als Referenz</strong> um sie zum Referenz-Set hinzuzufuegen</p>
+          <p>4. Das Primaerbild (goldener Stern) hat hoechste Prioritaet bei der Generierung</p>
+          <p>5. Alle Referenzbilder eines Charakters werden automatisch an GPT-Image-1 gesendet</p>
+          <p className="text-white/25 pt-1">Der Charakter sieht in allen generierten Bildern konsistent aus</p>
         </div>
       </div>
     </div>

@@ -36,6 +36,14 @@ const TOOLS = [
     title: "Branding",
     description: "Logos, Favicons und App-Icons generieren und verwalten",
   },
+  {
+    href: "/studio/settings",
+    emoji: "⚙️",
+    title: "Einstellungen",
+    description: "Stil-Prompt, Charakter-Definitionen und Projekt-Konfiguration anpassen",
+    tag: "NEU",
+    tagColor: "bg-[#4a7c59]/20 text-[#a8d5b8]",
+  },
 ];
 
 export default function StudioHub() {

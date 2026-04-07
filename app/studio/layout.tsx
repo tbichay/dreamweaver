@@ -11,6 +11,7 @@ const STUDIO_TOOLS = [
   { href: "/studio/portraits", label: "Portraits", emoji: "🎨" },
   { href: "/studio/hero", label: "Hero Builder", emoji: "🏔️" },
   { href: "/studio/branding", label: "Branding", emoji: "✨" },
+  { href: "/studio/settings", label: "Einstellungen", emoji: "⚙️" },
 ];
 
 export default function StudioLayout({ children }: { children: React.ReactNode }) {

@@ -13,6 +13,20 @@ interface Asset {
   uploadedAt: string;
 }
 
+// New multi-reference format
+interface ReferenceImage {
+  path: string;
+  label: string;
+  role: string;
+}
+
+interface ReferenceEntry {
+  primary: string;
+  images: ReferenceImage[];
+}
+
+type ReferencesMap = Record<string, ReferenceEntry>;
+
 // Categories that support reference images
 const REF_CATEGORIES = ["landscape", "portrait", "background"];
 
@@ -35,25 +49,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Character IDs for portrait matching
 const CHARACTER_IDS = ["koda", "kiki", "luna", "mika", "pip", "sage", "nuki"];
 
-// Build a reference key from an asset — each character/landscape type gets its own key
 function getRefKey(asset: Asset): string {
   if (asset.category === "portrait") {
-    // Extract character ID: "koda-portrait-1234.png" → "koda"
-    // Must be an actual character, not "hero-background" etc.
     for (const cid of CHARACTER_IDS) {
       if (asset.name.startsWith(cid + "-") || asset.name === cid + ".png") {
         return `portrait:${cid}`;
       }
     }
-    // Not a character portrait (hero, etc.) — use full name
     const base = asset.name.replace(/-\d{13}\.png$/, "").replace(/\.png$/, "");
     return `portrait:${base}`;
   }
   if (asset.category === "landscape") {
-    // "koalatree_full-1234.png" → "landscape:koalatree_full"
     const base = asset.name.replace(/-\d{13}\.png$/, "").replace(/\.png$/, "");
     return `landscape:${base}`;
   }
@@ -64,14 +72,24 @@ function getRefKey(asset: Asset): string {
   return `${asset.category}:${asset.name}`;
 }
 
+function getCharIdFromAsset(asset: Asset): string | null {
+  for (const cid of CHARACTER_IDS) {
+    if (asset.name.startsWith(cid + "-") || asset.name === cid + ".png") {
+      return cid;
+    }
+  }
+  return null;
+}
+
 export default function AssetBrowser() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [grouped, setGrouped] = useState<Record<string, Asset[]>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [onlyRefs, setOnlyRefs] = useState(false);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const [stats, setStats] = useState({ total: 0, images: 0, videos: 0, audio: 0, totalSize: 0 });
-  const [references, setReferences] = useState<Record<string, string>>({});
+  const [references, setReferences] = useState<ReferencesMap>({});
   const [settingRef, setSettingRef] = useState<string | null>(null);
   const [showGenerator, setShowGenerator] = useState(false);
   const [genType, setGenType] = useState<"landscape" | "character" | "group" | "custom">("landscape");
@@ -108,10 +126,9 @@ export default function AssetBrowser() {
         size: "1792x1024",
         quality: "hd",
       };
-
       if (genType === "landscape") body.landscapeId = genPreset;
       if (genType === "character") body.characterId = genCharacter;
-      if (genType === "group") body.characterIds = ["koda", "kiki", "luna", "mika", "pip", "sage", "nuki"];
+      if (genType === "group") body.characterIds = CHARACTER_IDS;
       if (genCustomPrompt) body.customPrompt = genCustomPrompt;
 
       const res = await fetch("/api/admin/generate-scene-image", {
@@ -119,7 +136,6 @@ export default function AssetBrowser() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setGenResult(`Bild generiert! (${(data.size / 1024).toFixed(0)} KB)`);
@@ -133,16 +149,18 @@ export default function AssetBrowser() {
 
   const handleSetReference = async (asset: Asset) => {
     const refKey = getRefKey(asset);
-    const isAlreadyRef = references[refKey] === asset.path;
+    const entry = references[refKey];
+    const isInSet = entry?.images.some((img) => img.path === asset.path);
     setSettingRef(asset.path);
     try {
       const res = await fetch("/api/admin/assets", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          refKey,
-          assetPath: isAlreadyRef ? null : asset.path,
-        }),
+        body: JSON.stringify(
+          isInSet
+            ? { refKey, assetPath: asset.path, action: "remove" }
+            : { refKey, assetPath: asset.path, action: "add", label: asset.name.replace(/\.png$/, "").replace(/-\d{13}$/, "") }
+        ),
       });
       if (res.ok) {
         const data = await res.json();
@@ -154,7 +172,14 @@ export default function AssetBrowser() {
 
   const isReference = (asset: Asset): boolean => {
     const refKey = getRefKey(asset);
-    return references[refKey] === asset.path;
+    const entry = references[refKey];
+    return entry?.images.some((img) => img.path === asset.path) || false;
+  };
+
+  const isPrimaryRef = (asset: Asset): boolean => {
+    const refKey = getRefKey(asset);
+    const entry = references[refKey];
+    return entry?.primary === asset.path;
   };
 
   const openLightbox = useCallback((asset: Asset) => {
@@ -167,14 +192,108 @@ export default function AssetBrowser() {
     setLightboxAsset(null);
   }, []);
 
+  // Count total active references
+  const totalRefImages = Object.values(references).reduce((sum, entry) => sum + entry.images.length, 0);
+
   if (loading) return <div className="text-white/30 text-sm">Assets laden...</div>;
 
-  const categories = filter === "all"
-    ? Object.keys(grouped)
-    : [filter];
+  const categories = filter === "all" ? Object.keys(grouped) : [filter];
 
-  // Count active references
-  const refCount = Object.keys(references).length;
+  // Render a single asset card
+  const renderAssetCard = (asset: Asset, supportsRef: boolean) => {
+    const isRef = isReference(asset);
+    const isPrim = isPrimaryRef(asset);
+    return (
+      <div
+        key={asset.path}
+        className={`card overflow-hidden group transition-opacity ${
+          isPrim ? "ring-2 ring-[#d4a853]/70 shadow-[0_0_12px_rgba(212,168,83,0.15)]" :
+          isRef ? "ring-1 ring-[#d4a853]/40" : ""
+        } ${!isRef && !onlyRefs ? "opacity-60 hover:opacity-100" : ""}`}
+      >
+        {/* Preview */}
+        <div
+          className="aspect-square bg-[#1a2e1a] relative flex items-center justify-center overflow-hidden cursor-pointer"
+          onClick={() => { if (asset.type === "image" || asset.type === "video") openLightbox(asset); }}
+        >
+          {asset.type === "image" && asset.url && (
+            <img src={asset.url} alt={asset.name} className="w-full h-full object-cover" loading="lazy" />
+          )}
+          {asset.type === "video" && (
+            <>
+              {playingUrl === asset.url ? (
+                <video src={asset.url} autoPlay controls className="w-full h-full object-contain" onEnded={() => setPlayingUrl(null)} />
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPlayingUrl(asset.url); }}
+                  className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  </div>
+                </button>
+              )}
+              <div className="absolute top-1 right-1 bg-black/60 text-white/70 text-[8px] px-1 py-0.5 rounded">🎬</div>
+            </>
+          )}
+          {asset.type === "audio" && <div className="text-2xl opacity-30">🎵</div>}
+          {/* Reference badge */}
+          {isPrim && (
+            <div className="absolute top-1 left-1 bg-[#d4a853] text-white text-[7px] px-1.5 py-0.5 rounded-full font-bold">📌 Primary</div>
+          )}
+          {isRef && !isPrim && (
+            <div className="absolute top-1 left-1 bg-[#d4a853]/60 text-white text-[7px] px-1.5 py-0.5 rounded-full">📌 Ref</div>
+          )}
+        </div>
+
+        {/* Info + Actions */}
+        <div className="p-2">
+          <p className="text-[10px] text-white/60 truncate" title={asset.name}>{asset.name}</p>
+          <div className="flex items-center justify-between mt-0.5">
+            <p className="text-[8px] text-white/20">{formatBytes(asset.size)}</p>
+            <div className="flex items-center gap-1.5">
+              {supportsRef && asset.type === "image" && (
+                <button
+                  onClick={async (e) => { e.stopPropagation(); await handleSetReference(asset); }}
+                  disabled={settingRef === asset.path}
+                  className={`text-[8px] transition-colors disabled:opacity-30 ${
+                    isRef ? "text-[#d4a853] font-bold" : "text-[#d4a853]/30 hover:text-[#d4a853]/80"
+                  }`}
+                  title={isRef ? "Referenz entfernen" : "Als Referenz hinzufuegen"}
+                >
+                  {settingRef === asset.path ? "..." : isRef ? "📌" : "+ 📌"}
+                </button>
+              )}
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!asset.blobUrl) return;
+                  if (!confirm(`"${asset.name}" wirklich loeschen?`)) return;
+                  try {
+                    const res = await fetch(`/api/admin/assets?blobUrl=${encodeURIComponent(asset.blobUrl)}`, { method: "DELETE" });
+                    if (res.ok) {
+                      setAssets((prev) => prev.filter((a) => a.path !== asset.path));
+                      setGrouped((prev) => {
+                        const updated = { ...prev };
+                        if (updated[asset.category]) {
+                          updated[asset.category] = updated[asset.category].filter((a) => a.path !== asset.path);
+                        }
+                        return updated;
+                      });
+                    }
+                  } catch { /* ignore */ }
+                }}
+                className="text-[8px] text-red-400/30 hover:text-red-400/80 transition-colors"
+                title="Loeschen"
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -186,30 +305,58 @@ export default function AssetBrowser() {
           <span>{stats.videos} Videos</span>
           <span>{stats.audio} Audio</span>
           <span>{formatBytes(stats.totalSize)} gesamt</span>
-          {refCount > 0 && (
-            <span className="text-[#d4a853]">📌 {refCount} Referenzen</span>
+          {totalRefImages > 0 && (
+            <span className="text-[#d4a853]">📌 {totalRefImages} Referenzen</span>
           )}
         </div>
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="text-[10px] py-1"
-        >
-          <option value="all">Alle Kategorien</option>
-          {Object.keys(grouped).map((cat) => (
-            <option key={cat} value={cat}>
-              {CATEGORY_LABELS[cat]?.emoji || "📦"} {CATEGORY_LABELS[cat]?.label || cat} ({grouped[cat].length})
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setOnlyRefs(!onlyRefs)}
+            className={`text-[10px] px-2 py-1 rounded-lg transition-colors ${
+              onlyRefs
+                ? "bg-[#d4a853]/20 text-[#d4a853] border border-[#d4a853]/30"
+                : "text-white/30 hover:text-white/50 bg-white/5 border border-transparent"
+            }`}
+          >
+            📌 Nur Referenzen
+          </button>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="text-[10px] py-1"
+          >
+            <option value="all">Alle Kategorien</option>
+            {Object.keys(grouped).map((cat) => (
+              <option key={cat} value={cat}>
+                {CATEGORY_LABELS[cat]?.emoji || "📦"} {CATEGORY_LABELS[cat]?.label || cat} ({grouped[cat].length})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Asset Grid by Category */}
       {categories.map((cat) => {
-        const items = grouped[cat] || [];
+        let items = grouped[cat] || [];
         if (items.length === 0) return null;
+        if (onlyRefs) {
+          items = items.filter((a) => isReference(a));
+          if (items.length === 0) return null;
+        }
         const label = CATEGORY_LABELS[cat] || { label: cat, emoji: "📦" };
         const supportsRef = REF_CATEGORIES.includes(cat);
+        const refCountInCat = items.filter((a) => isReference(a)).length;
+
+        // For portraits, group by character
+        const isPortraitCat = cat === "portrait";
+        const charGroups: Record<string, Asset[]> = {};
+        if (isPortraitCat) {
+          for (const item of items) {
+            const charId = getCharIdFromAsset(item) || "other";
+            if (!charGroups[charId]) charGroups[charId] = [];
+            charGroups[charId].push(item);
+          }
+        }
 
         return (
           <div key={cat} className="mb-6">
@@ -217,129 +364,48 @@ export default function AssetBrowser() {
               <span>{label.emoji}</span>
               <span>{label.label}</span>
               <span className="text-white/20 font-normal">({items.length})</span>
-              {supportsRef && (
-                <span className="text-[8px] text-[#d4a853]/50 font-normal ml-1">📌 Referenzen moeglich</span>
+              {supportsRef && refCountInCat > 0 && (
+                <span className="text-[8px] text-[#d4a853] font-normal ml-1">📌 {refCountInCat} Referenzen</span>
               )}
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {items.map((asset) => {
-                const isRef = isReference(asset);
-                return (
-                  <div key={asset.path} className={`card overflow-hidden group ${
-                    isRef ? "ring-2 ring-[#d4a853]/70 shadow-[0_0_12px_rgba(212,168,83,0.15)]" : ""
-                  }`}>
-                    {/* Preview */}
-                    <div
-                      className="aspect-square bg-[#1a2e1a] relative flex items-center justify-center overflow-hidden cursor-pointer"
-                      onClick={() => { if (asset.type === "image" || asset.type === "video") openLightbox(asset); }}
-                    >
-                      {asset.type === "image" && asset.url && (
-                        <img
-                          src={asset.url}
-                          alt={asset.name}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      )}
-                      {asset.type === "video" && (
-                        <>
-                          {playingUrl === asset.url ? (
-                            <video
-                              src={asset.url}
-                              autoPlay
-                              controls
-                              className="w-full h-full object-contain"
-                              onEnded={() => setPlayingUrl(null)}
-                            />
-                          ) : (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setPlayingUrl(asset.url); }}
-                              className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors"
-                            >
-                              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                                <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M8 5v14l11-7z" />
-                                </svg>
-                              </div>
-                            </button>
-                          )}
-                          <div className="absolute top-1 right-1 bg-black/60 text-white/70 text-[8px] px-1 py-0.5 rounded">
-                            🎬
-                          </div>
-                        </>
-                      )}
-                      {asset.type === "audio" && (
-                        <div className="text-2xl opacity-30">🎵</div>
-                      )}
-                      {/* Reference badge */}
-                      {isRef && (
-                        <div className="absolute top-1 left-1 bg-[#d4a853] text-white text-[7px] px-1.5 py-0.5 rounded-full font-bold">
-                          📌 Referenz
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info + Actions */}
-                    <div className="p-2">
-                      <p className="text-[10px] text-white/60 truncate" title={asset.name}>
-                        {asset.name}
-                      </p>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <p className="text-[8px] text-white/20">
-                          {formatBytes(asset.size)}
-                        </p>
-                        <div className="flex items-center gap-1.5">
-                          {/* Reference button */}
-                          {supportsRef && asset.type === "image" && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await handleSetReference(asset);
-                              }}
-                              disabled={settingRef === asset.path}
-                              className={`text-[8px] transition-colors disabled:opacity-30 ${
-                                isRef
-                                  ? "text-[#d4a853] font-bold"
-                                  : "text-[#d4a853]/30 hover:text-[#d4a853]/80"
-                              }`}
-                              title={isRef ? "Referenz entfernen" : "Als Referenz setzen"}
-                            >
-                              {settingRef === asset.path ? "..." : isRef ? "📌" : "📌"}
-                            </button>
-                          )}
-                          {/* Delete button */}
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (!asset.blobUrl) return;
-                              if (!confirm(`"${asset.name}" wirklich loeschen?`)) return;
-                              try {
-                                const res = await fetch(`/api/admin/assets?blobUrl=${encodeURIComponent(asset.blobUrl)}`, { method: "DELETE" });
-                                if (res.ok) {
-                                  setAssets((prev) => prev.filter((a) => a.path !== asset.path));
-                                  setGrouped((prev) => {
-                                    const updated = { ...prev };
-                                    if (updated[asset.category]) {
-                                      updated[asset.category] = updated[asset.category].filter((a) => a.path !== asset.path);
-                                    }
-                                    return updated;
-                                  });
-                                }
-                              } catch { /* ignore */ }
-                            }}
-                            className="text-[8px] text-red-400/30 hover:text-red-400/80 transition-colors"
-                            title="Loeschen"
-                          >
-                            🗑️
-                          </button>
-                        </div>
+            {isPortraitCat ? (
+              <div className="space-y-4">
+                {CHARACTER_IDS.filter((cid) => charGroups[cid]?.length).map((cid) => {
+                  const charItems = charGroups[cid];
+                  const charName = cid.charAt(0).toUpperCase() + cid.slice(1);
+                  const charRefEntry = references[`portrait:${cid}`];
+                  const charRefCount = charRefEntry?.images.length || 0;
+                  return (
+                    <div key={cid}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] text-white/50 font-medium">{charName}</span>
+                        {charRefCount > 0 && (
+                          <span className="text-[8px] text-[#d4a853]">📌 {charRefCount}</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                        {charItems.map((asset) => renderAssetCard(asset, supportsRef))}
                       </div>
                     </div>
+                  );
+                })}
+                {charGroups["other"]?.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] text-white/50 font-medium">Sonstige</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                      {charGroups["other"].map((asset) => renderAssetCard(asset, supportsRef))}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {items.map((asset) => renderAssetCard(asset, supportsRef))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -362,7 +428,6 @@ export default function AssetBrowser() {
 
         {showGenerator && (
           <div className="card p-4 space-y-4">
-            {/* Type Selector */}
             <div>
               <label className="text-[10px] text-white/30 block mb-1.5">Typ</label>
               <div className="grid grid-cols-4 gap-1.5">
@@ -376,9 +441,7 @@ export default function AssetBrowser() {
                     key={t.value}
                     onClick={() => setGenType(t.value)}
                     className={`p-2 rounded-lg text-center transition-all ${
-                      genType === t.value
-                        ? "bg-[#4a7c59]/30 border border-[#4a7c59]/50"
-                        : "bg-white/5 border border-transparent hover:bg-white/10"
+                      genType === t.value ? "bg-[#4a7c59]/30 border border-[#4a7c59]/50" : "bg-white/5 border border-transparent hover:bg-white/10"
                     }`}
                   >
                     <p className="text-[10px] text-[#f5eed6]">{t.label}</p>
@@ -388,15 +451,10 @@ export default function AssetBrowser() {
               </div>
             </div>
 
-            {/* Landscape Preset */}
             {genType === "landscape" && (
               <div>
                 <label className="text-[10px] text-white/30 block mb-1.5">Landschaft</label>
-                <select
-                  value={genPreset}
-                  onChange={(e) => setGenPreset(e.target.value)}
-                  className="w-full text-[10px] py-1.5 px-2 bg-white/5 border border-white/10 rounded-lg text-white/70"
-                >
+                <select value={genPreset} onChange={(e) => setGenPreset(e.target.value)} className="w-full text-[10px] py-1.5 px-2 bg-white/5 border border-white/10 rounded-lg text-white/70">
                   <option value="koalatree_full">🌳 KoalaTree komplett</option>
                   <option value="koalatree_branch">🌿 Ast (Nahaufnahme)</option>
                   <option value="forest_floor">🍃 Waldboden</option>
@@ -409,7 +467,6 @@ export default function AssetBrowser() {
               </div>
             )}
 
-            {/* Character Selector */}
             {genType === "character" && (
               <div>
                 <label className="text-[10px] text-white/30 block mb-1.5">Charakter</label>
@@ -427,9 +484,7 @@ export default function AssetBrowser() {
                       key={c.id}
                       onClick={() => setGenCharacter(c.id)}
                       className={`p-2 rounded-lg text-center transition-all ${
-                        genCharacter === c.id
-                          ? "bg-[#4a7c59]/30 border border-[#4a7c59]/50"
-                          : "bg-white/5 border border-transparent hover:bg-white/10"
+                        genCharacter === c.id ? "bg-[#4a7c59]/30 border border-[#4a7c59]/50" : "bg-white/5 border border-transparent hover:bg-white/10"
                       }`}
                     >
                       <span className="text-base">{c.emoji}</span>
@@ -440,7 +495,6 @@ export default function AssetBrowser() {
               </div>
             )}
 
-            {/* Background / Sky */}
             <div>
               <label className="text-[10px] text-white/30 block mb-1.5">Hintergrund / Himmel</label>
               <div className="grid grid-cols-5 gap-1.5">
@@ -455,9 +509,7 @@ export default function AssetBrowser() {
                     key={bg.id}
                     onClick={() => setGenBackground(bg.id)}
                     className={`p-1.5 rounded-lg text-center transition-all ${
-                      genBackground === bg.id
-                        ? "bg-[#d4a853]/20 border border-[#d4a853]/40"
-                        : "bg-white/5 border border-transparent hover:bg-white/10"
+                      genBackground === bg.id ? "bg-[#d4a853]/20 border border-[#d4a853]/40" : "bg-white/5 border border-transparent hover:bg-white/10"
                     }`}
                   >
                     <p className="text-[9px] text-white/60">{bg.label}</p>
@@ -466,7 +518,6 @@ export default function AssetBrowser() {
               </div>
             </div>
 
-            {/* Custom Prompt */}
             <div>
               <label className="text-[10px] text-white/30 block mb-1.5">
                 {genType === "custom" ? "Prompt (erforderlich)" : "Zusaetzlicher Prompt (optional)"}
@@ -480,30 +531,19 @@ export default function AssetBrowser() {
               />
             </div>
 
-            {/* Generate Button + Result */}
             <div className="flex items-center gap-3">
               <button
                 onClick={handleGenerate}
                 disabled={generating || (genType === "custom" && !genCustomPrompt.trim())}
                 className="px-4 py-2 rounded-lg bg-[#4a7c59] text-white text-xs font-medium hover:bg-[#5a8c69] transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {generating ? (
-                  <>
-                    <span className="animate-spin">⏳</span>
-                    Generiere...
-                  </>
-                ) : (
-                  <>🎨 Generieren (~$0.08)</>
-                )}
+                {generating ? (<><span className="animate-spin">⏳</span> Generiere...</>) : (<>🎨 Generieren (~$0.08)</>)}
               </button>
               {genResult && (
-                <span className={`text-[10px] ${genResult.startsWith("Fehler") ? "text-red-400/70" : "text-[#a8d5b8]/70"}`}>
-                  {genResult}
-                </span>
+                <span className={`text-[10px] ${genResult.startsWith("Fehler") ? "text-red-400/70" : "text-[#a8d5b8]/70"}`}>{genResult}</span>
               )}
             </div>
 
-            {/* Info */}
             <p className="text-[8px] text-white/15">
               GPT-Image-1 · 1536×1024 · KoalaTree Disney-1994 Stil · Bilder werden in studio/scene-images/ gespeichert
             </p>
@@ -519,21 +559,21 @@ export default function AssetBrowser() {
       >
         {lightboxAsset && (
           <div className="w-full h-full flex flex-col">
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 shrink-0">
               <div className="flex items-center gap-3">
                 <div>
                   <p className="text-sm text-white/80 flex items-center gap-2">
                     {lightboxAsset.name}
                     {isReference(lightboxAsset) && (
-                      <span className="text-[9px] bg-[#d4a853] text-white px-2 py-0.5 rounded-full font-bold">📌 Referenz</span>
+                      <span className="text-[9px] bg-[#d4a853] text-white px-2 py-0.5 rounded-full font-bold">
+                        {isPrimaryRef(lightboxAsset) ? "📌 Primary" : "📌 Referenz"}
+                      </span>
                     )}
                   </p>
                   <p className="text-[10px] text-white/30">
                     {formatBytes(lightboxAsset.size)} · {CATEGORY_LABELS[lightboxAsset.category]?.label || lightboxAsset.category}
                   </p>
                 </div>
-                {/* Set as reference in lightbox */}
                 {REF_CATEGORIES.includes(lightboxAsset.category) && lightboxAsset.type === "image" && (
                   <button
                     onClick={() => handleSetReference(lightboxAsset)}
@@ -544,40 +584,26 @@ export default function AssetBrowser() {
                         : "bg-white/10 text-white/60 hover:bg-[#d4a853]/20 hover:text-[#d4a853]"
                     }`}
                   >
-                    {settingRef === lightboxAsset.path ? "..." : isReference(lightboxAsset) ? "📌 Referenz entfernen" : "📌 Als Referenz setzen"}
+                    {settingRef === lightboxAsset.path ? "..." : isReference(lightboxAsset) ? "📌 Referenz entfernen" : "+ 📌 Als Referenz"}
                   </button>
                 )}
               </div>
-              <button
-                onClick={closeLightbox}
-                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-              >
+              <button onClick={closeLightbox} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Content */}
             <div className="flex-1 flex items-center justify-center p-4 min-h-0">
               {lightboxAsset.type === "image" && (
-                <img
-                  src={lightboxAsset.url}
-                  alt={lightboxAsset.name}
-                  className="max-w-full max-h-full object-contain rounded-lg"
-                />
+                <img src={lightboxAsset.url} alt={lightboxAsset.name} className="max-w-full max-h-full object-contain rounded-lg" />
               )}
               {lightboxAsset.type === "video" && (
-                <video
-                  src={lightboxAsset.url}
-                  autoPlay
-                  controls
-                  className="max-w-full max-h-full object-contain rounded-lg"
-                />
+                <video src={lightboxAsset.url} autoPlay controls className="max-w-full max-h-full object-contain rounded-lg" />
               )}
             </div>
 
-            {/* Footer Nav */}
             <div className="flex items-center justify-center gap-4 px-4 py-3 shrink-0">
               <button
                 onClick={() => {

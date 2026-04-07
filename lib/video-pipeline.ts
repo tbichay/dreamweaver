@@ -15,32 +15,12 @@ import { prisma } from "./db";
 import { analyzeStoryForFilm, type FilmScene, type TimelineEntry } from "./video-director";
 import { generateVideo, generateSceneVideo, downloadVideo } from "./hedra";
 import { put, get, list } from "@vercel/blob";
+import { loadCharacterReferences } from "./references";
+import { segmentMp3 } from "./audio-segment";
 
 // --- Helpers ---
 
-async function loadPortraitBuffer(characterId: string): Promise<Buffer> {
-  const filename = `${characterId}-portrait.png`;
-  const { blobs } = await list({ prefix: `images/${filename}`, limit: 1 });
-
-  if (blobs.length > 0) {
-    const result = await get(blobs[0].url, { access: "private" });
-    if (result?.stream) {
-      const chunks: Uint8Array[] = [];
-      const reader = result.stream.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) chunks.push(value);
-      }
-      return Buffer.concat(chunks);
-    }
-  }
-
-  const baseUrl = process.env.AUTH_URL || "https://www.koalatree.ai";
-  const res = await fetch(`${baseUrl}/api/images/${filename}`);
-  if (!res.ok) throw new Error(`Portrait not found: ${characterId}`);
-  return Buffer.from(await res.arrayBuffer());
-}
+// loadPortraitBuffer replaced by loadCharacterReferences from lib/references.ts
 
 async function loadAudioBuffer(audioUrl: string): Promise<Buffer> {
   const result = await get(audioUrl, { access: "private" });
@@ -91,33 +71,31 @@ export async function generateOneScene(
 
   if (scene.type === "dialog" && scene.characterId) {
     // Lip-sync via Hedra Character-3 with SEGMENTED audio (not full!)
-    const portraitBuffer = await loadPortraitBuffer(scene.characterId);
+    const charRefs = await loadCharacterReferences(scene.characterId);
+    const portraitBuffer = charRefs[0]; // Hedra needs one primary portrait
 
-    // Slice the MP3 buffer based on timeline position
-    // MP3 at 128 kbps = 16,000 bytes/second
-    const bytesPerMs = 16; // 16,000 bytes/s = 16 bytes/ms
-    const startByte = Math.max(0, Math.floor(scene.audioStartMs * bytesPerMs));
-    const endByte = Math.min(fullAudioBuffer.byteLength, Math.ceil(scene.audioEndMs * bytesPerMs));
-    const audioSegment = fullAudioBuffer.subarray(startByte, endByte);
+    // Segment audio at MP3 frame boundaries for clean cuts
+    const audioSegment = segmentMp3(fullAudioBuffer, scene.audioStartMs, scene.audioEndMs);
 
     const segmentDuration = (scene.audioEndMs - scene.audioStartMs) / 1000;
     console.log(`[Film] Audio segment: ${scene.audioStartMs}ms-${scene.audioEndMs}ms (${segmentDuration.toFixed(1)}s, ${(audioSegment.byteLength / 1024).toFixed(0)}KB)`);
 
     videoUrl = await generateVideo({
       imageBuffer: portraitBuffer,
-      audioBuffer: Buffer.from(audioSegment),
+      audioBuffer: audioSegment,
       prompt: scene.sceneDescription,
       aspectRatio: "9:16",
       resolution: "720p",
     });
   } else {
-    // Landscape/Transition via Kling
-    const sceneImageBuffer = await loadPortraitBuffer(scene.characterId || "koda");
+    // Landscape/Transition via Kling — pass all references for consistency
+    const sceneRefs = await loadCharacterReferences(scene.characterId || "koda", 3);
     videoUrl = await generateSceneVideo({
-      imageBuffer: sceneImageBuffer,
+      imageBuffer: sceneRefs[0],
       prompt: `${scene.sceneDescription}. ${scene.mood}. Camera: ${scene.camera}. KoalaTree animated style, warm colors, magical forest.`,
       aspectRatio: "9:16",
       resolution: "720p",
+      referenceImages: sceneRefs.length > 1 ? sceneRefs.slice(1) : undefined,
     });
   }
 

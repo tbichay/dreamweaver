@@ -6,7 +6,30 @@
  */
 
 // ── Style prefix (from BRAND.md Section 1) ──────────────────────────
-export const STYLE_PREFIX = `Traditional hand-drawn cel animation style from the 1994 Disney era. Flat 2D artwork with clean ink outlines and smooth hand-painted colors. NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994", "The Jungle Book 1967". CLEAN smooth background with bold flat color gradients and soft-edged clouds. NO noise, NO grain, NO texture artifacts, NO speckles, NO floating particles, NO dots in the sky. Sky must be perfectly smooth with clean color transitions. Crisp character outlines against a clean painted backdrop.`;
+export const DEFAULT_STYLE_PREFIX = `Traditional hand-drawn cel animation style from the 1994 Disney era. Flat 2D artwork with clean ink outlines and smooth hand-painted colors. NOT 3D, NOT CGI, NOT Pixar style. Think "The Lion King 1994", "The Jungle Book 1967". CLEAN smooth background with bold flat color gradients and soft-edged clouds. NO noise, NO grain, NO texture artifacts, NO speckles, NO floating particles, NO dots in the sky. Sky must be perfectly smooth with clean color transitions. Crisp character outlines against a clean painted backdrop.`;
+
+/** @deprecated Use DEFAULT_STYLE_PREFIX or getStylePrefix() */
+export const STYLE_PREFIX = DEFAULT_STYLE_PREFIX;
+
+// ── Project-aware resolvers ────────────────────────────────────────
+
+export interface ProjectConfig {
+  stylePrompt?: string | null;
+  characters?: Record<string, CharacterDef> | null;
+}
+
+/** Get the style prefix for a project, falling back to the default. */
+export function getStylePrefix(project?: ProjectConfig | null): string {
+  return project?.stylePrompt || DEFAULT_STYLE_PREFIX;
+}
+
+/** Get characters for a project, falling back to the defaults. */
+export function getCharacters(project?: ProjectConfig | null): Record<CharacterKey, CharacterDef> {
+  if (project?.characters && Object.keys(project.characters).length > 0) {
+    return project.characters as Record<CharacterKey, CharacterDef>;
+  }
+  return CHARACTERS;
+}
 
 // ── Background suffix (appended to every prompt) ────────────────────
 const BG_SUFFIX = `NO noise, NO grain, NO speckles. Bold saturated colors. Square composition.`;
@@ -152,6 +175,7 @@ export function buildPrompt(
   pose: PoseKey = "portrait",
   scene?: SceneKey,
   wide = false,
+  stylePrefix?: string,
 ): string {
   const c = CHARACTERS[character];
   const bg = scene ?? (c.defaultBackground as SceneKey);
@@ -159,7 +183,7 @@ export function buildPrompt(
   const sceneText = SCENES[bg];
 
   const parts: string[] = [
-    STYLE_PREFIX,
+    stylePrefix || DEFAULT_STYLE_PREFIX,
     `Portrait of ${c.description}`,
   ];
 

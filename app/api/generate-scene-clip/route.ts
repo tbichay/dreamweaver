@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { generateVideo, generateSceneVideo, downloadVideo } from "@/lib/hedra";
 import { put, get, list } from "@vercel/blob";
 import { CHARACTERS, type CharacterKey } from "@/lib/studio";
+import { loadCharacterReferences } from "@/lib/references";
+import { segmentMp3 } from "@/lib/audio-segment";
 
 // Build a character-aware prompt that tells the AI model exactly what the character looks like
 function buildCharacterPrompt(characterId: string, sceneDescription: string): string {
@@ -45,16 +47,7 @@ async function loadBuffer(url: string): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-async function loadPortrait(characterId: string): Promise<Buffer> {
-  const filename = `${characterId}-portrait.png`;
-  const { blobs } = await list({ prefix: `images/${filename}`, limit: 1 });
-  if (blobs.length > 0) return loadBuffer(blobs[0].url);
-
-  const baseUrl = process.env.AUTH_URL || "https://www.koalatree.ai";
-  const res = await fetch(`${baseUrl}/api/images/${filename}`);
-  if (!res.ok) throw new Error(`Portrait not found: ${characterId}`);
-  return Buffer.from(await res.arrayBuffer());
-}
+// loadPortrait replaced by loadCharacterReferences from lib/references.ts
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -79,11 +72,8 @@ export async function POST(request: Request) {
 
     const fullAudio = await loadBuffer(geschichte.audioUrl);
 
-    // Segment audio (MP3 128kbps = 16 bytes/ms)
-    const bytesPerMs = 16;
-    const startByte = Math.max(0, Math.floor(scene.audioStartMs * bytesPerMs));
-    const endByte = Math.min(fullAudio.byteLength, Math.ceil(scene.audioEndMs * bytesPerMs));
-    const audioSegment = Buffer.from(fullAudio.subarray(startByte, endByte));
+    // Segment audio at MP3 frame boundaries for clean cuts
+    const audioSegment = segmentMp3(fullAudio, scene.audioStartMs, scene.audioEndMs);
 
     const segDuration = (scene.audioEndMs - scene.audioStartMs) / 1000;
     console.log(`[Scene Clip] Scene ${sceneIndex}: ${scene.type}, ${segDuration.toFixed(1)}s audio segment (${(audioSegment.byteLength / 1024).toFixed(0)}KB)`);
@@ -91,7 +81,9 @@ export async function POST(request: Request) {
     let videoUrl: string;
 
     if (scene.type === "dialog" && scene.characterId) {
-      const portrait = await loadPortrait(scene.characterId);
+      // Load all reference images for this character (primary first)
+      const charRefs = await loadCharacterReferences(scene.characterId);
+      const portrait = charRefs[0]; // Hedra needs one primary portrait
 
       // Build character-aware prompt so the AI knows exactly what the character looks like
       const charPrompt = buildCharacterPrompt(scene.characterId, scene.sceneDescription);
@@ -134,11 +126,13 @@ export async function POST(request: Request) {
           sceneImage = await loadBuffer(sceneImgBlob.url);
           console.log(`[Scene Clip] Using project scene image: ${sceneImgBlob.pathname}`);
         } else {
-          sceneImage = await loadPortrait(scene.characterId || "koda");
+          const fallbackRefs = await loadCharacterReferences(scene.characterId || "koda", 1);
+          sceneImage = fallbackRefs[0];
           console.log(`[Scene Clip] No scene image found, using portrait`);
         }
       } catch {
-        sceneImage = await loadPortrait(scene.characterId || "koda");
+        const fallbackRefs = await loadCharacterReferences(scene.characterId || "koda", 1);
+        sceneImage = fallbackRefs[0];
       }
 
       // Auto-detect movement keywords from scene description
@@ -193,13 +187,12 @@ export async function POST(request: Request) {
 
       console.log(`[Scene Clip] Landscape prompt with movement: ${animationPrompt.substring(0, 100)}...`);
 
-      // Load character portrait as reference image for consistency
-      const referenceImages: Buffer[] = [];
+      // Load all character reference images for consistency (max 3 for Kling IR2V)
+      let referenceImages: Buffer[] = [];
       if (scene.characterId) {
         try {
-          const charRef = await loadPortrait(scene.characterId);
-          referenceImages.push(charRef);
-          console.log(`[Scene Clip] Character reference loaded: ${scene.characterId}`);
+          referenceImages = await loadCharacterReferences(scene.characterId, 3);
+          console.log(`[Scene Clip] ${referenceImages.length} character reference(s) loaded: ${scene.characterId}`);
         } catch { /* no reference available */ }
       }
 
@@ -225,7 +218,8 @@ export async function POST(request: Request) {
     let lastFrameUrl: string | undefined;
     try {
       if (scene.characterId) {
-        const portraitForChain = await loadPortrait(scene.characterId);
+        const chainRefs = await loadCharacterReferences(scene.characterId, 1);
+        const portraitForChain = chainRefs[0];
         const frameBlob = await put(
           `films/${geschichteId}/frame-${String(sceneIndex).padStart(3, "0")}.png`,
           portraitForChain,

@@ -1,8 +1,13 @@
 import { auth } from "@/lib/auth";
-import { list, del, put } from "@vercel/blob";
+import { list, del } from "@vercel/blob";
+import {
+  loadReferences,
+  updateReference,
+  type RefAction,
+  type ReferenceImage,
+} from "@/lib/references";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
-const REFS_PATH = "studio/references.json";
 
 interface Asset {
   name: string;
@@ -15,37 +20,10 @@ interface Asset {
   uploadedAt: string;
 }
 
-// References map: "portrait:koda" → blobPath, "landscape:koalatree_full" → blobPath, etc.
-type ReferencesMap = Record<string, string>;
-
 async function checkAdmin() {
   const session = await auth();
   if (!session?.user?.email || session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return false;
   return true;
-}
-
-async function loadReferences(): Promise<ReferencesMap> {
-  try {
-    const { blobs } = await list({ prefix: REFS_PATH, limit: 1 });
-    if (blobs.length === 0) return {};
-    // Use downloadUrl with fetch — more reliable than get() for JSON
-    const url = blobs[0].downloadUrl;
-    if (!url) return {};
-    const res = await fetch(url);
-    if (!res.ok) return {};
-    return await res.json();
-  } catch (err) {
-    console.error("[References] Load error:", err);
-    return {};
-  }
-}
-
-async function saveReferences(refs: ReferencesMap): Promise<void> {
-  await put(REFS_PATH, JSON.stringify(refs, null, 2), {
-    access: "private",
-    contentType: "application/json",
-    allowOverwrite: true,
-  });
 }
 
 // GET: List all assets
@@ -189,23 +167,21 @@ export async function GET() {
   });
 }
 
-// PUT: Set or remove a reference image
+// PUT: Set, add, remove, or promote a reference image
 export async function PUT(request: Request) {
   if (!(await checkAdmin())) return Response.json({ error: "Unauthorized" }, { status: 403 });
 
-  const { refKey, assetPath } = await request.json() as { refKey: string; assetPath: string | null };
+  const body = await request.json() as {
+    refKey: string;
+    assetPath: string | null;
+    action?: RefAction;
+    label?: string;
+    role?: ReferenceImage["role"];
+  };
 
-  if (!refKey) return Response.json({ error: "refKey required" }, { status: 400 });
+  if (!body.refKey) return Response.json({ error: "refKey required" }, { status: 400 });
 
-  const refs = await loadReferences();
-
-  if (assetPath) {
-    refs[refKey] = assetPath;
-  } else {
-    delete refs[refKey];
-  }
-
-  await saveReferences(refs);
+  const refs = await updateReference(body);
 
   return Response.json({ references: refs });
 }
