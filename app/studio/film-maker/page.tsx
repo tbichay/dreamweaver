@@ -121,14 +121,29 @@ export default function FilmMakerPage() {
     return { standard, premium, landscape, total: standard + premium + landscape };
   }, [scenes]);
 
+  // Save storyboard scenes to DB
+  const saveScenes = async () => {
+    if (!selectedStoryId || scenes.length === 0) return;
+    await fetch("/api/admin/generate-storyboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ geschichteId: selectedStoryId, scenes }),
+    });
+  };
+
   // Generate film
   const generateFilm = async () => {
     if (!selectedStoryId || scenes.length === 0) return;
     setGeneratingFilm(true);
-    setFilmProgress("Film wird in die Queue eingereiht...");
+    setFilmProgress("Storyboard wird gespeichert...");
     setError("");
 
     try {
+      // 1. Save current scenes to DB first
+      await saveScenes();
+      setFilmProgress("Film wird in die Queue eingereiht...");
+
+      // 2. Create film job
       const res = await fetch("/api/generate-film", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,8 +153,8 @@ export default function FilmMakerPage() {
       if (!res.ok) throw new Error((await res.json()).error || "Fehler");
       const data = await res.json();
 
-      if (data.status === "COMPLETED") {
-        setFilmProgress("Film ist fertig!");
+      if (data.status === "COMPLETED" && data.videoUrl) {
+        setFilmProgress("Film ist fertig! " + data.videoUrl);
       } else {
         setFilmProgress(`In der Queue (Position ${(data.position || 0) + 1}). Du bekommst eine Email wenn der Film fertig ist.`);
       }

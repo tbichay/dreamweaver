@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     });
 
     if (existingJob) {
-      if (existingJob.status === "COMPLETED") {
+      if (existingJob.status === "COMPLETED" && geschichte.videoUrl) {
         return Response.json({ jobId: existingJob.id, status: "COMPLETED", videoUrl: `/api/video/film/${geschichteId}` });
       }
       if (existingJob.status === "PENDING" || existingJob.status === "PROCESSING") {
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
           scenesComplete: existingJob.scenesComplete,
         });
       }
-      // FAILED — reset for retry
+      // FAILED or COMPLETED-without-video — reset for retry
       await prisma.filmJob.update({
         where: { id: existingJob.id },
         data: { status: "PENDING", error: null, startedAt: null, completedAt: null, progress: null, scenesComplete: 0 },

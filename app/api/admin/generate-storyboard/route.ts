@@ -13,7 +13,20 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { geschichteId, force } = await request.json() as { geschichteId: string; force?: boolean };
+    const { geschichteId, force, scenes: editedScenes } = await request.json() as {
+      geschichteId: string;
+      force?: boolean;
+      scenes?: unknown[]; // Save edited scenes from the Storyboard Editor
+    };
+
+    // If scenes are provided, just save them (no generation)
+    if (editedScenes && Array.isArray(editedScenes) && editedScenes.length > 0) {
+      await prisma.geschichte.update({
+        where: { id: geschichteId },
+        data: { filmScenes: JSON.parse(JSON.stringify(editedScenes)) },
+      });
+      return Response.json({ scenes: editedScenes, saved: true });
+    }
 
     const geschichte = await prisma.geschichte.findUnique({
       where: { id: geschichteId },
