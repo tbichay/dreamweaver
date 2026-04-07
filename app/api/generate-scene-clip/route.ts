@@ -27,6 +27,7 @@ interface SceneInput {
   type: "dialog" | "landscape" | "transition" | "intro" | "outro";
   characterId?: string;
   sceneDescription: string;
+  location?: string;
   mood?: string;
   camera?: string;
   audioStartMs: number;
