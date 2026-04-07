@@ -28,8 +28,9 @@ export async function GET() {
 
   const prefixes = [
     { prefix: "images/", category: "portrait" },
-    { prefix: "studio/", category: "portrait" },
+    { prefix: "studio/scene-images/", category: "landscape" },
     { prefix: "studio/hero/", category: "background" },
+    { prefix: "studio/icons/", category: "branding" },
     { prefix: "studio/branding-source/", category: "branding" },
     { prefix: "marketing-videos/", category: "marketing-video" },
     { prefix: "help-clips/", category: "help-clip" },
@@ -37,6 +38,31 @@ export async function GET() {
     { prefix: "intros/", category: "intro" },
     { prefix: "outros/", category: "outro" },
   ];
+
+  // Studio portraits (exclude sub-folders like hero/, scene-images/, branding-source/, icons/)
+  try {
+    const { blobs } = await list({ prefix: "studio/", limit: 100 });
+    for (const blob of blobs) {
+      // Only include direct children of studio/ (portraits + hero images)
+      const subPath = blob.pathname.replace("studio/", "");
+      if (subPath.includes("/")) continue; // skip sub-folders (already handled above)
+
+      const fileName = blob.pathname.split("/").pop() || blob.pathname;
+      const ext = fileName.split(".").pop()?.toLowerCase() || "";
+      if (ext === "json") continue;
+
+      assets.push({
+        name: fileName,
+        path: blob.pathname,
+        type: "image",
+        category: "portrait",
+        size: blob.size,
+        url: `/api/admin/studio/image/${fileName}`,
+        blobUrl: blob.url,
+        uploadedAt: blob.uploadedAt?.toISOString() || "",
+      });
+    }
+  } catch { /* skip */ }
 
   for (const { prefix, category } of prefixes) {
     try {
@@ -55,9 +81,14 @@ export async function GET() {
         let url = "";
         if (prefix === "images/") {
           url = `/api/images/${fileName}`;
-        } else if (prefix === "studio/" && !blob.pathname.includes("hero/") && !blob.pathname.includes("branding")) {
-          // Studio portraits — served via /api/images/ if they have matching active name
-          url = `/api/images/${fileName}`;
+        } else if (category === "landscape") {
+          url = `/api/admin/studio/image/scene-images/${fileName}`;
+        } else if (category === "background") {
+          url = `/api/admin/studio/image/hero/${fileName}`;
+        } else if (category === "branding" && prefix === "studio/icons/") {
+          url = `/api/admin/studio/image/icons/${fileName}`;
+        } else if (category === "branding") {
+          url = `/api/admin/studio/image/branding-source/${fileName}`;
         } else if (category === "marketing-video") {
           url = `/api/video/marketing/${fileName.replace(".mp4", "")}`;
         } else if (category === "help-clip") {
@@ -65,7 +96,6 @@ export async function GET() {
         } else if (category === "audio") {
           url = "/api/audio/onboarding";
         } else if (category === "intro" || category === "outro") {
-          // Intros/outros need their own serve endpoint or use download URL
           url = blob.downloadUrl || "";
         } else {
           url = blob.downloadUrl || "";
