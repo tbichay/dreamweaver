@@ -58,6 +58,9 @@ export default function FilmMakerPage() {
   const [filmProgress, setFilmProgress] = useState("");
   const [error, setError] = useState("");
   const [editingScene, setEditingScene] = useState<number | null>(null);
+  const [aiPromptScene, setAiPromptScene] = useState<number | null>(null);
+  const [aiPromptText, setAiPromptText] = useState("");
+  const [aiPromptLoading, setAiPromptLoading] = useState(false);
 
   // Load ALL stories with audio (no profile filter — admin sees everything)
   useEffect(() => {
@@ -145,6 +148,35 @@ export default function FilmMakerPage() {
       setFilmProgress("");
     } finally {
       setGeneratingFilm(false);
+    }
+  };
+
+  // AI-assisted prompt editing
+  const handleAiEdit = async (sceneIndex: number) => {
+    if (!aiPromptText.trim()) return;
+    setAiPromptLoading(true);
+    try {
+      const res = await fetch("/api/admin/edit-scene-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentDescription: scenes[sceneIndex].sceneDescription,
+          userInstruction: aiPromptText,
+          characterId: scenes[sceneIndex].characterId,
+          sceneType: scenes[sceneIndex].type,
+        }),
+      });
+      if (!res.ok) throw new Error("Fehler");
+      const data = await res.json();
+      const updated = [...scenes];
+      updated[sceneIndex] = { ...updated[sceneIndex], sceneDescription: data.newDescription };
+      setScenes(updated);
+      setAiPromptText("");
+      setAiPromptScene(null);
+    } catch {
+      setError("KI-Bearbeitung fehlgeschlagen");
+    } finally {
+      setAiPromptLoading(false);
     }
   };
 
@@ -309,7 +341,14 @@ export default function FilmMakerPage() {
                             onClick={() => setEditingScene(isEditing ? null : i)}
                             className="text-[10px] text-white/30 hover:text-white/60"
                           >
-                            {isEditing ? "✓ Fertig" : "✏️ Bearbeiten"}
+                            {isEditing ? "✓ Fertig" : "✏️ Manuell"}
+                          </button>
+
+                          <button
+                            onClick={() => { setAiPromptScene(aiPromptScene === i ? null : i); setAiPromptText(""); }}
+                            className={`text-[10px] ${aiPromptScene === i ? "text-[#a8d5b8]" : "text-white/30 hover:text-white/60"}`}
+                          >
+                            🤖 KI-Anweisung
                           </button>
 
                           <button
@@ -319,6 +358,29 @@ export default function FilmMakerPage() {
                             Entfernen
                           </button>
                         </div>
+
+                        {/* AI Prompt Input */}
+                        {aiPromptScene === i && (
+                          <div className="mt-2 flex gap-2">
+                            <input
+                              type="text"
+                              value={aiPromptText}
+                              onChange={(e) => setAiPromptText(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleAiEdit(i)}
+                              placeholder="z.B. 'lass Kiki durchs Bild flattern' oder 'mehr Bewegung'"
+                              className="flex-1 text-xs px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/25 focus:outline-none focus:border-[#4a7c59]/50"
+                              disabled={aiPromptLoading}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleAiEdit(i)}
+                              disabled={aiPromptLoading || !aiPromptText.trim()}
+                              className="text-xs px-3 py-2 bg-[#4a7c59]/30 text-[#a8d5b8] rounded-lg hover:bg-[#4a7c59]/50 disabled:opacity-50 shrink-0"
+                            >
+                              {aiPromptLoading ? "..." : "Anwenden"}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
