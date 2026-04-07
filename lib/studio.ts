@@ -184,7 +184,7 @@ export function buildPrompt(
 // ── Hero Background (no characters) ─────────────────────────────────
 
 export const HERO_BG_PROMPT = `${STYLE_PREFIX}
-Wide cinematic landscape scene of a magnificent giant magical eucalyptus tree at blue hour twilight. CLEAN smooth deep blue sky with perfectly smooth gradient from deep navy to warm purple-pink at the horizon, first stars appearing. NO noise, NO grain, NO speckles — sky must be perfectly clean with bold flat color transitions. Soft-edged clouds with clean shapes. The tree is enormous and ancient with thick sprawling branches, glowing softly with warm golden light from within its canopy, tiny golden fireflies floating around it. Soft grass with wildflowers below the tree. Warm magical inviting atmosphere. NO characters — empty branches where characters will be composited later. Bold saturated colors. Clean clear sky without any artifacts or noise. Wide 16:9 landscape composition.`;
+Wide cinematic landscape scene of a magnificent giant magical eucalyptus tree at blue hour twilight. CLEAN smooth deep blue sky with perfectly smooth gradient from deep navy to warm purple-pink at the horizon, first stars appearing. NO noise, NO grain, NO speckles — sky must be perfectly clean with bold flat color transitions. Soft-edged clouds with clean shapes. The tree is enormous and ancient with thick sprawling branches, glowing softly with warm golden light from within its canopy. Soft grass with wildflowers below the tree. Warm magical inviting atmosphere. NO characters — empty branches where characters will be composited later. Bold saturated colors. Clean clear sky without any artifacts or noise. Wide 16:9 landscape composition.`;
 
 // ── Hero Character Prompt (transparent background) ──────────────────
 
@@ -216,7 +216,7 @@ export function buildHeroCharPrompt(character: CharacterKey): string {
 export function buildHeroFullPrompt(): string {
   return `${STYLE_PREFIX}
 
-Wide cinematic 16:9 landscape painting dominated by a MASSIVE, truly ENORMOUS ancient magical eucalyptus tree — the KoalaTree. This is no ordinary tree: it is GIGANTIC, ancient beyond measure, its mighty trunk wider than a house, its sprawling crown filling most of the image from edge to edge. The tree towers into the sky, its canopy reaching toward the stars. Thick, gnarled branches spread out in every direction at many different heights. The tree glows softly from deep within its bark and canopy with warm golden-amber magical light, as if a gentle fire burns at its heart. Hundreds of tiny golden fireflies drift lazily through the branches and around the crown like living stars.
+Wide cinematic 16:9 landscape painting dominated by a MASSIVE, truly ENORMOUS ancient magical eucalyptus tree — the KoalaTree. This is no ordinary tree: it is GIGANTIC, ancient beyond measure, its mighty trunk wider than a house, its sprawling crown filling most of the image from edge to edge. The tree towers into the sky, its canopy reaching toward the stars. Thick, gnarled branches spread out in every direction at many different heights. The tree glows softly from deep within its bark and canopy with warm golden-amber magical light, as if a gentle fire burns at its heart.
 
 The scene is set at blue hour twilight. CLEAN smooth deep blue sky with a perfectly smooth gradient from deep navy above to warm purple-pink at the horizon. First stars appear in the darkening sky. Soft-edged clouds. The tree stands on a gentle grassy hill with small wildflowers. The magical glow of the tree illuminates the grass and characters below in warm golden tones.
 
@@ -264,7 +264,7 @@ export const HERO_POSITIONS: HeroCharPos[] = [
 // ── Branding Prompts ───────────────────────────────────────────────
 
 export const BRANDING_FAVICON_PROMPT = `${STYLE_PREFIX}
-A simple iconic app icon of a single magical eucalyptus tree. The tree has a thick sturdy trunk and a lush, rounded canopy glowing with warm golden-amber light from within. Tiny golden fireflies float around the canopy. Deep forest green canopy with warm golden highlights. Set against a deep dark forest green background (#1a2e1a). Clean bold silhouette style — must be instantly recognizable at very small sizes (16x16 pixels). Minimal detail, strong clear shapes, high contrast between the glowing golden tree and the dark background. NO characters, NO text, NO animals, NO letters. Just the magical glowing tree icon. Centered square composition with generous padding around the tree. ${BG_SUFFIX}`;
+A simple iconic app icon of a single magical eucalyptus tree. The tree has a thick sturdy trunk and a lush, rounded canopy glowing with warm golden-amber light from within. Deep forest green canopy with warm golden highlights. Set against a deep dark forest green background (#1a2e1a). Clean bold silhouette style — must be instantly recognizable at very small sizes (16x16 pixels). Minimal detail, strong clear shapes, high contrast between the glowing golden tree and the dark background. NO characters, NO text, NO animals, NO letters. Just the magical glowing tree icon. Centered square composition with generous padding around the tree. ${BG_SUFFIX}`;
 
 export function buildBrandingLogoPrompt(): string {
   const koda = CHARACTERS.koda;

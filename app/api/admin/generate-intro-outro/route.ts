@@ -13,12 +13,12 @@ const INTRO_PRESETS = {
   koalatree_classic: {
     name: "KoalaTree Classic",
     imagePrompt: `${STYLE_PREFIX}\n\nWide cinematic establishing shot of the majestic KoalaTree at golden hour. The enormous ancient eucalyptus tree fills the frame, its massive trunk and sprawling branches reaching toward a warm orange-gold sunset sky. Soft golden light filters through the canopy. Fireflies begin to glow between the branches. At the base, the forest floor is covered in soft moss and tiny wildflowers. The tree radiates warmth, magic, and wonder. A faint ethereal glow surrounds the entire tree suggesting its magical nature. NO characters visible. Pure landscape. Bold saturated colors. Wide 16:9.`,
-    animationPrompt: "The camera slowly pushes in toward the magical tree. Leaves gently sway in warm evening breeze. Fireflies float and glow softly. Golden sunlight shifts subtly through the canopy. Warm, magical, inviting atmosphere. Smooth cinematic camera movement.",
+    animationPrompt: "The camera slowly pushes in toward the magical tree. Leaves gently sway in warm evening breeze. Golden sunlight shifts subtly through the canopy. Warm, magical, inviting atmosphere. Smooth cinematic camera movement.",
   },
   koalatree_night: {
     name: "KoalaTree Nacht",
-    imagePrompt: `${STYLE_PREFIX}\n\nWide cinematic shot of the KoalaTree at night. Deep blue-purple starlit sky with a glowing full moon behind the tree. The tree is silhouetted but warmly lit from within by hundreds of tiny fireflies. Silver moonlight outlines the massive branches. Stars twinkle. Mystical, peaceful, dreamlike. NO characters. Wide 16:9.`,
-    animationPrompt: "Slow gentle zoom into the moonlit tree. Fireflies pulse and float. Stars twinkle subtly. Moonlight shifts gently across branches. Peaceful, dreamy night atmosphere. Slow cinematic movement.",
+    imagePrompt: `${STYLE_PREFIX}\n\nWide cinematic shot of the KoalaTree at night. Deep blue-purple starlit sky with a glowing full moon behind the tree. The tree is silhouetted but warmly lit from within by a soft golden glow. Silver moonlight outlines the massive branches. Stars twinkle. Mystical, peaceful, dreamlike. NO characters. Wide 16:9.`,
+    animationPrompt: "Slow gentle zoom into the moonlit tree. Stars twinkle subtly. Moonlight shifts gently across branches. Peaceful, dreamy night atmosphere. Slow cinematic movement.",
   },
   koalatree_dawn: {
     name: "KoalaTree Morgen",

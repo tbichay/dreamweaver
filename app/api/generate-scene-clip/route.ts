@@ -158,7 +158,7 @@ export async function POST(request: Request) {
         movements.push("Tall grass swaying rhythmically in gentle wind, wildflowers bobbing");
       }
       if (desc.includes("nacht") || desc.includes("night") || desc.includes("mond") || desc.includes("moon") || desc.includes("sterne") || desc.includes("stars")) {
-        movements.push("Fireflies floating and glowing softly, stars twinkling, gentle moonlight shifting");
+        movements.push("Stars twinkling, gentle moonlight shifting, soft shadows moving");
       }
       if (desc.includes("feuer") || desc.includes("fire") || desc.includes("lagerfeuer") || desc.includes("campfire")) {
         movements.push("Fire crackling and flickering, warm light dancing on surroundings, sparks floating up");
