@@ -24,7 +24,7 @@ export const maxDuration = 300;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 
 interface SceneInput {
-  type: "dialog" | "landscape" | "transition";
+  type: "dialog" | "landscape" | "transition" | "intro" | "outro";
   characterId?: string;
   sceneDescription: string;
   mood?: string;
@@ -76,11 +76,18 @@ export async function POST(request: Request) {
     const audioSegment = segmentMp3(fullAudio, scene.audioStartMs, scene.audioEndMs);
 
     const segDuration = (scene.audioEndMs - scene.audioStartMs) / 1000;
-    console.log(`[Scene Clip] Scene ${sceneIndex}: ${scene.type}, ${segDuration.toFixed(1)}s audio segment (${(audioSegment.byteLength / 1024).toFixed(0)}KB)`);
+    console.log(`[Scene Clip] Scene ${sceneIndex}: ${scene.type}, ${segDuration.toFixed(1)}s audio (${scene.audioStartMs}-${scene.audioEndMs}ms), segment ${(audioSegment.byteLength / 1024).toFixed(0)}KB, fullAudio ${(fullAudio.byteLength / 1024).toFixed(0)}KB`);
+
+    if (audioSegment.byteLength === 0) {
+      console.error(`[Scene Clip] WARNING: Empty audio segment for scene ${sceneIndex}! audioStartMs=${scene.audioStartMs}, audioEndMs=${scene.audioEndMs}, fullAudio=${fullAudio.byteLength} bytes`);
+    }
 
     let videoUrl: string;
 
-    if (scene.type === "dialog" && scene.characterId) {
+    // Dialog, intro, or outro with a character → use Hedra lip-sync
+    const isDialogLike = (scene.type === "dialog" || scene.type === "intro" || scene.type === "outro") && scene.characterId;
+
+    if (isDialogLike && scene.characterId) {
       // Load all reference images for this character (primary first)
       const charRefs = await loadCharacterReferences(scene.characterId);
       const portrait = charRefs[0]; // Hedra needs one primary portrait
@@ -176,7 +183,9 @@ export async function POST(request: Request) {
       const cameraMap: Record<string, string> = {
         "slow-pan": "Slow cinematic camera pan across the scene",
         "zoom-in": "Slow smooth zoom into the center of the scene",
+        "slow-zoom-in": "Very slow cinematic zoom into the center of the scene, gentle and smooth",
         "zoom-out": "Slow smooth zoom out revealing the full scene",
+        "slow-zoom-out": "Very slow cinematic zoom out revealing the full scene, gentle and smooth",
         "wide": "Static wide shot with subtle parallax depth",
         "medium": "Gentle camera drift, slight movement",
         "close-up": "Slow push-in close-up shot",
