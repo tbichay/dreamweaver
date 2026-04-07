@@ -89,6 +89,7 @@ export async function POST(request: Request) {
     }
 
     let videoUrl: string;
+    let sceneImage: Buffer | undefined; // Used for frame-chaining (stored as last frame)
 
     // Dialog, intro, or outro with a character → use Hedra lip-sync
     const isDialogLike = (scene.type === "dialog" || scene.type === "intro" || scene.type === "outro") && scene.characterId;
@@ -122,51 +123,49 @@ export async function POST(request: Request) {
       }
     } else {
       // Landscape/Transition — Kling I2V with automatic movement
-      // Priority: 1) Landscape reference from assets, 2) Project scene image, 3) Character portrait
-      let sceneImage: Buffer;
+      // Priority: 1) Previous scene's last frame (continuity!), 2) Landscape reference, 3) Portrait
       try {
-        // 1. Try landscape reference image from Studio assets (e.g., the KoalaTree image)
-        const { loadReferences } = await import("@/lib/references");
-        const refs = await loadReferences();
+        let found = false;
 
-        // Look for landscape references — try "landscape:koalatree_full" first, then any landscape
-        let landscapeRef: Buffer | null = null;
-        const landscapeKeys = Object.keys(refs).filter((k) => k.startsWith("landscape:"));
-        if (landscapeKeys.length > 0) {
-          const primaryKey = landscapeKeys.find((k) => k.includes("koalatree")) || landscapeKeys[0];
-          const entry = refs[primaryKey];
-          if (entry?.primary) {
-            try {
-              const { blobs: refBlobs } = await list({ prefix: entry.primary, limit: 1 });
-              if (refBlobs.length > 0) {
-                landscapeRef = await loadBuffer(refBlobs[0].url);
-                console.log(`[Scene Clip] Using landscape reference: ${entry.primary}`);
-              }
-            } catch { /* fall through */ }
+        // 1. Try previous scene's last frame for visual continuity
+        if (sceneIndex > 0 && !found) {
+          const prevIdx = String(sceneIndex - 1).padStart(3, "0");
+          try {
+            const { blobs: frameBlobs } = await list({ prefix: `films/${geschichteId}/frame-${prevIdx}`, limit: 1 });
+            if (frameBlobs.length > 0) {
+              sceneImage = await loadBuffer(frameBlobs[0].url);
+              console.log(`[Scene Clip] Using previous frame for continuity: frame-${prevIdx}`);
+              found = true;
+            }
+          } catch { /* fall through */ }
+        }
+
+        // 2. Try landscape reference from Studio assets
+        if (!found) {
+          const { loadReferences } = await import("@/lib/references");
+          const refs = await loadReferences();
+          const landscapeKeys = Object.keys(refs).filter((k) => k.startsWith("landscape:"));
+          if (landscapeKeys.length > 0) {
+            const primaryKey = landscapeKeys.find((k) => k.includes("koalatree")) || landscapeKeys[0];
+            const entry = refs[primaryKey];
+            if (entry?.primary) {
+              try {
+                const { blobs: refBlobs } = await list({ prefix: entry.primary, limit: 1 });
+                if (refBlobs.length > 0) {
+                  sceneImage = await loadBuffer(refBlobs[0].url);
+                  console.log(`[Scene Clip] Using landscape reference: ${entry.primary}`);
+                  found = true;
+                }
+              } catch { /* fall through */ }
+            }
           }
         }
 
-        if (landscapeRef) {
-          sceneImage = landscapeRef;
-        } else {
-          // 2. Try project-specific scene image
-          const { blobs: sceneImgBlobs } = await list({
-            prefix: `films/${geschichteId}/assets/`,
-            limit: 20,
-          });
-          const sceneImgBlob = sceneImgBlobs
-            .filter((b) => b.pathname.endsWith(".png"))
-            .sort((a, b) => (b.uploadedAt?.getTime() || 0) - (a.uploadedAt?.getTime() || 0))[0];
-
-          if (sceneImgBlob) {
-            sceneImage = await loadBuffer(sceneImgBlob.url);
-            console.log(`[Scene Clip] Using project scene image: ${sceneImgBlob.pathname}`);
-          } else {
-            // 3. Fall back to character portrait
-            const fallbackRefs = await loadCharacterReferences(scene.characterId || "koda", 1);
-            sceneImage = fallbackRefs[0];
-            console.log(`[Scene Clip] No landscape ref or scene image, using portrait`);
-          }
+        // 3. Fall back to character portrait
+        if (!found) {
+          const fallbackRefs = await loadCharacterReferences(scene.characterId || "koda", 1);
+          sceneImage = fallbackRefs[0];
+          console.log(`[Scene Clip] Using portrait fallback`);
         }
       } catch {
         const fallbackRefs = await loadCharacterReferences(scene.characterId || "koda", 1);
@@ -237,7 +236,7 @@ export async function POST(request: Request) {
       }
 
       videoUrl = await generateSceneVideo({
-        imageBuffer: sceneImage,
+        imageBuffer: sceneImage!,
         prompt: animationPrompt,
         aspectRatio: "9:16",
         resolution: "720p",
@@ -253,16 +252,23 @@ export async function POST(request: Request) {
       { access: "private", contentType: "video/mp4", allowOverwrite: true }
     );
 
-    // Store the scene image as "last frame" for frame-chaining
-    // (the actual last video frame would need ffmpeg; we use the input image as proxy)
+    // Store the input image as "last frame" for frame-chaining (visual continuity)
     let lastFrameUrl: string | undefined;
     try {
-      if (scene.characterId) {
+      // Use the scene's input image (sceneImage for landscape, portrait for dialog)
+      let frameImage: Buffer | undefined;
+      if (!isDialogLike && sceneImage) {
+        // Landscape/transition: use the scene image (landscape ref or previous frame)
+        frameImage = sceneImage;
+      } else if (scene.characterId) {
+        // Dialog: use character portrait
         const chainRefs = await loadCharacterReferences(scene.characterId, 1);
-        const portraitForChain = chainRefs[0];
+        frameImage = chainRefs[0];
+      }
+      if (frameImage) {
         const frameBlob = await put(
           `films/${geschichteId}/frame-${String(sceneIndex).padStart(3, "0")}.png`,
-          portraitForChain,
+          frameImage,
           { access: "private", contentType: "image/png", allowOverwrite: true }
         );
         lastFrameUrl = frameBlob.url;
