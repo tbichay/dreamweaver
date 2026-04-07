@@ -99,27 +99,20 @@ export async function POST(request: Request) {
       const charRefs = await loadCharacterReferences(scene.characterId);
       const portrait = charRefs[0]; // Hedra needs one primary portrait
 
-      // Build character-aware prompt with consistent background description
+      // Build character-aware prompt with scene-specific background from Director
       const charPrompt = buildCharacterPrompt(scene.characterId, scene.sceneDescription);
-      const bgConsistency = "Background: magical eucalyptus tree (KoalaTree) with warm golden-amber glow, deep green canopy, soft twilight lighting. Keep background consistent with previous scenes.";
+      const bgFromScene = scene.mood ? `Atmosphere: ${scene.mood}.` : "";
+      const locationHint = scene.location ? `Setting: ${scene.location}.` : "";
 
-      if (scene.quality === "premium") {
-        videoUrl = await generateVideo({
-          imageBuffer: portrait,
-          audioBuffer: audioSegment,
-          prompt: `${charPrompt}. ${bgConsistency} Absolutely NO text, NO subtitles, NO captions on screen. Keep the character exactly as shown in the reference image.`,
-          aspectRatio: "9:16",
-          resolution: "720p",
-        });
-      } else {
-        videoUrl = await generateVideo({
-          imageBuffer: portrait,
-          audioBuffer: audioSegment,
-          prompt: `${charPrompt}. ${bgConsistency} Keep the character exactly as shown in the reference image. Natural lip sync to speech.`,
-          aspectRatio: "9:16",
-          resolution: "720p",
-        });
-      }
+      const fullPrompt = `${charPrompt}. ${bgFromScene} ${locationHint} Keep the character exactly as shown in the reference image. Natural lip sync to speech. NO text, NO subtitles.`;
+
+      videoUrl = await generateVideo({
+        imageBuffer: portrait,
+        audioBuffer: audioSegment,
+        prompt: fullPrompt,
+        aspectRatio: "9:16",
+        resolution: "720p",
+      });
     } else {
       // Landscape/Transition — Kling I2V with automatic movement
       // Priority: 1) Previous scene's last frame (continuity!), 2) Landscape reference, 3) Portrait
