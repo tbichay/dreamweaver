@@ -39,18 +39,28 @@ export async function GET(
   }
 
   try {
+    // Use head() to get the blob metadata + downloadUrl (supports Range requests for seeking)
     const result = await get(geschichte.audioUrl, { access: "private" });
 
-    if (!result || !result.stream) {
-      console.error("[Audio Proxy] Blob not found or empty:", geschichte.audioUrl);
+    if (!result || !result.blob) {
+      console.error("[Audio Proxy] Blob not found:", geschichte.audioUrl);
+      return new Response("Audio not found", { status: 404 });
+    }
+
+    // Redirect to the blob's download URL — it natively supports Range requests,
+    // which is required for the browser to seek (set audio.currentTime)
+    if (result.blob.downloadUrl) {
+      return Response.redirect(result.blob.downloadUrl, 302);
+    }
+
+    // Fallback: stream (no seeking support)
+    if (!result.stream) {
       return new Response("Audio not found", { status: 404 });
     }
 
     const contentType = result.blob.contentType || "audio/mpeg";
     const size = result.blob.size || 0;
 
-    // Stream with proper headers — no Accept-Ranges: none
-    // so browser can parse metadata progressively
     return new Response(result.stream, {
       headers: {
         "Content-Type": contentType,

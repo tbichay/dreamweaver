@@ -137,7 +137,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const totalCredits = scenes.reduce((sum, s) => sum + estimateCredits(s), 0);
   const pendingCount = scenes.filter((s) => !s.videoUrl && s.status !== "done").length;
 
-  // Audio segment player
+  // Audio segment player — waits for audio to be seekable before setting currentTime
   const playSegment = (sceneIndex: number) => {
     const audio = audioRef.current;
     const scene = scenes[sceneIndex];
@@ -149,9 +149,26 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       return;
     }
 
-    audio.currentTime = scene.audioStartMs / 1000;
-    audio.play().catch(() => {});
+    const startSec = scene.audioStartMs / 1000;
     setPlayingSegment(sceneIndex);
+
+    const seekAndPlay = () => {
+      audio.currentTime = startSec;
+      audio.play().catch(() => {});
+    };
+
+    // If audio metadata is loaded and we can seek, do it immediately
+    if (audio.readyState >= 1) {
+      seekAndPlay();
+    } else {
+      // Wait for metadata to load, then seek
+      const onLoaded = () => {
+        seekAndPlay();
+        audio.removeEventListener("loadedmetadata", onLoaded);
+      };
+      audio.addEventListener("loadedmetadata", onLoaded);
+      audio.load(); // Force metadata load
+    }
   };
 
   // Full audio play/pause
