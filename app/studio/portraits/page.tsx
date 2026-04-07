@@ -100,6 +100,7 @@ export default function PortraitsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      setGenResult(data.message || "Referenzbild gesetzt!");
       await loadImages();
     } catch { /* ignore */ }
     setActivating(null);
@@ -108,7 +109,6 @@ export default function PortraitsPage() {
   // Group images by character
   const grouped: Record<string, StudioImage[]> = {};
   for (const img of images) {
-    // Extract character from baseName (e.g. "koda-portrait" → "koda")
     const charId = img.baseName.split("-")[0];
     if (!grouped[charId]) grouped[charId] = [];
     grouped[charId].push(img);
@@ -116,10 +116,50 @@ export default function PortraitsPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 pb-24 sm:pb-8">
-      <h1 className="text-xl font-bold text-[#f5eed6] mb-1">🎨 Portraits</h1>
+      <h1 className="text-xl font-bold text-[#f5eed6] mb-1">🎨 Portraits & Referenzbilder</h1>
       <p className="text-sm text-white/40 mb-6">
-        Character-Portraits generieren, vergleichen und aktivieren. Aktive Portraits werden auf der Website verwendet.
+        Generiere Portraits und waehle das <strong className="text-white/60">Referenzbild</strong> pro Charakter.
+        Das Referenzbild wird bei jeder Szenen-Generierung automatisch mitgesendet, damit der Charakter immer gleich aussieht.
       </p>
+
+      {/* Reference Images Overview */}
+      <div className="card p-5 mb-8 border-[#4a7c59]/20">
+        <h3 className="text-sm font-medium text-[#f5eed6] mb-1 flex items-center gap-2">
+          📌 Aktive Referenzbilder
+        </h3>
+        <p className="text-[10px] text-white/30 mb-4">
+          Diese Bilder werden automatisch als Vorlage verwendet, wenn ein Charakter in einer Szene erscheint.
+          Klicke &quot;Als Referenz setzen&quot; bei einer Version weiter unten, um sie zu aendern.
+        </p>
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+          {CHARACTERS.map((c) => {
+            const charImages = grouped[c.id] || [];
+            const hasActive = charImages.some((img) => img.isActive);
+            return (
+              <div key={c.id} className="text-center">
+                <div className={`aspect-square rounded-xl overflow-hidden bg-[#1a2e1a] border-2 transition-all ${
+                  hasActive ? "border-[#4a7c59] shadow-[0_0_12px_rgba(74,124,89,0.3)]" : "border-red-400/30"
+                }`}>
+                  <Image
+                    src={`/api/images/${c.id}-portrait.png`}
+                    alt={c.name}
+                    width={120}
+                    height={120}
+                    className="w-full h-full object-cover"
+                    unoptimized
+                  />
+                </div>
+                <p className="text-[10px] text-white/50 mt-1.5">{c.emoji} {c.name}</p>
+                {hasActive ? (
+                  <p className="text-[8px] text-[#a8d5b8] font-medium">📌 Referenz gesetzt</p>
+                ) : (
+                  <p className="text-[8px] text-red-400/50">Kein Referenzbild</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Generator */}
       <div className="card p-5 mb-8">
@@ -206,37 +246,6 @@ export default function PortraitsPage() {
         </p>
       </div>
 
-      {/* Active Portraits Overview */}
-      <div className="mb-8">
-        <h3 className="text-sm font-medium text-[#f5eed6] mb-3">Aktive Portraits</h3>
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
-          {CHARACTERS.map((c) => {
-            const charImages = grouped[c.id] || [];
-            const hasActive = charImages.some((img) => img.isActive);
-            return (
-              <div key={c.id} className="text-center">
-                <div className={`aspect-square rounded-xl overflow-hidden bg-[#1a2e1a] border-2 transition-all ${
-                  hasActive ? "border-[#4a7c59]/60" : "border-white/5"
-                }`}>
-                  <Image
-                    src={`/api/images/${c.id}-portrait.png`}
-                    alt={c.name}
-                    width={120}
-                    height={120}
-                    className="w-full h-full object-cover"
-                    unoptimized
-                  />
-                </div>
-                <p className="text-[10px] text-white/50 mt-1">{c.emoji} {c.name}</p>
-                <p className="text-[8px] text-white/20">
-                  {charImages.length} {charImages.length === 1 ? "Version" : "Versionen"}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* All Versions by Character */}
       {loading ? (
         <div className="text-white/30 text-sm">Lade Versionen...</div>
@@ -257,7 +266,7 @@ export default function PortraitsPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {charImages.map((img) => (
                     <div key={img.filename} className={`card overflow-hidden ${
-                      img.isActive ? "ring-2 ring-[#4a7c59]/60" : ""
+                      img.isActive ? "ring-2 ring-[#4a7c59]" : ""
                     }`}>
                       <div className="aspect-square bg-[#1a2e1a] relative">
                         <Image
@@ -269,8 +278,8 @@ export default function PortraitsPage() {
                           unoptimized
                         />
                         {img.isActive && (
-                          <div className="absolute top-1 right-1 bg-[#4a7c59] text-white text-[8px] px-1.5 py-0.5 rounded-full font-medium">
-                            Aktiv
+                          <div className="absolute top-1 right-1 bg-[#4a7c59] text-white text-[7px] px-1.5 py-0.5 rounded-full font-medium">
+                            📌 Referenz
                           </div>
                         )}
                       </div>
@@ -278,14 +287,16 @@ export default function PortraitsPage() {
                         <p className="text-[9px] text-white/40 truncate">{img.baseName}</p>
                         <div className="flex items-center justify-between mt-1">
                           <p className="text-[8px] text-white/20">{formatBytes(img.size)}</p>
-                          {!img.isActive && (
+                          {!img.isActive ? (
                             <button
                               onClick={() => handleActivate(img.filename)}
                               disabled={activating === img.filename}
-                              className="text-[8px] text-[#a8d5b8]/50 hover:text-[#a8d5b8] transition-colors disabled:opacity-30"
+                              className="text-[8px] text-[#d4a853]/60 hover:text-[#d4a853] transition-colors disabled:opacity-30 font-medium"
                             >
-                              {activating === img.filename ? "..." : "Aktivieren"}
+                              {activating === img.filename ? "..." : "📌 Als Referenz"}
                             </button>
+                          ) : (
+                            <span className="text-[8px] text-[#a8d5b8]/50">Aktiv</span>
                           )}
                         </div>
                       </div>
@@ -303,6 +314,18 @@ export default function PortraitsPage() {
           )}
         </div>
       )}
+
+      {/* How it works */}
+      <div className="card p-5 mt-8 border-white/5">
+        <h3 className="text-sm font-medium text-[#f5eed6] mb-2">So funktioniert&apos;s</h3>
+        <div className="space-y-2 text-[10px] text-white/40">
+          <p>1. <strong className="text-white/60">Generiere</strong> mehrere Versionen eines Charakters</p>
+          <p>2. <strong className="text-white/60">Vergleiche</strong> die Versionen und waehle die beste</p>
+          <p>3. Klicke <strong className="text-[#d4a853]">📌 Als Referenz</strong> um sie als Master-Bild zu setzen</p>
+          <p>4. Bei jeder Szene mit diesem Charakter wird das Referenzbild automatisch an GPT-Image-1 gesendet</p>
+          <p className="text-white/25 pt-1">→ Der Charakter sieht in allen generierten Bildern gleich aus</p>
+        </div>
+      </div>
     </div>
   );
 }
