@@ -9,6 +9,7 @@ interface Asset {
   category: string;
   size: number;
   url: string;
+  blobUrl?: string;
   uploadedAt: string;
 }
 
@@ -16,6 +17,8 @@ const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
   portrait: { label: "Charaktere", emoji: "🐨" },
   landscape: { label: "Landschaften", emoji: "🏔️" },
   background: { label: "Hintergründe", emoji: "🖼️" },
+  intro: { label: "Vorspann", emoji: "🎬" },
+  outro: { label: "Abspann", emoji: "👋" },
   "marketing-video": { label: "Marketing-Clips", emoji: "🎬" },
   "film-scene": { label: "Film-Szenen", emoji: "🎥" },
   "help-clip": { label: "Help-Clips", emoji: "🔊" },
@@ -138,14 +141,40 @@ export default function AssetBrowser() {
                     )}
                   </div>
 
-                  {/* Info */}
+                  {/* Info + Actions */}
                   <div className="p-2">
                     <p className="text-[10px] text-white/60 truncate" title={asset.name}>
                       {asset.name}
                     </p>
-                    <p className="text-[8px] text-white/20">
-                      {formatBytes(asset.size)}
-                    </p>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <p className="text-[8px] text-white/20">
+                        {formatBytes(asset.size)}
+                      </p>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!asset.blobUrl) return;
+                          if (!confirm(`"${asset.name}" wirklich löschen?`)) return;
+                          try {
+                            const res = await fetch(`/api/admin/assets?blobUrl=${encodeURIComponent(asset.blobUrl)}`, { method: "DELETE" });
+                            if (res.ok) {
+                              setAssets((prev) => prev.filter((a) => a.path !== asset.path));
+                              setGrouped((prev) => {
+                                const updated = { ...prev };
+                                if (updated[asset.category]) {
+                                  updated[asset.category] = updated[asset.category].filter((a) => a.path !== asset.path);
+                                }
+                                return updated;
+                              });
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        className="text-[8px] text-red-400/30 hover:text-red-400/80 transition-colors"
+                        title="Löschen"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

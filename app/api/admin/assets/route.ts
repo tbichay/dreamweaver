@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { list } from "@vercel/blob";
+import { list, del } from "@vercel/blob";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 
@@ -7,51 +7,56 @@ interface Asset {
   name: string;
   path: string;
   type: "image" | "video" | "audio";
-  category: "portrait" | "landscape" | "marketing-video" | "film-scene" | "help-clip" | "audio" | "background" | "branding";
+  category: string;
   size: number;
   url: string;
+  blobUrl: string;
   uploadedAt: string;
 }
 
-// GET: List all assets from Vercel Blob
-export async function GET() {
+async function checkAdmin() {
   const session = await auth();
-  if (!session?.user?.email || session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    return Response.json({ error: "Unauthorized" }, { status: 403 });
-  }
+  if (!session?.user?.email || session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return false;
+  return true;
+}
+
+// GET: List all assets
+export async function GET() {
+  if (!(await checkAdmin())) return Response.json({ error: "Unauthorized" }, { status: 403 });
 
   const assets: Asset[] = [];
 
-  // Search all known blob prefixes
   const prefixes = [
-    { prefix: "images/", category: "portrait" as const, type: "image" as const },
-    { prefix: "studio/", category: "portrait" as const, type: "image" as const },
-    { prefix: "studio/hero/", category: "background" as const, type: "image" as const },
-    { prefix: "studio/branding-source/", category: "branding" as const, type: "image" as const },
-    { prefix: "marketing-videos/", category: "marketing-video" as const, type: "video" as const },
-    { prefix: "help-clips/", category: "help-clip" as const, type: "audio" as const },
-    { prefix: "audio/onboarding", category: "audio" as const, type: "audio" as const },
+    { prefix: "images/", category: "portrait" },
+    { prefix: "studio/", category: "portrait" },
+    { prefix: "studio/hero/", category: "background" },
+    { prefix: "studio/branding-source/", category: "branding" },
+    { prefix: "marketing-videos/", category: "marketing-video" },
+    { prefix: "help-clips/", category: "help-clip" },
+    { prefix: "audio/onboarding", category: "audio" },
+    { prefix: "intros/", category: "intro" },
+    { prefix: "outros/", category: "outro" },
   ];
 
-  for (const { prefix, category, type } of prefixes) {
+  for (const { prefix, category } of prefixes) {
     try {
       const { blobs } = await list({ prefix, limit: 100 });
       for (const blob of blobs) {
         const fileName = blob.pathname.split("/").pop() || blob.pathname;
         const ext = fileName.split(".").pop()?.toLowerCase() || "";
 
-        // Determine actual type from extension
-        let assetType = type;
-        if (["mp4", "webm", "mov"].includes(ext)) assetType = "video";
-        else if (["mp3", "wav", "ogg"].includes(ext)) assetType = "audio";
-        else if (["png", "jpg", "jpeg", "webp", "svg"].includes(ext)) assetType = "image";
-        else if (ext === "json") continue; // Skip JSON files
+        if (ext === "json") continue;
 
-        // Determine URL
+        const assetType: "image" | "video" | "audio" =
+          ["mp4", "webm", "mov"].includes(ext) ? "video" :
+          ["mp3", "wav", "ogg"].includes(ext) ? "audio" : "image";
+
+        // Build the correct serve URL based on category + prefix
         let url = "";
-        if (category === "portrait" && prefix === "images/") {
+        if (prefix === "images/") {
           url = `/api/images/${fileName}`;
-        } else if (category === "portrait" && prefix === "studio/") {
+        } else if (prefix === "studio/" && !blob.pathname.includes("hero/") && !blob.pathname.includes("branding")) {
+          // Studio portraits — served via /api/images/ if they have matching active name
           url = `/api/images/${fileName}`;
         } else if (category === "marketing-video") {
           url = `/api/video/marketing/${fileName.replace(".mp4", "")}`;
@@ -59,6 +64,9 @@ export async function GET() {
           url = `/api/audio/help/${fileName.replace(".mp3", "")}`;
         } else if (category === "audio") {
           url = "/api/audio/onboarding";
+        } else if (category === "intro" || category === "outro") {
+          // Intros/outros need their own serve endpoint or use download URL
+          url = blob.downloadUrl || "";
         } else {
           url = blob.downloadUrl || "";
         }
@@ -70,15 +78,14 @@ export async function GET() {
           category,
           size: blob.size,
           url,
+          blobUrl: blob.url,
           uploadedAt: blob.uploadedAt?.toISOString() || "",
         });
       }
-    } catch {
-      // Skip prefixes that fail
-    }
+    } catch { /* skip */ }
   }
 
-  // Also list film scenes across all projects
+  // Film scenes
   try {
     const { blobs } = await list({ prefix: "films/", limit: 200 });
     for (const blob of blobs) {
@@ -86,6 +93,8 @@ export async function GET() {
       const parts = blob.pathname.split("/");
       const fileName = parts.pop() || "";
       const geschichteId = parts[1] || "";
+      const match = fileName.match(/scene-(\d+)/);
+      const idx = match ? parseInt(match[1]) : 0;
 
       assets.push({
         name: fileName,
@@ -93,13 +102,14 @@ export async function GET() {
         type: "video",
         category: "film-scene",
         size: blob.size,
-        url: `/api/video/film-scene/${geschichteId}/${fileName.replace("scene-", "").replace(".mp4", "")}`,
+        url: `/api/video/film-scene/${geschichteId}/${idx}`,
+        blobUrl: blob.url,
         uploadedAt: blob.uploadedAt?.toISOString() || "",
       });
     }
   } catch { /* skip */ }
 
-  // Group by category
+  // Group
   const grouped: Record<string, Asset[]> = {};
   for (const asset of assets) {
     if (!grouped[asset.category]) grouped[asset.category] = [];
@@ -117,4 +127,21 @@ export async function GET() {
       totalSize: assets.reduce((s, a) => s + a.size, 0),
     },
   });
+}
+
+// DELETE: Remove an asset from blob
+export async function DELETE(request: Request) {
+  if (!(await checkAdmin())) return Response.json({ error: "Unauthorized" }, { status: 403 });
+
+  const { searchParams } = new URL(request.url);
+  const blobUrl = searchParams.get("blobUrl");
+
+  if (!blobUrl) return Response.json({ error: "blobUrl required" }, { status: 400 });
+
+  try {
+    await del(blobUrl);
+    return Response.json({ deleted: true });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Fehler" }, { status: 500 });
+  }
 }
