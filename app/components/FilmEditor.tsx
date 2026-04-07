@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import FilmTimeline from "./FilmTimeline";
 import MasteringPanel, { type MasteringSettings, DEFAULT_MASTERING_SETTINGS } from "./MasteringPanel";
+import PromptVersions, { type PromptVersion } from "./PromptVersions";
 
 interface StoryboardScene {
   type: "dialog" | "landscape" | "transition";
@@ -19,6 +20,9 @@ interface StoryboardScene {
   quality?: "standard" | "premium";
   videoUrl?: string;
   status?: string;
+  promptVersions?: PromptVersion[];
+  selectedPromptId?: string;
+  sceneImageUrl?: string;
 }
 
 const CHAR_INFO: Record<string, { name: string; emoji: string; color: string }> = {
@@ -109,7 +113,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
     }
   };
 
-  // Generate ONE scene clip
+  // Generate ONE scene clip + save prompt version
   const generateSceneClip = async () => {
     if (!projectId || !currentScene) return;
     setGeneratingScene(true);
@@ -134,8 +138,25 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Fehler");
 
+      // Save as prompt version
+      const newVersion: PromptVersion = {
+        id: `v-${Date.now()}`,
+        prompt: currentScene.sceneDescription,
+        createdAt: new Date().toISOString(),
+        videoUrl: data.videoUrl,
+        isSelected: true,
+      };
+
+      const existingVersions = (currentScene.promptVersions || []).map((v) => ({ ...v, isSelected: false }));
+
       const updatedAfter = [...scenes];
-      updatedAfter[selectedScene] = { ...updatedAfter[selectedScene], videoUrl: data.videoUrl, status: "done" };
+      updatedAfter[selectedScene] = {
+        ...updatedAfter[selectedScene],
+        videoUrl: data.videoUrl,
+        status: "done",
+        promptVersions: [...existingVersions, newVersion],
+        selectedPromptId: newVersion.id,
+      };
       setScenes(updatedAfter);
       setSceneProgress("Clip fertig!");
 
@@ -282,6 +303,45 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                   <p className="text-[9px] text-white/25 italic p-2 bg-white/5 rounded-lg line-clamp-2">
                     &quot;{currentScene.spokenText.substring(0, 120)}&quot;
                   </p>
+                )}
+
+                {/* Prompt Versions */}
+                {currentScene.promptVersions && currentScene.promptVersions.length > 1 && (
+                  <PromptVersions
+                    versions={currentScene.promptVersions}
+                    onSelect={(id) => {
+                      const version = currentScene.promptVersions?.find((v) => v.id === id);
+                      if (!version) return;
+                      const u = [...scenes];
+                      u[selectedScene] = {
+                        ...u[selectedScene],
+                        sceneDescription: version.prompt,
+                        videoUrl: version.videoUrl,
+                        selectedPromptId: id,
+                        promptVersions: (u[selectedScene].promptVersions || []).map((v) => ({ ...v, isSelected: v.id === id })),
+                      };
+                      setScenes(u);
+                    }}
+                    onAdd={(prompt) => {
+                      const u = [...scenes];
+                      const newV: PromptVersion = { id: `v-${Date.now()}`, prompt, createdAt: new Date().toISOString(), isSelected: true };
+                      u[selectedScene] = {
+                        ...u[selectedScene],
+                        sceneDescription: prompt,
+                        promptVersions: [...(u[selectedScene].promptVersions || []).map((v) => ({ ...v, isSelected: false })), newV],
+                        selectedPromptId: newV.id,
+                      };
+                      setScenes(u);
+                    }}
+                    onDelete={(id) => {
+                      const u = [...scenes];
+                      u[selectedScene] = {
+                        ...u[selectedScene],
+                        promptVersions: (u[selectedScene].promptVersions || []).filter((v) => v.id !== id),
+                      };
+                      setScenes(u);
+                    }}
+                  />
                 )}
 
                 <div className="flex gap-1.5">
