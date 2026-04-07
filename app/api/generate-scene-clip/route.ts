@@ -2,6 +2,20 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { generateVideo, generateSceneVideo, downloadVideo } from "@/lib/hedra";
 import { put, get, list } from "@vercel/blob";
+import { CHARACTERS, type CharacterKey } from "@/lib/studio";
+
+// Build a character-aware prompt that tells the AI model exactly what the character looks like
+function buildCharacterPrompt(characterId: string, sceneDescription: string): string {
+  const char = CHARACTERS[characterId as CharacterKey];
+  if (!char) return sceneDescription;
+
+  let prompt = `Character: ${char.description}`;
+  if (char.accessories && characterId !== "nuki") {
+    prompt += ` Wearing ${char.accessories}.`;
+  }
+  prompt += ` ${sceneDescription}`;
+  return prompt;
+}
 
 export const maxDuration = 300;
 
@@ -79,12 +93,15 @@ export async function POST(request: Request) {
     if (scene.type === "dialog" && scene.characterId) {
       const portrait = await loadPortrait(scene.characterId);
 
+      // Build character-aware prompt so the AI knows exactly what the character looks like
+      const charPrompt = buildCharacterPrompt(scene.characterId, scene.sceneDescription);
+
       if (scene.quality === "premium") {
         // Kling Avatar v2 — better movement but adds text (will crop later)
         videoUrl = await generateVideo({
           imageBuffer: portrait,
           audioBuffer: audioSegment,
-          prompt: `${scene.sceneDescription}. Absolutely NO text, NO subtitles, NO captions on screen.`,
+          prompt: `${charPrompt}. Absolutely NO text, NO subtitles, NO captions on screen. Keep the character exactly as shown in the reference image.`,
           aspectRatio: "9:16",
           resolution: "720p",
         });
@@ -93,14 +110,36 @@ export async function POST(request: Request) {
         videoUrl = await generateVideo({
           imageBuffer: portrait,
           audioBuffer: audioSegment,
-          prompt: scene.sceneDescription,
+          prompt: `${charPrompt}. Keep the character exactly as shown in the reference image. Natural lip sync to speech.`,
           aspectRatio: "9:16",
           resolution: "720p",
         });
       }
     } else {
       // Landscape/Transition — Kling I2V with automatic movement
-      const sceneImage = await loadPortrait(scene.characterId || "koda");
+      // Try to load a generated scene image first, fall back to portrait
+      let sceneImage: Buffer;
+      try {
+        // Check for project-specific scene image
+        const { blobs: sceneImgBlobs } = await list({
+          prefix: `films/${geschichteId}/assets/`,
+          limit: 20,
+        });
+        // Find the most recent image for this scene
+        const sceneImgBlob = sceneImgBlobs
+          .filter((b) => b.pathname.endsWith(".png"))
+          .sort((a, b) => (b.uploadedAt?.getTime() || 0) - (a.uploadedAt?.getTime() || 0))[0];
+
+        if (sceneImgBlob) {
+          sceneImage = await loadBuffer(sceneImgBlob.url);
+          console.log(`[Scene Clip] Using project scene image: ${sceneImgBlob.pathname}`);
+        } else {
+          sceneImage = await loadPortrait(scene.characterId || "koda");
+          console.log(`[Scene Clip] No scene image found, using portrait`);
+        }
+      } catch {
+        sceneImage = await loadPortrait(scene.characterId || "koda");
+      }
 
       // Auto-detect movement keywords from scene description
       const desc = (scene.sceneDescription + " " + (scene.mood || "")).toLowerCase();
