@@ -354,7 +354,12 @@ export default function FilmEditor({ projectId, onBack }: Props) {
 
       if (streamError) throw new Error(streamError);
       if (data.error) throw new Error(data.error as string);
-      if (!data.videoUrl) throw new Error("Kein Video generiert — Server hat keine URL zurueckgegeben");
+      if (!data.videoUrl) {
+        // Show what we DID receive for debugging
+        const lastProgress = data.progress || "kein Progress empfangen";
+        const keys = Object.keys(data).join(", ") || "leer";
+        throw new Error(`Kein Video generiert. Letzter Status: "${lastProgress}". Stream-Daten: [${keys}]`);
+      }
 
       const freshUrl = data.videoUrl as string;
 

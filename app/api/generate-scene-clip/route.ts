@@ -289,9 +289,11 @@ export async function POST(request: Request) {
         clearInterval(keepAlive);
         send({
           done: true,
-          videoUrl: `/api/video/film-scene/${geschichteId}/${sceneIndex}?t=${Date.now()}`,
+          videoUrl: `/api/video/film-clip/${geschichteId}/${clipName}.mp4?t=${Date.now()}`,
+          fallbackUrl: `/api/video/film-scene/${geschichteId}/${sceneIndex}?t=${Date.now()}`,
           blobUrl: blob.url,
           size: videoBuffer.byteLength,
+          clipName: `${clipName}.mp4`,
         });
         controller.close();
       } catch (error) {
