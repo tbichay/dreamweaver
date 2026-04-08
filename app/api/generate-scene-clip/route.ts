@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { generateVideo, generateVideoKlingAvatar, generateSceneVideo, downloadVideo } from "@/lib/hedra";
+import { generateVideo, generateVideoKlingAvatar, generateSceneVideo, downloadVideo as downloadHedraVideo } from "@/lib/hedra";
+import { klingAvatar, klingI2V, klingLipSync, downloadVideo as downloadFalVideo } from "@/lib/fal";
+import { generateVeoVideo, downloadVeoVideo } from "@/lib/veo";
 import { put, get, list } from "@vercel/blob";
 import { CHARACTERS, type CharacterKey } from "@/lib/studio";
 import { loadCharacterReferences } from "@/lib/references";
@@ -105,51 +107,87 @@ export async function POST(request: Request) {
     const isDialogLike = (scene.type === "dialog" || scene.type === "intro" || scene.type === "outro") && scene.characterId;
 
     if (isDialogLike && scene.characterId) {
-      // Load all reference images for this character (primary first)
+      // Load character references
       const charRefs = await loadCharacterReferences(scene.characterId);
-      const portrait = charRefs[0]; // Hedra needs one primary portrait
+      const portrait = charRefs[0];
 
-      // Build character-aware prompt with scene-specific background from Director
+      // Build prompt
       const charPrompt = buildCharacterPrompt(scene.characterId, scene.sceneDescription);
       const bgFromScene = scene.mood ? `Atmosphere: ${scene.mood}.` : "";
       const locationHint = scene.location ? `Setting: ${scene.location}.` : "";
-
       const fullPrompt = `${charPrompt}. ${bgFromScene} ${locationHint} Keep the character exactly as shown in the reference image. Natural lip sync to speech. NO text, NO subtitles.`;
 
-      // Load previous scene's frame for visual continuity
-      const dialogRefs: Buffer[] = [];
-      if (sceneIndex > 0) {
-        try {
-          const prevIdx = String(sceneIndex - 1).padStart(3, "0");
-          const { blobs: frameBlobs } = await list({ prefix: `films/${geschichteId}/frame-${prevIdx}`, limit: 1 });
-          if (frameBlobs.length > 0) {
-            dialogRefs.push(await loadBuffer(frameBlobs[0].url));
-            console.log(`[Scene Clip] Previous frame loaded for dialog continuity: frame-${prevIdx}`);
-          }
-        } catch { /* no previous frame */ }
-      }
+      const isPremium = scene.quality === "premium";
+      const segDurationSec = Math.min(8, (scene.audioEndMs - scene.audioStartMs) / 1000);
 
-      // Try Kling Avatar v2 Pro first (better lip-sync + movement), fall back to Hedra Character 3
-      try {
-        videoUrl = await generateVideoKlingAvatar({
-          imageBuffer: portrait,
-          audioBuffer: audioSegment,
-          prompt: fullPrompt,
-          aspectRatio: "9:16",
-          resolution: "720p",
-          referenceImages: dialogRefs.length > 0 ? dialogRefs : undefined,
-        });
-        console.log(`[Scene Clip] Generated with Kling Avatar v2 Pro`);
-      } catch (klingErr) {
-        console.warn(`[Scene Clip] Kling Avatar v2 failed, falling back to Hedra:`, klingErr);
-        videoUrl = await generateVideo({
-          imageBuffer: portrait,
-          audioBuffer: audioSegment,
-          prompt: fullPrompt,
-          aspectRatio: "9:16",
-          resolution: "720p",
-        });
-        console.log(`[Scene Clip] Generated with Hedra Character 3 (fallback)`);
+      if (isPremium && process.env.GOOGLE_AI_API_KEY) {
+        // ══════ PREMIUM: Veo 3.1 — best lip-sync, native audio ══════
+        console.log(`[Scene Clip] PREMIUM: Using Veo 3.1 Fast`);
+        try {
+          const veoUrl = await generateVeoVideo({
+            prompt: `${fullPrompt} The character speaks with natural lip synchronization.`,
+            referenceImage: portrait,
+            durationSeconds: Math.ceil(segDurationSec),
+            aspectRatio: "9:16",
+            resolution: "720p",
+            quality: "fast",
+            generateAudio: false, // We provide our own ElevenLabs audio
+          });
+          const veoBuffer = await downloadVeoVideo(veoUrl);
+
+          // Apply lip-sync with our audio via Kling LipSync ($0.014/s)
+          if (hasAudio && audioSegment.byteLength > 0 && process.env.FAL_KEY) {
+            console.log(`[Scene Clip] Applying Kling LipSync to Veo video...`);
+            videoUrl = await klingLipSync(veoBuffer, audioSegment);
+          } else {
+            videoUrl = veoUrl;
+          }
+          console.log(`[Scene Clip] Generated with Veo 3.1 + Kling LipSync (Premium)`);
+        } catch (veoErr) {
+          console.warn(`[Scene Clip] Veo 3.1 failed, falling back:`, veoErr);
+          // Fallback to Kling Avatar
+          videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "pro");
+          console.log(`[Scene Clip] Fallback to Kling Avatar v2 Pro`);
+        }
+      } else if (process.env.FAL_KEY) {
+        // ══════ STANDARD: Kling Avatar v2 via fal.ai ══════
+        console.log(`[Scene Clip] STANDARD: Using Kling Avatar v2 via fal.ai`);
+        try {
+          videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "standard");
+          console.log(`[Scene Clip] Generated with Kling Avatar v2 Standard (fal.ai)`);
+        } catch (falErr) {
+          console.warn(`[Scene Clip] fal.ai Kling Avatar failed, trying Hedra:`, falErr);
+          videoUrl = await generateVideoKlingAvatar({
+            imageBuffer: portrait,
+            audioBuffer: audioSegment,
+            prompt: fullPrompt,
+            aspectRatio: "9:16",
+            resolution: "720p",
+          });
+          console.log(`[Scene Clip] Fallback to Kling Avatar v2 via Hedra`);
+        }
+      } else {
+        // ══════ FALLBACK: Hedra API ══════
+        console.log(`[Scene Clip] FALLBACK: Using Hedra API`);
+        try {
+          videoUrl = await generateVideoKlingAvatar({
+            imageBuffer: portrait,
+            audioBuffer: audioSegment,
+            prompt: fullPrompt,
+            aspectRatio: "9:16",
+            resolution: "720p",
+          });
+          console.log(`[Scene Clip] Generated with Kling Avatar v2 via Hedra`);
+        } catch {
+          videoUrl = await generateVideo({
+            imageBuffer: portrait,
+            audioBuffer: audioSegment,
+            prompt: fullPrompt,
+            aspectRatio: "9:16",
+            resolution: "720p",
+          });
+          console.log(`[Scene Clip] Generated with Hedra Character 3 (last resort)`);
+        }
       }
     } else {
       // Landscape/Transition — Kling I2V with automatic movement
@@ -280,7 +318,15 @@ export async function POST(request: Request) {
     }
 
     // Download and store video
-    const videoBuffer = await downloadVideo(videoUrl);
+    // Download video — use the right downloader based on the URL source
+    let videoBuffer: Buffer;
+    if (videoUrl.includes("fal.media") || videoUrl.includes("fal.run")) {
+      videoBuffer = await downloadFalVideo(videoUrl);
+    } else if (videoUrl.includes("googleapis.com")) {
+      videoBuffer = await downloadVeoVideo(videoUrl);
+    } else {
+      videoBuffer = await downloadHedraVideo(videoUrl);
+    }
     const blob = await put(
       `films/${geschichteId}/scene-${String(sceneIndex).padStart(3, "0")}.mp4`,
       videoBuffer,
