@@ -100,6 +100,8 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [videoModal, setVideoModal] = useState<string | null>(null);
   const [masteringOpen, setMasteringOpen] = useState(false);
+  const [rendering, setRendering] = useState(false);
+  const [renderResult, setRenderResult] = useState("");
 
   const [regeneratingAudio, setRegeneratingAudio] = useState(false);
 
@@ -1089,16 +1091,39 @@ export default function FilmEditor({ projectId, onBack }: Props) {
               {masteringOpen ? "Mastering ausblenden" : "Mastering anzeigen"}
               <span className="text-[8px]">{masteringOpen ? "\u25B2" : "\u25BC"}</span>
             </button>
-            {masteringOpen && (
+            {masteringOpen && (<>
               <MasteringPanel
                 settings={mastering}
                 onChange={setMastering}
-                onRender={() => {}}
-                rendering={false}
+                onRender={async () => {
+                  if (!projectId || rendering) return;
+                  setRendering(true);
+                  setRenderResult("Film wird gerendert (Crossfades, Audio, Titel)...");
+                  try {
+                    const res = await fetch("/api/admin/render-film", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ geschichteId: projectId, format: "portrait" }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error);
+                    setRenderResult(`Film fertig! ${data.scenes} Szenen zusammengefuegt.`);
+                  } catch (err) {
+                    setRenderResult(`Fehler: ${err instanceof Error ? err.message : "Unbekannt"}`);
+                  } finally {
+                    setRendering(false);
+                  }
+                }}
+                rendering={rendering}
                 completedScenes={completedScenes}
                 geschichteId={projectId || undefined}
               />
-            )}
+              {renderResult && (
+                <p className={`text-[10px] mt-2 ${renderResult.startsWith("Fehler") ? "text-red-400/70" : "text-[#a8d5b8]/70"}`}>
+                  {renderResult}
+                </p>
+              )}
+            </>)}
           </div>
         </div>
       ) : (
