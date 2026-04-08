@@ -60,6 +60,62 @@ function formatTime(ms: number): string {
 }
 
 // Estimated cost in cents (USD) per scene based on provider
+/**
+ * Extract the last frame from a video and upload it as PNG.
+ * Uses a hidden video element + canvas to capture the frame client-side.
+ * This frame is used as the start image for the NEXT clip generation.
+ */
+async function extractAndUploadLastFrame(videoUrl: string, geschichteId: string, sceneIndex: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.preload = "auto";
+
+    video.onloadedmetadata = () => {
+      // Seek to last frame (0.1s before end)
+      video.currentTime = Math.max(0, video.duration - 0.1);
+    };
+
+    video.onseeked = async () => {
+      try {
+        // Draw frame to canvas
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("No canvas context")); return; }
+        ctx.drawImage(video, 0, 0);
+
+        // Convert to PNG blob
+        const blob = await new Promise<Blob>((res, rej) => {
+          canvas.toBlob((b) => b ? res(b) : rej(new Error("Canvas toBlob failed")), "image/png");
+        });
+
+        // Upload as frame for next clip
+        const formData = new FormData();
+        formData.append("frame", blob, "frame.png");
+        formData.append("geschichteId", geschichteId);
+        formData.append("sceneIndex", String(sceneIndex));
+
+        await fetch("/api/admin/upload-frame", {
+          method: "POST",
+          body: formData,
+        });
+
+        resolve();
+      } catch (err) {
+        reject(err);
+      } finally {
+        video.remove();
+      }
+    };
+
+    video.onerror = () => { video.remove(); reject(new Error("Video load failed")); };
+    video.src = videoUrl;
+  });
+}
+
 function estimateCostCents(scene: StoryboardScene): number {
   const dur = Math.max(1, (scene.audioEndMs - scene.audioStartMs) / 1000);
   const isPremium = scene.quality === "premium";
@@ -393,7 +449,15 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         selectedPromptId: newVersion.id,
       };
       setScenes(updatedAfter);
-      setSceneProgress("Clip fertig!");
+      setSceneProgress("Clip fertig! Extrahiere letztes Frame...");
+
+      // Extract last frame from generated video for next clip's start image
+      try {
+        await extractAndUploadLastFrame(freshUrl, projectId, targetIndex);
+        setSceneProgress("Clip fertig + Frame gespeichert!");
+      } catch {
+        setSceneProgress("Clip fertig! (Frame-Extraktion fehlgeschlagen)");
+      }
 
       await fetch("/api/admin/generate-storyboard", {
         method: "POST",
