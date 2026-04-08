@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { list, get } from "@vercel/blob";
+import { list, get, put } from "@vercel/blob";
 
 export const maxDuration = 300;
 
