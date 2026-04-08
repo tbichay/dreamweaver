@@ -32,15 +32,21 @@ async function runFal<T>(modelId: string, input: Record<string, unknown>): Promi
   ensureConfigured();
   console.log(`[fal.ai] Starting ${modelId}...`);
 
-  const result = await fal.subscribe(modelId, {
-    input,
-    logs: true,
-    onQueueUpdate: (update) => {
-      console.log(`[fal.ai] ${modelId}: ${update.status}`);
-    },
-  });
+  try {
+    const result = await fal.subscribe(modelId, {
+      input,
+      logs: true,
+      onQueueUpdate: (update) => {
+        console.log(`[fal.ai] ${modelId}: ${update.status}`);
+      },
+    });
 
-  return result.data as T;
+    return result.data as T;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[fal.ai] ${modelId} failed:`, msg);
+    throw new Error(`fal.ai ${modelId}: ${msg}`);
+  }
 }
 
 // ── Kling LipSync ($0.014/s) ───────────────────────────────────────
