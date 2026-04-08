@@ -72,10 +72,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { geschichteId, format = "portrait", sceneRange } = await request.json() as {
+    const { geschichteId, format = "portrait", sceneRange, clipBlobUrls } = await request.json() as {
       geschichteId: string;
       format?: "portrait" | "wide";
-      sceneRange?: { from: number; to: number }; // Optional: only render a subset of scenes
+      sceneRange?: { from: number; to: number };
+      clipBlobUrls?: Record<string, string>; // clipName → blobUrl (sent by client)
     };
 
     const geschichte = await prisma.geschichte.findUnique({
@@ -101,45 +102,55 @@ export async function POST(request: Request) {
       videoUrl?: string;
     }>) || [];
 
-    // Load clips and create public temporary URLs for Lambda access
-    // Private Blob URLs return 403, so we re-upload to the Remotion S3 bucket
-    console.log(`[Render] Searching Blob for: films/${geschichteId}/ (BLOB_READ_WRITE_TOKEN: ${process.env.BLOB_READ_WRITE_TOKEN ? "set" : "MISSING"})`);
-    // Ensure token is available
+    // Get clip Blob URLs — either from client or by searching Blob storage
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!blobToken) {
-      return Response.json({ error: "BLOB_READ_WRITE_TOKEN not configured" }, { status: 500 });
-    }
-    const { blobs: clipBlobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200, token: blobToken });
-    console.log(`[Render] Found ${clipBlobs.length} blobs total`);
-    for (const b of clipBlobs) {
-      console.log(`[Render]   ${b.pathname} (${(b.size/1024).toFixed(0)}KB)`);
-    }
     const blobMap = new Map<string, string>();
 
-    for (const b of clipBlobs) {
-      if (!b.pathname.endsWith(".mp4") || b.pathname.includes("/versions/")) continue;
-      const name = b.pathname.split("/").pop() || "";
+    if (clipBlobUrls && Object.keys(clipBlobUrls).length > 0) {
+      // Client sent Blob URLs directly (most reliable)
+      console.log(`[Render] Using ${Object.keys(clipBlobUrls).length} clip URLs from client`);
 
-      // Download from private Blob and re-upload as public temporary file
+      for (const [name, blobUrl] of Object.entries(clipBlobUrls)) {
+        try {
+          // Download from private Blob and re-upload as public
+          const clipData = await get(blobUrl, { access: "private", token: blobToken });
+          if (!clipData?.stream) continue;
+          const chunks: Uint8Array[] = [];
+          const reader = clipData.stream.getReader();
+          while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
+
+          const tmpBlob = await put(`tmp-render/${geschichteId}/${name}`, Buffer.concat(chunks), {
+            access: "public", contentType: "video/mp4", allowOverwrite: true, token: blobToken,
+          });
+          blobMap.set(name, tmpBlob.url);
+          console.log(`[Render] Public: ${name} → ${tmpBlob.url.substring(0, 60)}...`);
+        } catch (err) {
+          console.warn(`[Render] Failed to make ${name} public:`, err);
+        }
+      }
+    } else if (blobToken) {
+      // Fallback: search Blob storage directly
+      console.log(`[Render] Searching Blob for: films/${geschichteId}/`);
       try {
-        const clipData = await get(b.url, { access: "private", token: blobToken });
-        if (!clipData?.stream) continue;
-        const chunks: Uint8Array[] = [];
-        const reader = clipData.stream.getReader();
-        while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
-        const buffer = Buffer.concat(chunks);
+        const { blobs: clipBlobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200, token: blobToken });
+        for (const b of clipBlobs) {
+          if (!b.pathname.endsWith(".mp4") || b.pathname.includes("/versions/")) continue;
+          const name = b.pathname.split("/").pop() || "";
+          try {
+            const clipData = await get(b.url, { access: "private", token: blobToken });
+            if (!clipData?.stream) continue;
+            const chunks: Uint8Array[] = [];
+            const reader = clipData.stream.getReader();
+            while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
 
-        // Upload to a public temporary Blob (expires naturally, Lambda can access)
-        const { put: putBlob } = await import("@vercel/blob");
-        const tmpBlob = await putBlob(`tmp-render/${geschichteId}/${name}`, buffer, {
-          access: "public",
-          contentType: "video/mp4",
-          allowOverwrite: true,
-        });
-        blobMap.set(name, tmpBlob.url);
-        console.log(`[Render] Public URL for ${name}: ${tmpBlob.url.substring(0, 60)}...`);
+            const tmpBlob = await put(`tmp-render/${geschichteId}/${name}`, Buffer.concat(chunks), {
+              access: "public", contentType: "video/mp4", allowOverwrite: true, token: blobToken,
+            });
+            blobMap.set(name, tmpBlob.url);
+          } catch { /* skip */ }
+        }
       } catch (err) {
-        console.warn(`[Render] Could not create public URL for ${name}:`, err);
+        console.error(`[Render] Blob search failed:`, err);
       }
     }
 
@@ -187,7 +198,7 @@ export async function POST(request: Request) {
     let storyAudioFullUrl: string | undefined;
     if (geschichte.audioUrl) {
       try {
-        const audioData = await get(geschichte.audioUrl, { access: "private", token: blobToken });
+        const audioData = await get(geschichte.audioUrl, { access: "private", token: blobToken! });
         if (audioData?.stream) {
           const chunks: Uint8Array[] = [];
           const reader = audioData.stream.getReader();

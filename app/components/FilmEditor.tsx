@@ -1180,10 +1180,14 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                   setRenderResult("Film wird gerendert (Crossfades, Audio, Titel)...");
                   try {
                     // Check if a scene range is selected (shift+click on timeline selects range)
-                    const body: Record<string, unknown> = { geschichteId: projectId, format: "portrait" };
-
-                    // If exactly 2+ scenes are consecutively completed, offer partial render
-                    // For now: render all completed clips
+                    // Collect Blob URLs for clips so the render API can access them
+                    const clipBlobUrls: Record<string, string> = {};
+                    for (const s of scenes) {
+                      if (s.clipBlobUrl && s.clipName) {
+                        clipBlobUrls[s.clipName] = s.clipBlobUrl;
+                      }
+                    }
+                    const body: Record<string, unknown> = { geschichteId: projectId, format: "portrait", clipBlobUrls };
                     const res = await fetch("/api/admin/render-film", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -1226,7 +1230,14 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                       const res = await fetch("/api/admin/render-film", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ geschichteId: projectId, format: "portrait", sceneRange: { from, to } }),
+                        body: JSON.stringify({
+                          geschichteId: projectId,
+                          format: "portrait",
+                          sceneRange: { from, to },
+                          clipBlobUrls: Object.fromEntries(
+                            scenes.filter((s) => s.clipBlobUrl && s.clipName).map((s) => [s.clipName!, s.clipBlobUrl!])
+                          ),
+                        }),
                       });
                       const data = await res.json();
                       if (!res.ok) throw new Error(data.error || data.message);
