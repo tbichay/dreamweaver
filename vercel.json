@@ -1,4 +1,15 @@
 {
+  "functions": {
+    "app/api/generate-scene-clip/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/admin/render-film/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/admin/generate-storyboard/route.ts": {
+      "maxDuration": 120
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/process-queue",
