@@ -182,30 +182,47 @@ export default function GeschichtenPage() {
     setQueue((prev) => [...prev, ...newItems]);
   };
 
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
   const shareStory = async (g: GeschichteWithProfil) => {
     try {
       const res = await fetch(`/api/geschichten/${g.id}/share`, { method: "POST" });
       const data = await res.json();
       if (data.url) {
-        // Try native share, fallback to clipboard
+        // On mobile: use native share sheet (includes WhatsApp, Telegram etc.)
         if (navigator.share) {
-          await navigator.share({
-            title: getTitle(g),
-            text: g.zusammenfassung || `Eine Geschichte für ${g.kindProfil.name}`,
-            url: data.url,
-          });
-        } else {
-          await navigator.clipboard.writeText(data.url);
-          // Brief visual feedback
-          setAudioError(null);
-          alert("Link kopiert!");
+          try {
+            await navigator.share({
+              title: getTitle(g),
+              text: g.zusammenfassung || `Eine Geschichte fuer ${g.kindProfil.name}`,
+              url: data.url,
+            });
+            return;
+          } catch (e) {
+            if ((e as Error).name === "AbortError") return;
+            // Native share failed, show share dialog
+          }
         }
+        // Desktop or native share failed: show share options
+        setShareUrl(data.url);
       }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        console.error("Share failed:", err);
-      }
+      console.error("Share failed:", err);
     }
+  };
+
+  const copyShareLink = async () => {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  };
+
+  const shareViaWhatsApp = () => {
+    if (!shareUrl) return;
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareUrl)}`, "_blank");
+    setShareUrl(null);
   };
 
   const deleteGeschichte = async (g: GeschichteWithProfil) => {
@@ -252,6 +269,44 @@ export default function GeschichtenPage() {
 
   return (
     <>
+      {/* Share Dialog */}
+      {shareUrl && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={() => setShareUrl(null)}>
+          <div className="w-full max-w-sm bg-[#1a2e1a] rounded-2xl border border-white/10 p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-medium text-[#f5eed6]">Geschichte teilen</h3>
+
+            {/* Copy Link */}
+            <button
+              onClick={copyShareLink}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-left"
+            >
+              <span className="text-lg">{shareCopied ? "✅" : "🔗"}</span>
+              <div>
+                <p className="text-sm text-white/80">{shareCopied ? "Link kopiert!" : "Link kopieren"}</p>
+                <p className="text-[10px] text-white/30 truncate max-w-[240px]">{shareUrl}</p>
+              </div>
+            </button>
+
+            {/* WhatsApp */}
+            <button
+              onClick={shareViaWhatsApp}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 transition-colors text-left"
+            >
+              <span className="text-lg">💬</span>
+              <p className="text-sm text-[#25D366]">Via WhatsApp teilen</p>
+            </button>
+
+            {/* Close */}
+            <button
+              onClick={() => setShareUrl(null)}
+              className="w-full text-center text-xs text-white/30 py-2 hover:text-white/50"
+            >
+              Schliessen
+            </button>
+          </div>
+        </div>
+      )}
+
       <PageTransition>
         <main className="relative flex-1 flex flex-col items-center px-4 py-6 pb-28 sm:pb-6">
           <div className="w-full max-w-5xl">

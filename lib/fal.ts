@@ -7,92 +7,40 @@
  * - Kling 3.0 Image-to-Video for landscape scenes
  */
 
-const FAL_BASE = "https://fal.run";
-const POLL_INTERVAL = 5000;
+import { fal } from "@fal-ai/client";
+
 const POLL_TIMEOUT = 600000; // 10 minutes
 
-function getApiKey(): string {
+function ensureConfigured() {
   const key = process.env.FAL_KEY;
   if (!key) throw new Error("FAL_KEY is not set");
-  return key;
-}
-
-function headers(): Record<string, string> {
-  return {
-    Authorization: `Key ${getApiKey()}`,
-    "Content-Type": "application/json",
-  };
+  fal.config({ credentials: key });
 }
 
 // ── File Upload Helper ─────────────────────────────────────────────
 
 async function uploadToFal(buffer: Buffer, filename: string, contentType: string): Promise<string> {
-  // fal.ai accepts URLs — upload to their storage first
-  const uploadRes = await fetch("https://fal.run/fal-ai/storage/upload", {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${getApiKey()}`,
-    },
-    body: (() => {
-      const form = new FormData();
-      form.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), filename);
-      return form;
-    })(),
-  });
-
-  if (!uploadRes.ok) {
-    throw new Error(`fal.ai upload error: ${uploadRes.status} — ${await uploadRes.text()}`);
-  }
-
-  const data = await uploadRes.json();
-  return data.url;
+  ensureConfigured();
+  const file = new File([new Uint8Array(buffer)], filename, { type: contentType });
+  const url = await fal.storage.upload(file);
+  return url;
 }
 
-// ── Queue Helper ───────────────────────────────────────────────────
+// ── Run Helper (subscribe with timeout) ────────────────────────────
 
-async function submitAndPoll<T>(modelId: string, input: Record<string, unknown>): Promise<T> {
-  // Submit to queue
-  const submitRes = await fetch(`https://queue.fal.run/${modelId}`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ input }),
+async function runFal<T>(modelId: string, input: Record<string, unknown>): Promise<T> {
+  ensureConfigured();
+  console.log(`[fal.ai] Starting ${modelId}...`);
+
+  const result = await fal.subscribe(modelId, {
+    input,
+    logs: true,
+    onQueueUpdate: (update) => {
+      console.log(`[fal.ai] ${modelId}: ${update.status}`);
+    },
   });
 
-  if (!submitRes.ok) {
-    throw new Error(`fal.ai submit error: ${submitRes.status} — ${await submitRes.text()}`);
-  }
-
-  const { request_id } = await submitRes.json();
-  console.log(`[fal.ai] Submitted ${modelId}: ${request_id}`);
-
-  // Poll for result
-  const startTime = Date.now();
-  while (Date.now() - startTime < POLL_TIMEOUT) {
-    const statusRes = await fetch(`https://queue.fal.run/${modelId}/requests/${request_id}/status`, {
-      headers: headers(),
-    });
-
-    if (!statusRes.ok) throw new Error(`fal.ai status error: ${statusRes.status}`);
-    const status = await statusRes.json();
-
-    if (status.status === "COMPLETED") {
-      // Fetch result
-      const resultRes = await fetch(`https://queue.fal.run/${modelId}/requests/${request_id}`, {
-        headers: headers(),
-      });
-      if (!resultRes.ok) throw new Error(`fal.ai result error: ${resultRes.status}`);
-      return await resultRes.json();
-    }
-
-    if (status.status === "FAILED") {
-      throw new Error(`fal.ai generation failed: ${JSON.stringify(status)}`);
-    }
-
-    console.log(`[fal.ai] ${modelId}: ${status.status}...`);
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-  }
-
-  throw new Error(`fal.ai generation timed out after ${POLL_TIMEOUT / 1000}s`);
+  return result.data as T;
 }
 
 // ── Kling LipSync ($0.014/s) ───────────────────────────────────────
@@ -115,7 +63,7 @@ export async function klingLipSync(
   const videoUrl = await uploadToFal(videoBuffer, "scene.mp4", "video/mp4");
   const audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
 
-  const result = await submitAndPoll<LipSyncResult>(
+  const result = await runFal<LipSyncResult>(
     "fal-ai/kling-video/lipsync/audio-to-video",
     { video_url: videoUrl, audio_url: audioUrl },
   );
@@ -155,7 +103,7 @@ export async function klingAvatar(
   };
   if (prompt) input.prompt = prompt;
 
-  const result = await submitAndPoll<AvatarResult>(modelId, input);
+  const result = await runFal<AvatarResult>(modelId, input);
   console.log(`[fal.ai] Kling Avatar v2 ${quality} done: ${result.video.url}`);
   return result.video.url;
 }
@@ -237,7 +185,7 @@ export async function klingI2V(options: KlingI2VOptions): Promise<string> {
     console.log(`[fal.ai] ${elements.length} character element(s) uploaded`);
   }
 
-  const result = await submitAndPoll<I2VResult>(modelId, input);
+  const result = await runFal<I2VResult>(modelId, input);
   console.log(`[fal.ai] Kling 3.0 ${quality} I2V done: ${result.video.url}`);
   return result.video.url;
 }

@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@auth/prisma-adapter": "^2.11.1",
+    "@fal-ai/client": "^1.9.5",
     "@neondatabase/serverless": "^1.0.2",
     "@prisma/client": "^6.19.3",
     "@remotion/cli": "^4.0.447",
