@@ -21,6 +21,7 @@ const publicPaths = [
   "/api/invite",       // Invitation acceptance (public, auth checked in handler)
   "/api/admin/onboarding", // Onboarding status check
   "/api/generate-scene-clip", // SSE streaming — auth checked in handler
+  "/api/admin/render-film",   // SSE streaming — auth checked in handler
   "/share",
   "/einladung",        // Invitation acceptance page
 ];

@@ -220,29 +220,44 @@ export async function POST(request: Request) {
 
     // Check if Lambda is configured
     if (process.env.REMOTION_AWS_ACCESS_KEY_ID && process.env.REMOTION_SERVE_URL) {
-      // ══════ REMOTION LAMBDA ══════
-      const { renderFilmOnLambda } = await import("@/lib/film-render");
+      // ══════ REMOTION LAMBDA (SSE for progress) ══════
+      const encoder = new TextEncoder();
+      const readable = new ReadableStream({
+        async start(controller) {
+          const send = (data: Record<string, unknown>) => {
+            try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch { /* closed */ }
+          };
 
-      const outputUrl = await renderFilmOnLambda({
-        geschichteId,
-        scenes: renderableScenes,
-        storyAudioUrl: storyAudioFullUrl,
-        title: geschichte.titel || "KoalaTree",
-        subtitle: geschichte.hoererProfil?.name ? `fuer ${geschichte.hoererProfil.name}` : "praesentiert",
-        format,
+          try {
+            send({ progress: 0, message: "Starte Lambda Rendering..." });
+
+            const { renderFilmOnLambda } = await import("@/lib/film-render");
+
+            const outputUrl = await renderFilmOnLambda({
+              geschichteId,
+              scenes: renderableScenes,
+              storyAudioUrl: storyAudioFullUrl,
+              title: geschichte.titel || "KoalaTree",
+              subtitle: geschichte.hoererProfil?.name ? `fuer ${geschichte.hoererProfil.name}` : "praesentiert",
+              format,
+              onProgress: (pct, msg) => send({ progress: pct, message: `${msg} (${pct}%)` }),
+            });
+
+            await prisma.geschichte.update({
+              where: { id: geschichteId },
+              data: { videoUrl: outputUrl },
+            });
+
+            send({ done: true, status: "completed", videoUrl: `/api/video/film/${geschichteId}`, scenes: renderableScenes.length });
+          } catch (err) {
+            send({ done: true, error: err instanceof Error ? err.message : "Render-Fehler" });
+          }
+          try { controller.close(); } catch { /* */ }
+        },
       });
 
-      // Save to DB
-      await prisma.geschichte.update({
-        where: { id: geschichteId },
-        data: { videoUrl: outputUrl },
-      });
-
-      return Response.json({
-        status: "completed",
-        videoUrl: `/api/video/film/${geschichteId}`,
-        outputUrl,
-        scenes: renderableScenes.length,
+      return new Response(readable, {
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
       });
     }
 

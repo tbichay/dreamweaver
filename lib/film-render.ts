@@ -18,7 +18,7 @@ const FPS = 30;
 export interface RenderFilmOptions {
   geschichteId: string;
   scenes: Array<{
-    videoUrl: string; // Full public URL to the clip
+    videoUrl: string;
     durationMs: number;
     type: string;
     characterId?: string;
@@ -29,6 +29,7 @@ export interface RenderFilmOptions {
   subtitle?: string;
   musicVolume?: number;
   format?: "portrait" | "wide";
+  onProgress?: (percent: number, message: string) => void;
 }
 
 /**
@@ -128,7 +129,10 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     }
 
     progress = status.overallProgress;
-    console.log(`[Lambda Render] Progress: ${(progress * 100).toFixed(1)}%`);
+    const pct = Math.round(progress * 100);
+    const msg = pct < 10 ? "Starte Rendering..." : pct < 50 ? "Frames werden gerendert..." : pct < 90 ? "Clips werden zusammengefuegt..." : "Finalisierung...";
+    console.log(`[Lambda Render] Progress: ${pct}%`);
+    options.onProgress?.(pct, msg);
 
     if (status.done && status.outputFile) {
       console.log(`[Lambda Render] Done! Output: ${status.outputFile}`);

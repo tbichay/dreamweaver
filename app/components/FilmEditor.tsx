@@ -1181,31 +1181,55 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                 onRender={async () => {
                   if (!projectId || rendering) return;
                   setRendering(true);
-                  setRenderResult("Film wird gerendert (Crossfades, Audio, Titel)...");
+                  setRenderResult("Clips werden nach S3 hochgeladen...");
                   try {
-                    // Check if a scene range is selected (shift+click on timeline selects range)
-                    // Collect Blob URLs for clips so the render API can access them
                     const clipBlobUrls: Record<string, string> = {};
                     for (const s of scenes) {
-                      if (s.clipBlobUrl && s.clipName) {
-                        clipBlobUrls[s.clipName] = s.clipBlobUrl;
-                      }
+                      if (s.clipBlobUrl && s.clipName) clipBlobUrls[s.clipName] = s.clipBlobUrl;
                     }
-                    const body: Record<string, unknown> = { geschichteId: projectId, format: "portrait", clipBlobUrls };
                     const res = await fetch("/api/admin/render-film", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(body),
+                      body: JSON.stringify({ geschichteId: projectId, format: "portrait", clipBlobUrls }),
                     });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || data.message);
-                    if (data.status === "completed") {
-                      setRenderResult(`Film fertig! ${data.scenes} Szenen mit Crossfades zusammengefuegt.`);
-                      if (data.videoUrl) setRenderedFilmUrl(data.videoUrl);
-                    } else if (data.status === "manual") {
-                      setRenderResult(`Lambda nicht konfiguriert. Lokal: ${data.localScript}`);
+
+                    if (!res.ok) {
+                      const ct = res.headers.get("content-type") || "";
+                      if (ct.includes("json")) { const d = await res.json(); throw new Error(d.error || "Fehler"); }
+                      throw new Error(`Server-Fehler (${res.status})`);
+                    }
+
+                    // Read SSE stream for live progress
+                    const reader = res.body?.getReader();
+                    if (!reader) throw new Error("Keine Antwort");
+                    const decoder = new TextDecoder();
+                    let buf = "";
+                    let result: Record<string, unknown> = {};
+
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+                      buf += decoder.decode(value, { stream: true });
+                      const msgs = buf.split("\n\n");
+                      buf = msgs.pop() || "";
+                      for (const msg of msgs) {
+                        for (const line of msg.split("\n")) {
+                          if (!line.startsWith("data: ")) continue;
+                          try {
+                            const parsed = JSON.parse(line.slice(6));
+                            if (parsed.message) setRenderResult(parsed.message);
+                            if (parsed.done) result = parsed;
+                          } catch { /* incomplete */ }
+                        }
+                      }
+                    }
+
+                    if (result.error) throw new Error(result.error as string);
+                    if (result.status === "completed") {
+                      setRenderResult(`Film fertig! ${result.scenes} Szenen zusammengefuegt.`);
+                      if (result.videoUrl) setRenderedFilmUrl(result.videoUrl as string);
                     } else {
-                      setRenderResult(`Film: ${data.scenes} Szenen bereit.`);
+                      setRenderResult(result.message as string || "Fertig");
                     }
                   } catch (err) {
                     setRenderResult(`Fehler: ${err instanceof Error ? err.message : "Unbekannt"}`);
