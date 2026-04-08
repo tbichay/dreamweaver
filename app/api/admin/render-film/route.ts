@@ -1,8 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { list } from "@vercel/blob";
-// Remotion renderer is imported dynamically to avoid bundling Node.js-only deps
-// import { renderFilm } from "@/lib/film-render";
 
 export const maxDuration = 300;
 
@@ -117,43 +115,48 @@ export async function POST(request: Request) {
 
     console.log(`[Render] Rendering "${geschichte.titel}" (${renderableScenes.length} scenes, ${format})`);
 
-    // Remotion can't run in Vercel Serverless (needs ffmpeg + Chromium).
-    // Instead, we save render instructions and the user runs locally:
-    //   npx remotion render remotion/index.ts KoalaTreeFilm --props='...'
-    // Or we trigger a Lambda render in the future.
+    // Convert relative URLs to full URLs for Lambda access
+    const baseUrl = process.env.AUTH_URL || "https://www.koalatree.ai";
+    const fullScenes = renderableScenes.map((s) => ({
+      ...s,
+      videoUrl: s.videoUrl.startsWith("http") ? s.videoUrl : `${baseUrl}${s.videoUrl}`,
+    }));
+    const storyAudioFullUrl = geschichte.audioUrl ? `${baseUrl}/api/audio/${geschichteId}` : undefined;
 
-    // For now: save render config to DB for the local script
-    await prisma.geschichte.update({
-      where: { id: geschichteId },
-      data: {
-        filmScenes: JSON.parse(JSON.stringify(
-          scenes.map((s, i) => ({
-            ...s,
-            videoUrl: renderableScenes[i]?.videoUrl,
-          }))
-        )),
-      },
-    });
+    // Check if Lambda is configured
+    if (process.env.REMOTION_AWS_ACCESS_KEY_ID && process.env.REMOTION_SERVE_URL) {
+      // ══════ REMOTION LAMBDA ══════
+      const { renderFilmOnLambda } = await import("@/lib/film-render");
 
-    // Return render instructions
-    const renderProps = JSON.stringify({
-      scenes: renderableScenes.map((s, i) => ({
-        videoUrl: s.videoUrl,
-        durationFrames: Math.ceil((s.durationMs / 1000) * 30),
-        type: s.type,
-        characterId: s.characterId,
-      })),
-      storyAudioUrl: `/api/audio/${geschichteId}`,
-      title: geschichte.titel || "KoalaTree",
-      subtitle: geschichte.hoererProfil?.name ? `fuer ${geschichte.hoererProfil.name}` : "praesentiert",
-    });
+      const outputUrl = await renderFilmOnLambda({
+        geschichteId,
+        scenes: fullScenes,
+        storyAudioUrl: storyAudioFullUrl,
+        title: geschichte.titel || "KoalaTree",
+        subtitle: geschichte.hoererProfil?.name ? `fuer ${geschichte.hoererProfil.name}` : "praesentiert",
+        format,
+      });
 
+      // Save to DB
+      await prisma.geschichte.update({
+        where: { id: geschichteId },
+        data: { videoUrl: outputUrl },
+      });
+
+      return Response.json({
+        status: "completed",
+        videoUrl: `/api/video/film/${geschichteId}`,
+        outputUrl,
+        scenes: renderableScenes.length,
+      });
+    }
+
+    // ══════ FALLBACK: Local render instructions ══════
     return Response.json({
-      status: "ready",
+      status: "manual",
       scenes: renderableScenes.length,
-      renderCommand: `cd "${process.cwd()}" && npx remotion render remotion/index.ts KoalaTreeFilm --props='${renderProps.replace(/'/g, "\\'")}'`,
-      localScript: `node scripts/master-film.mjs ${geschichteId}`,
-      message: "Film-Rendering braucht ffmpeg + Chromium. Fuehre den Render-Befehl lokal aus oder warte auf Remotion Lambda Integration.",
+      localScript: `node scripts/render-film.mjs ${geschichteId}`,
+      message: "Remotion Lambda nicht konfiguriert. Setze REMOTION_AWS_ACCESS_KEY_ID, REMOTION_AWS_SECRET_ACCESS_KEY und REMOTION_SERVE_URL in Vercel, oder rendere lokal.",
     });
   } catch (error) {
     console.error("[Render] Error:", error);

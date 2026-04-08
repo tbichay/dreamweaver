@@ -1106,8 +1106,14 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                       body: JSON.stringify({ geschichteId: projectId, format: "portrait" }),
                     });
                     const data = await res.json();
-                    if (!res.ok) throw new Error(data.error);
-                    setRenderResult(`Film fertig! ${data.scenes} Szenen zusammengefuegt.`);
+                    if (!res.ok) throw new Error(data.error || data.message);
+                    if (data.status === "completed") {
+                      setRenderResult(`Film fertig! ${data.scenes} Szenen mit Crossfades zusammengefuegt.`);
+                    } else if (data.status === "manual") {
+                      setRenderResult(`Lambda nicht konfiguriert. Lokal: ${data.localScript}`);
+                    } else {
+                      setRenderResult(`Film: ${data.scenes} Szenen bereit.`);
+                    }
                   } catch (err) {
                     setRenderResult(`Fehler: ${err instanceof Error ? err.message : "Unbekannt"}`);
                   } finally {
