@@ -342,8 +342,20 @@ export async function POST(request: Request) {
     } else {
       videoBuffer = await downloadHedraVideo(videoUrl);
     }
+    // Save versioned clip (keeps history) AND active clip (for mastering)
+    const paddedIdx = String(sceneIndex).padStart(3, "0");
+    const versionId = Date.now();
+
+    // Versioned copy (never overwritten)
+    await put(
+      `films/${geschichteId}/versions/scene-${paddedIdx}-v${versionId}.mp4`,
+      videoBuffer,
+      { access: "private", contentType: "video/mp4" }
+    );
+
+    // Active clip (overwritten — this is what mastering uses)
     const blob = await put(
-      `films/${geschichteId}/scene-${String(sceneIndex).padStart(3, "0")}.mp4`,
+      `films/${geschichteId}/scene-${paddedIdx}.mp4`,
       videoBuffer,
       { access: "private", contentType: "video/mp4", allowOverwrite: true }
     );

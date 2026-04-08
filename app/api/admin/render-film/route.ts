@@ -72,9 +72,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { geschichteId, format = "portrait" } = await request.json() as {
+    const { geschichteId, format = "portrait", sceneRange } = await request.json() as {
       geschichteId: string;
       format?: "portrait" | "wide";
+      sceneRange?: { from: number; to: number }; // Optional: only render a subset of scenes
     };
 
     const geschichte = await prisma.geschichte.findUnique({
@@ -100,9 +101,19 @@ export async function POST(request: Request) {
       videoUrl?: string;
     }>) || [];
 
-    const renderableScenes = scenes
-      .map((scene, i) => ({
-        videoUrl: scene.videoUrl || `/api/video/film-scene/${geschichteId}/${i}`,
+    let filteredScenes = scenes.map((scene, i) => ({ ...scene, index: i }));
+
+    // Apply scene range filter if specified
+    if (sceneRange) {
+      filteredScenes = filteredScenes.filter(
+        (_, i) => i >= sceneRange.from && i <= sceneRange.to
+      );
+      console.log(`[Render] Partial render: scenes ${sceneRange.from}-${sceneRange.to}`);
+    }
+
+    const renderableScenes = filteredScenes
+      .map((scene) => ({
+        videoUrl: scene.videoUrl || `/api/video/film-scene/${geschichteId}/${scene.index}`,
         durationMs: Math.max(scene.audioEndMs - scene.audioStartMs, 3000),
         type: scene.type,
         characterId: scene.characterId,

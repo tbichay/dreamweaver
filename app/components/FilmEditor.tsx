@@ -1100,10 +1100,15 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                   setRendering(true);
                   setRenderResult("Film wird gerendert (Crossfades, Audio, Titel)...");
                   try {
+                    // Check if a scene range is selected (shift+click on timeline selects range)
+                    const body: Record<string, unknown> = { geschichteId: projectId, format: "portrait" };
+
+                    // If exactly 2+ scenes are consecutively completed, offer partial render
+                    // For now: render all completed clips
                     const res = await fetch("/api/admin/render-film", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ geschichteId: projectId, format: "portrait" }),
+                      body: JSON.stringify(body),
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || data.message);
@@ -1124,6 +1129,42 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                 completedScenes={completedScenes}
                 geschichteId={projectId || undefined}
               />
+              {/* Quick test: render only clips around selected scene */}
+              {completedScenes >= 2 && (
+                <button
+                  onClick={async () => {
+                    if (!projectId || rendering) return;
+                    // Find range of consecutive completed clips around selected scene
+                    let from = selectedScene;
+                    let to = selectedScene;
+                    while (from > 0 && (scenes[from - 1]?.videoUrl || scenes[from - 1]?.status === "done")) from--;
+                    while (to < scenes.length - 1 && (scenes[to + 1]?.videoUrl || scenes[to + 1]?.status === "done")) to++;
+                    if (to - from < 1) { setRenderResult("Mindestens 2 aufeinanderfolgende Clips noetig"); return; }
+
+                    setRendering(true);
+                    setRenderResult(`Teste Uebergang: Szenen ${from + 1}-${to + 1}...`);
+                    try {
+                      const res = await fetch("/api/admin/render-film", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ geschichteId: projectId, format: "portrait", sceneRange: { from, to } }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || data.message);
+                      setRenderResult(data.status === "completed" ? `Test fertig! Szenen ${from + 1}-${to + 1} zusammengefuegt.` : data.message || "Bereit");
+                    } catch (err) {
+                      setRenderResult(`Fehler: ${err instanceof Error ? err.message : "Unbekannt"}`);
+                    } finally {
+                      setRendering(false);
+                    }
+                  }}
+                  disabled={rendering}
+                  className="w-full mt-2 text-[9px] py-1.5 text-white/30 hover:text-white/50 bg-white/5 rounded-lg disabled:opacity-30"
+                >
+                  Uebergang testen (Szenen um #{selectedScene + 1})
+                </button>
+              )}
+
               {renderResult && (
                 <p className={`text-[10px] mt-2 ${renderResult.startsWith("Fehler") ? "text-red-400/70" : "text-[#a8d5b8]/70"}`}>
                   {renderResult}
