@@ -103,7 +103,12 @@ export async function POST(request: Request) {
 
     // Load clips and create public temporary URLs for Lambda access
     // Private Blob URLs return 403, so we re-upload to the Remotion S3 bucket
+    console.log(`[Render] Searching Blob for: films/${geschichteId}/`);
     const { blobs: clipBlobs } = await list({ prefix: `films/${geschichteId}/`, limit: 200 });
+    console.log(`[Render] Found ${clipBlobs.length} blobs total`);
+    for (const b of clipBlobs) {
+      console.log(`[Render]   ${b.pathname} (${(b.size/1024).toFixed(0)}KB)`);
+    }
     const blobMap = new Map<string, string>();
 
     for (const b of clipBlobs) {
@@ -159,8 +164,16 @@ export async function POST(request: Request) {
       })
       .filter((s) => s.videoUrl && s.durationMs > 0);
 
+    console.log(`[Render] ${renderableScenes.length} scenes matched to clips, ${blobMap.size} public URLs created`);
     if (renderableScenes.length < 2) {
-      return Response.json({ error: `Mindestens 2 Clips mit Blob-URLs noetig (${renderableScenes.length} gefunden, ${blobMap.size} Clips im Blob)` }, { status: 400 });
+      // Show what we tried to match
+      const attempted = filteredScenes.map((s) => {
+        const charId = (s.characterId as string) || "landscape";
+        return `clip-${s.audioStartMs}-${s.audioEndMs}-${charId}.mp4`;
+      });
+      return Response.json({
+        error: `Mindestens 2 Clips noetig (${renderableScenes.length} gefunden, ${blobMap.size} im Blob). Gesucht: ${attempted.join(", ")}. Vorhanden: ${[...blobMap.keys()].join(", ") || "keine"}`
+      }, { status: 400 });
     }
 
     console.log(`[Render] Rendering "${geschichte.titel}" (${renderableScenes.length} scenes, ${format})`);
