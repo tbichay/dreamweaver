@@ -94,17 +94,27 @@ export async function POST(request: Request) {
         let audioSegment: Buffer = Buffer.alloc(0);
         if (hasAudio) {
           const fullAudio = await loadBuffer(geschichte.audioUrl);
+          const expectedDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
+
+          // HARD LIMIT: refuse to process segments longer than 30s (prevents $5+ bills)
+          if (expectedDurSec > 30) {
+            throw new Error(`Audio-Segment zu lang (${expectedDurSec.toFixed(0)}s). Max 30s pro Clip.`);
+          }
+
           audioSegment = segmentMp3(fullAudio, scene.audioStartMs, scene.audioEndMs);
 
-          // Safety check
-          if (audioSegment.byteLength > fullAudio.byteLength * 0.8) {
+          // Safety check: segment should be roughly proportional to duration
+          // 128kbps MP3 = ~16KB/s, so a 5s clip should be ~80KB, not 8MB
+          const expectedBytes = expectedDurSec * 16 * 1024; // rough estimate
+          if (audioSegment.byteLength > expectedBytes * 3) {
+            console.error(`[Scene Clip] SAFETY: Segment ${(audioSegment.byteLength/1024).toFixed(0)}KB is way too big for ${expectedDurSec.toFixed(1)}s (expected ~${(expectedBytes/1024).toFixed(0)}KB). Using byte-offset fallback.`);
             const bytesPerMs = 16;
             const startByte = Math.max(0, Math.floor(scene.audioStartMs * bytesPerMs));
             const endByte = Math.min(fullAudio.byteLength, Math.ceil(scene.audioEndMs * bytesPerMs));
             audioSegment = Buffer.from(fullAudio.subarray(startByte, endByte));
           }
 
-          console.log(`[Scene Clip] Scene ${sceneIndex}: ${scene.type}, audio ${scene.audioStartMs}-${scene.audioEndMs}ms, segment ${(audioSegment.byteLength / 1024).toFixed(0)}KB`);
+          console.log(`[Scene Clip] Scene ${sceneIndex}: audio ${scene.audioStartMs}-${scene.audioEndMs}ms (${expectedDurSec.toFixed(1)}s), segment ${(audioSegment.byteLength / 1024).toFixed(0)}KB, full ${(fullAudio.byteLength / 1024).toFixed(0)}KB`);
         }
 
         let videoUrl: string;
