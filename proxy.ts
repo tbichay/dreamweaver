@@ -20,6 +20,7 @@ const publicPaths = [
   "/api/cron",         // Vercel Cron Jobs (auth via CRON_SECRET header)
   "/api/invite",       // Invitation acceptance (public, auth checked in handler)
   "/api/admin/onboarding", // Onboarding status check
+  "/api/generate-scene-clip", // SSE streaming — auth checked in handler
   "/share",
   "/einladung",        // Invitation acceptance page
 ];
