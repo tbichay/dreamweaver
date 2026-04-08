@@ -91,6 +91,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const [scenes, setScenes] = useState<StoryboardScene[]>([]);
   const [selectedScene, setSelectedScene] = useState(0);
   const [projectTitle, setProjectTitle] = useState("");
+  const [renderedFilmUrl, setRenderedFilmUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [generatingStoryboard, setGeneratingStoryboard] = useState(false);
   const [generatingScene, setGeneratingScene] = useState(false);
@@ -133,6 +134,9 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         setProjectTitle(data.geschichte?.titel || "Unbenannt");
         if (data.geschichte?.audioUrl) {
           setAudioUrl(data.geschichte.audioUrl);
+        }
+        if (data.geschichte?.videoUrl) {
+          setRenderedFilmUrl(data.geschichte.videoUrl);
         }
         if (data.scenes && data.scenes.length > 0) {
           setScenes(data.scenes.map((s: StoryboardScene) => ({
@@ -1197,6 +1201,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                     if (!res.ok) throw new Error(data.error || data.message);
                     if (data.status === "completed") {
                       setRenderResult(`Film fertig! ${data.scenes} Szenen mit Crossfades zusammengefuegt.`);
+                      if (data.videoUrl) setRenderedFilmUrl(data.videoUrl);
                     } else if (data.status === "manual") {
                       setRenderResult(`Lambda nicht konfiguriert. Lokal: ${data.localScript}`);
                     } else {
@@ -1310,6 +1315,14 @@ export default function FilmEditor({ projectId, onBack }: Props) {
             >
               Film abspielen ({completedScenes} Clips)
             </button>
+            {renderedFilmUrl && (
+              <button
+                onClick={() => setVideoModal(renderedFilmUrl)}
+                className="text-[10px] py-2.5 px-4 rounded-xl font-medium bg-[#a8d5b8]/20 text-[#a8d5b8] hover:bg-[#a8d5b8]/30 transition-all"
+              >
+                Fertiger Film
+              </button>
+            )}
           </div>
         </div>
       )}
