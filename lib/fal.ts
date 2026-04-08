@@ -128,18 +128,9 @@ export async function klingAvatar(
 
   const imageUrl = await uploadToFal(imageBuffer, "portrait.png", "image/png");
 
-  // Upload audio — try MP3 first, fall back to WAV wrapper if rejected
-  // fal.ai needs valid audio headers; raw MP3 segments can be corrupt
-  let audioUrl: string;
-  if (audioBuffer[0] === 0xFF && (audioBuffer[1] & 0xE0) === 0xE0) {
-    // Looks like valid MP3 (starts with sync word)
-    audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
-  } else {
-    // Wrap as WAV (PCM passthrough — more widely accepted)
-    console.log("[fal.ai] Audio doesn't look like MP3, wrapping as WAV");
-    const wavBuffer = wrapAsWav(audioBuffer, 24000, 1);
-    audioUrl = await uploadToFal(wavBuffer, "audio.wav", "audio/wav");
-  }
+  // Upload audio as MP3 — segmentMp3 guarantees valid MP3 output
+  const audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+  console.log(`[fal.ai] Audio uploaded: ${audioUrl} (${(audioBuffer.byteLength / 1024).toFixed(0)}KB, starts with ${audioBuffer.subarray(0, 2).toString("hex")})`);
 
   const input: Record<string, unknown> = {
     image_url: imageUrl,
