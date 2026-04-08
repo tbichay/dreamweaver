@@ -308,13 +308,28 @@ export async function POST(request: Request) {
         } catch { /* no reference available */ }
       }
 
-      videoUrl = await generateSceneVideo({
-        imageBuffer: sceneImage!,
-        prompt: animationPrompt,
-        aspectRatio: "9:16",
-        resolution: "720p",
-        referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
-      });
+      // Use fal.ai Kling 3.0 if available (better quality + Element Binding)
+      if (process.env.FAL_KEY) {
+        console.log(`[Scene Clip] Using fal.ai Kling 3.0 for landscape`);
+        videoUrl = await klingI2V({
+          imageBuffer: sceneImage!,
+          prompt: animationPrompt,
+          durationSeconds: 5,
+          aspectRatio: "9:16",
+          quality: scene.quality === "premium" ? "pro" : "standard",
+          characterElements: referenceImages.length > 0 ? referenceImages : undefined,
+          generateAudio: !hasAudio, // Generate ambient audio for silent scenes
+        });
+      } else {
+        // Fallback to Hedra Kling
+        videoUrl = await generateSceneVideo({
+          imageBuffer: sceneImage!,
+          prompt: animationPrompt,
+          aspectRatio: "9:16",
+          resolution: "720p",
+          referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+        });
+      }
     }
 
     // Download and store video
