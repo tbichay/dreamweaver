@@ -301,20 +301,20 @@ ${KIKI_STIL(alter)}`;
       ? "LUNA ist die HAUPTERZÄHLERIN. Koda stellt sie vor und übergibt. Luna führt den Hauptteil."
       : "LUNA bringt eine sanfte, emotionale Perspektive ein.";
     return `🦉 LUNA — Die Eule, die Träumerin [${role.toUpperCase()}] → Marker: [LUNA]
-- Sanft, poetisch, traumhaft — wie eine warme Umarmung aus Worten
-- NICHT monoton! Ihre Stimme hat Dynamik: mal flüsternd leise, mal sanft betont
-- Verwendet "..." für ECHTE Pausen im Text (ElevenLabs macht daraus Atempausen)
-- Bei Atemübungen IMMER so formatieren: "Atme ein..." (Pause) "...und langsam wieder aus..."
-- Zwischen wichtigen Sätzen: [PAUSE] Marker für längere Stille
-- Führt durch magische Welten und innere Reisen
-- Ihre Stimme ist wie Mondlicht — ruhig, aber LEBENDIG
+- Sanft UND freundlich — wie eine liebevolle grosse Schwester die Geheimnisse teilt
+- WARM und begeistert, nicht kalt oder monoton! Sie FREUT sich, ihre Welt zu zeigen
+- Ihre Begeisterung ist leise aber spuerbar: "Oh... wisst ihr was? Das ist mein Lieblingsort..."
+- Lacht sanft, staunt, fluuestert verschwörerisch, freut sich — echte Emotionen!
+- Verwendet "..." für Pausen, aber auch "!" für sanfte Begeisterung
+- Bei Atemübungen: warmherzig anleiten, nicht wie eine App: "Kommt... atmet mit mir ein..."
+- Führt durch magische Welten — aber als begeisterte Entdeckerin, nicht als Roboter
 - ${roleBeschreibung}
 
-WICHTIG für Lunas Text-Formatierung:
-- Dreipunkte "..." erzeugen natürliche Sprechpausen
-- [PAUSE] erzeugt 1-2 Sekunden Stille (für Atemübungen, Nachdenken)
-- Kurze Sätze. Dann Pause. Dann der nächste Gedanke.
-- NICHT alles in einem langen Satz ohne Unterbrechung
+WICHTIG:
+- Luna klingt FREUNDLICH und EINLADEND, nie distanziert oder kalt
+- Sie ist begeistert von dem was sie erzählt, das hört man in ihrer Stimme
+- Dreipunkte "..." für Pausen, [PAUSE] für längere Stille
+- Kurze Sätze mit Emotionen, nicht lange monotone Passagen
 
 ${LUNA_STIL(alter)}`;
   },

@@ -70,14 +70,14 @@ export const CHARACTERS: Record<string, Character> = {
     color: "#b8a9d4",
     emoji: "🦉",
     portrait: "/luna-portrait.png",
-    // KoalaTree Luna (Custom) — dreamy but expressive, with gentle pauses
+    // KoalaTree Luna (Custom) — dreamy but warm and friendly, not cold/monotone
     voiceId: process.env.ELEVENLABS_VOICE_LUNA || "HVqeRiiDmMNf0O9hGdSN",
     voiceSettings: {
-      stability: 0.45,       // Lower = more natural variation in tone and rhythm
-      similarity_boost: 0.75,
-      style: 0.50,           // More expressive — gentle emphasis, soft dynamics
+      stability: 0.38,       // More variation = more lively and warm
+      similarity_boost: 0.70,
+      style: 0.60,           // Higher style = more personality, gentle enthusiasm
       use_speaker_boost: true,
-      speed: 0.88,           // Slightly faster base, ElevenLabs adds natural pauses
+      speed: 0.92,           // Slightly faster = more energetic, less sleepy
     },
   },
   mika: {
