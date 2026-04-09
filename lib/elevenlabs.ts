@@ -282,14 +282,14 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
   }
 
   for (let i = 0; i < mixedBuffers.length; i++) {
-    // Trim trailing partial words: cut last 150ms and apply longer fade-out (80ms)
+    // Trim trailing partial words: cut last 60ms and apply fade-out (50ms)
     // ElevenLabs sometimes starts the next word at segment end
     let trimmedBuffer = mixedBuffers[i];
-    const trimSamples = Math.floor(24000 * 0.15); // 150ms
+    const trimSamples = Math.floor(24000 * 0.06); // 60ms — enough to catch partial start, not full words
     if (trimmedBuffer.byteLength / 2 > trimSamples * 2) {
       trimmedBuffer = trimmedBuffer.slice(0, trimmedBuffer.byteLength - trimSamples * 2);
     }
-    const fadedBuffer = applyFades(trimmedBuffer, 8, 80);
+    const fadedBuffer = applyFades(trimmedBuffer, 8, 50);
     withGaps.push(fadedBuffer);
 
     // Calculate segment duration in ms
