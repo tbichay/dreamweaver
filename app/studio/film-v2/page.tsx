@@ -192,7 +192,7 @@ export default function StudioV2Page() {
               <CharactersTab project={selectedProject} onUpdate={refreshProject} />
             )}
             {activeTab === "production" && (
-              <ProductionTab project={selectedProject} />
+              <ProductionTab project={selectedProject} onUpdate={refreshProject} />
             )}
           </div>
         </div>
@@ -693,82 +693,275 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
 // ── Production Tab ─────────────────────────────────────────────────
 
-function ProductionTab({ project }: { project: Project }) {
+function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id: string) => void }) {
   const totalSequences = project.sequences.length;
-  const masteredCount = project.sequences.filter((s) => s.status === "mastered").length;
-  const clipsCount = project.sequences.filter((s) => s.status === "clips").length;
+  const audioCount = project.sequences.filter((s) => ["audio", "clips", "mastered"].includes(s.status)).length;
+  const clipsCount = project.sequences.filter((s) => ["clips", "mastered"].includes(s.status)).length;
+
+  if (totalSequences === 0) {
+    return (
+      <div className="text-center py-6 text-white/30 text-sm">
+        <p>Zuerst ein Drehbuch generieren (Tab &apos;Drehbuch&apos;).</p>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-[#f5eed6]">Produktion</h3>
-        {totalSequences > 0 && (
-          <div className="text-[10px] text-white/30">
-            {masteredCount}/{totalSequences} fertig
-            {clipsCount > 0 && ` · ${clipsCount} in Arbeit`}
-          </div>
-        )}
+        <div className="text-[10px] text-white/30">
+          Audio: {audioCount}/{totalSequences} · Clips: {clipsCount}/{totalSequences}
+        </div>
       </div>
 
       {/* Progress Bar */}
-      {totalSequences > 0 && (
-        <div className="mb-4">
-          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#a8d5b8] rounded-full transition-all"
-              style={{ width: `${(masteredCount / totalSequences) * 100}%` }}
+      <div className="mb-4">
+        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-[#a8d5b8] rounded-full transition-all"
+            style={{ width: `${(clipsCount / totalSequences) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Sequence Cards */}
+      <div className="space-y-3">
+        {project.sequences
+          .sort((a, b) => a.orderIndex - b.orderIndex)
+          .map((seq, i) => (
+            <SequenceCard
+              key={seq.id}
+              sequence={seq}
+              index={i}
+              projectId={project.id}
+              onUpdate={() => onUpdate(project.id)}
             />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Sequence Card (within Production Tab) ──────────────────────────
+
+function SequenceCard({
+  sequence,
+  index,
+  projectId,
+  onUpdate,
+}: {
+  sequence: Sequence;
+  index: number;
+  projectId: string;
+  onUpdate: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [audioGenerating, setAudioGenerating] = useState(false);
+  const [clipGenerating, setClipGenerating] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [error, setError] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
+
+  const generateAudio = async () => {
+    setAudioGenerating(true);
+    setProgress("Starte Audio...");
+    setError("");
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const res = await fetch(
+        `/api/studio/projects/${projectId}/sequences/${sequence.id}/audio`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ force: true }),
+          signal: controller.signal,
+        },
+      );
+
+      await consumeSSE(res, {
+        onProgress: setProgress,
+        onError: setError,
+        onDone: () => onUpdate(),
+      });
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") setError((err as Error).message);
+    }
+
+    setAudioGenerating(false);
+    setProgress("");
+    abortRef.current = null;
+  };
+
+  const generateClips = async () => {
+    setClipGenerating(true);
+    setError("");
+    const sceneCount = sequence.sceneCount || 0;
+
+    for (let i = 0; i < sceneCount; i++) {
+      setProgress(`Clip ${i + 1}/${sceneCount}...`);
+
+      try {
+        const res = await fetch(
+          `/api/studio/projects/${projectId}/sequences/${sequence.id}/clips`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sceneIndex: i, quality: "standard" }),
+          },
+        );
+
+        await consumeSSE(res, {
+          onProgress: (p) => setProgress(`Clip ${i + 1}/${sceneCount}: ${p}`),
+          onError: (e) => { setError(`Clip ${i + 1}: ${e}`); },
+          onDone: () => onUpdate(),
+        });
+
+        if (error) break;
+      } catch (err) {
+        setError(`Clip ${i + 1}: ${(err as Error).message}`);
+        break;
+      }
+    }
+
+    setClipGenerating(false);
+    setProgress("");
+  };
+
+  const isGenerating = audioGenerating || clipGenerating;
+  const canGenerateAudio = sequence.status === "storyboard" || sequence.status === "draft";
+  const canGenerateClips = ["audio", "clips"].includes(sequence.status);
+
+  return (
+    <div className="card overflow-hidden">
+      {/* Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-3 flex items-center justify-between text-left"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-[10px] text-white/20 w-5 text-right">{index + 1}</span>
+          <div>
+            <p className="text-xs font-medium text-[#f5eed6]">{sequence.name}</p>
+            <p className="text-[8px] text-white/25">
+              {sequence.location && `${sequence.location} · `}
+              {sequence.sceneCount ? `${sequence.sceneCount} Szenen` : ""}
+            </p>
           </div>
         </div>
-      )}
-
-      {totalSequences === 0 ? (
-        <div className="text-center py-6 text-white/30 text-sm">
-          <p>Zuerst ein Drehbuch generieren (Tab &apos;Drehbuch&apos;).</p>
+        <div className="flex items-center gap-2">
+          <span className={`text-[8px] px-2 py-0.5 rounded-full ${seqStatusColor(sequence.status)}`}>
+            {seqStatusLabel(sequence.status)}
+          </span>
+          <span className="text-white/20 text-[10px]">{expanded ? "▲" : "▼"}</span>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {project.sequences
-            .sort((a, b) => a.orderIndex - b.orderIndex)
-            .map((seq, i) => (
-              <div key={seq.id} className="card p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] text-white/20 w-5 text-right">{i + 1}</span>
-                    <div>
-                      <p className="text-xs font-medium text-[#f5eed6]">{seq.name}</p>
-                      <p className="text-[8px] text-white/25">
-                        {seq.location && `${seq.location} · `}
-                        {seq.sceneCount ? `${seq.sceneCount} Szenen` : seq.status}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`text-[8px] px-2 py-0.5 rounded-full ${
-                    seq.status === "mastered" ? "bg-[#a8d5b8]/20 text-[#a8d5b8]" :
-                    seq.status === "clips" ? "bg-[#d4a853]/20 text-[#d4a853]" :
-                    seq.status === "audio" ? "bg-blue-500/20 text-blue-300" :
-                    "bg-white/5 text-white/30"
-                  }`}>
-                    {seq.status === "mastered" ? "Fertig" :
-                     seq.status === "clips" ? "Clips" :
-                     seq.status === "audio" ? "Audio" :
-                     seq.status === "storyboard" ? "Storyboard" :
-                     "Entwurf"}
-                  </span>
-                </div>
-              </div>
-            ))}
-        </div>
-      )}
+      </button>
 
-      {/* Future: Batch generation controls will go here */}
-      {totalSequences > 0 && masteredCount < totalSequences && (
-        <div className="mt-4 pt-3 border-t border-white/5 text-center">
-          <p className="text-[10px] text-white/20">
-            Audio- und Clip-Generierung kommt im naechsten Update.
-          </p>
+      {/* Expanded content */}
+      {expanded && (
+        <div className="px-3 pb-3 space-y-3 border-t border-white/5 pt-3">
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2">
+            {canGenerateAudio && !isGenerating && (
+              <button
+                onClick={generateAudio}
+                className="text-[10px] px-3 py-1.5 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30"
+              >
+                🔊 Audio generieren
+              </button>
+            )}
+            {canGenerateClips && !isGenerating && (
+              <button
+                onClick={generateClips}
+                className="text-[10px] px-3 py-1.5 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30"
+              >
+                🎬 Clips generieren
+              </button>
+            )}
+            {sequence.status === "audio" && !isGenerating && (
+              <button
+                onClick={generateAudio}
+                className="text-[10px] px-3 py-1.5 bg-white/5 text-white/30 rounded-lg hover:text-white/50"
+              >
+                🔄 Audio neu
+              </button>
+            )}
+            {isGenerating && (
+              <button
+                onClick={() => abortRef.current?.abort()}
+                className="text-[10px] px-3 py-1.5 bg-red-500/20 text-red-300 rounded-lg"
+              >
+                Abbrechen
+              </button>
+            )}
+          </div>
+
+          {/* Progress */}
+          {isGenerating && progress && (
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 border-2 border-[#a8d5b8] border-t-transparent rounded-full animate-spin" />
+              <span className="text-[10px] text-white/40">{progress}</span>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="text-[10px] text-red-300 bg-red-500/10 rounded-lg px-2.5 py-1.5">
+              {error}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function seqStatusLabel(s: string) {
+  return s === "mastered" ? "Fertig" :
+    s === "clips" ? "Clips fertig" :
+    s === "audio" ? "Audio fertig" :
+    s === "storyboard" ? "Bereit" :
+    "Entwurf";
+}
+
+function seqStatusColor(s: string) {
+  return s === "mastered" ? "bg-[#a8d5b8]/20 text-[#a8d5b8]" :
+    s === "clips" ? "bg-[#d4a853]/20 text-[#d4a853]" :
+    s === "audio" ? "bg-blue-500/20 text-blue-300" :
+    s === "storyboard" ? "bg-purple-500/20 text-purple-300" :
+    "bg-white/5 text-white/30";
+}
+
+// ── SSE Consumer Helper ────────────────────────────────────────────
+
+async function consumeSSE(
+  res: Response,
+  handlers: { onProgress: (p: string) => void; onError: (e: string) => void; onDone: () => void },
+) {
+  const reader = res.body?.getReader();
+  if (!reader) return;
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      try {
+        const data = JSON.parse(line.slice(6));
+        if (data.progress) handlers.onProgress(data.progress);
+        if (data.error) handlers.onError(data.error);
+        if (data.done && !data.error) handlers.onDone();
+      } catch { /* */ }
+    }
+  }
 }
