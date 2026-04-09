@@ -248,9 +248,16 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
       .map((m) => sfxBuffers.get(m.prompt))
       .filter((b): b is ArrayBuffer => b !== null && b !== undefined);
 
-    // Mix each SFX into the speech buffer at reduced volume
+    // Mix each SFX into the speech buffer at reduced volume, with fade-in
     for (const sfxBuffer of groupSfx) {
-      speechBuffer = mixPcmBuffers(speechBuffer, sfxBuffer, SFX_MIX_VOLUME);
+      // Apply 300ms fade-in to SFX so it doesn't blast at segment start
+      const sfxCopy = sfxBuffer.slice(0);
+      const sfxView = new Int16Array(sfxCopy);
+      const fadeInSamples = Math.min(Math.floor(24000 * 0.3), sfxView.length); // 300ms
+      for (let s = 0; s < fadeInSamples; s++) {
+        sfxView[s] = Math.round(sfxView[s] * (s / fadeInSamples));
+      }
+      speechBuffer = mixPcmBuffers(speechBuffer, sfxCopy, SFX_MIX_VOLUME);
     }
 
     mixedBuffers.push(speechBuffer);
