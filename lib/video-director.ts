@@ -21,6 +21,8 @@ export interface FilmScene {
   location: string;
   mood: string;
   camera: "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out" | "slow-zoom-in" | "slow-zoom-out";
+  /** How this scene transitions to the next: cut (hard), flow (smooth), zoom-to-character (landscape→dialog) */
+  transitionTo?: "cut" | "flow" | "zoom-to-character";
   durationHint: number; // seconds
   audioStartMs: number;
   audioEndMs: number;
@@ -61,7 +63,19 @@ Zeige dem Zuschauer WO die Aktion stattfinden wird, BEVOR sie passiert.
 Wenn die Geschichte sagt "Kiki ist lustig" — ZEIGE Kiki wie sie etwas Lustiges tut.
 Wenn die Geschichte sagt "es wurde Nacht" — ZEIGE wie das Licht sich veraendert.
 
-### 3. Reaction Shots
+### 3. Nahtlose Uebergaenge (SEHR WICHTIG!)
+Zwischen Landscape und Dialog darf es KEINEN harten Schnitt geben! Stattdessen:
+- Die LETZTE Landscape-Szene VOR einem Dialog MUSS zum Charakter hinzoomen
+- Beispiel: "Kamera gleitet den Ast entlang und naehert sich Koda, der gemueütlich sitzt" → DANN startet der Dialog im Close-Up
+- Die Landscape-Szene ENDET mit dem Charakter im Bild, der Dialog STARTET mit dem gleichen Framing
+- Fuege ein "transition_to" Feld hinzu: "zoom-to-character" wenn die naechste Szene ein Dialog ist
+
+Fuer JEDEN Szenen-Uebergang entscheide:
+- **"cut"**: Harter Schnitt (nur bei Ortswechsel oder Zeitsprung)
+- **"flow"**: Fliessender Uebergang (Kamera faehrt weiter, gleiche Stimmung)
+- **"zoom-to-character"**: Landscape zoomt zum naechsten Sprecher
+
+### 4. Reaction Shots
 Nach jedem wichtigen Dialog: Zeige kurz die Reaktion anderer Charaktere.
 - Koda sagt etwas Weises → Kurzer Shot auf die anderen die nicken/staunen
 - Kiki macht einen Witz → Kurzer Shot auf Koda der die Augen verdreht
@@ -196,14 +210,20 @@ ${segments.map((s, i) => `${i}: [${s.type}] ${s.characterId || s.sfxPrompt || s.
   "type": "dialog" | "landscape" | "transition",
   "characterId": "koda" | "kiki" | "luna" | "mika" | "pip" | "sage" | "nuki" | null,
   "spokenText": "Gesprochener Text (kurz, max 100 Zeichen)",
-  "sceneDescription": "2-3 Saetze: AKTION + BEWEGUNG + KOERPERSPRACHE",
+  "sceneDescription": "2-3 Saetze: AKTION + BEWEGUNG + KOERPERSPRACHE. Bei zoom-to-character: beschreibe wie die Kamera zum naechsten Sprecher faehrt!",
   "location": "Wo genau am/im/unter dem KoalaTree",
   "mood": "Stimmung, Licht, Tageszeit, Farben",
   "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out" | "slow-zoom-in" | "slow-zoom-out",
+  "transitionTo": "cut" | "flow" | "zoom-to-character",
   "durationHint": Sekunden,
   "audioStartMs": Start-Position in Millisekunden,
   "audioEndMs": End-Position in Millisekunden
 }
+
+REGELN fuer transitionTo:
+- "zoom-to-character": PFLICHT wenn eine landscape/transition Szene VOR einer dialog Szene kommt. Die sceneDescription MUSS beschreiben wie die Kamera zum Charakter faehrt.
+- "flow": Wenn zwei aufeinanderfolgende Szenen am gleichen Ort spielen und visuell zusammenhaengen
+- "cut": Nur bei Ortswechsel oder Zeitsprung
 
 Antworte NUR mit einem JSON-Array.`;
 

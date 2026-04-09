@@ -371,7 +371,11 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         body: JSON.stringify({
           geschichteId: projectId,
           sceneIndex: targetIndex,
-          scene: targetScene,
+          scene: {
+            ...targetScene,
+            // Pass next scene's character for zoom-to-character transitions
+            nextCharacterId: targetIndex < scenes.length - 1 ? scenes[targetIndex + 1]?.characterId : undefined,
+          },
         }),
       });
 

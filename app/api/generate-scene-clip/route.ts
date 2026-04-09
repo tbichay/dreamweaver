@@ -33,6 +33,9 @@ interface SceneInput {
   audioStartMs: number;
   audioEndMs: number;
   quality?: "standard" | "premium";
+  transitionTo?: "cut" | "flow" | "zoom-to-character";
+  /** Character ID of the NEXT scene (for zoom-to-character transitions) */
+  nextCharacterId?: string;
 }
 
 async function loadBuffer(url: string): Promise<Buffer> {
@@ -255,14 +258,24 @@ export async function POST(request: Request) {
           };
           const camera = cameraMap[scene.camera || "wide"] || cameraMap.wide;
           const ambientSound = !hasAudio ? " Gentle ambient forest sounds." : "";
-          const animationPrompt = `${scene.sceneDescription}. ${movements.join(". ")}. ${camera}.${ambientSound} Smooth animation, warm colors.`;
+          // If zoom-to-character: enhance prompt to show camera approaching next speaker
+          let transitionHint = "";
+          if (scene.transitionTo === "zoom-to-character" && scene.nextCharacterId) {
+            const nextChar = CHARACTERS[scene.nextCharacterId as CharacterKey];
+            if (nextChar) {
+              transitionHint = ` The camera slowly zooms in toward ${nextChar.description.split(".")[0]}, ending in a close-up framing ready for dialogue.`;
+            }
+          }
 
-          send({ progress: "Generating landscape video..." });
+          const animationPrompt = `${scene.sceneDescription}. ${movements.join(". ")}. ${camera}.${transitionHint}${ambientSound} Smooth animation, warm colors.`;
 
-          // Load character references
+          send({ progress: scene.transitionTo === "zoom-to-character" ? "Generating zoom-to-character transition..." : "Generating landscape video..." });
+
+          // Load character references (current scene + next character for zoom-to)
           let referenceImages: Buffer[] = [];
-          if (scene.characterId) {
-            try { referenceImages = await loadCharacterReferences(scene.characterId, 3); } catch { /* */ }
+          const charToRef = scene.nextCharacterId || scene.characterId;
+          if (charToRef) {
+            try { referenceImages = await loadCharacterReferences(charToRef, 3); } catch { /* */ }
           }
 
           if (process.env.FAL_KEY) {
