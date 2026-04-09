@@ -290,6 +290,42 @@ export async function klingMultiScene(
   return videoUrls;
 }
 
+// ── VEED Fabric 1.0 — Image + Audio → Lip-Sync Video ($0.08-0.15/s) ──
+
+interface FabricResult {
+  video: { url: string };
+}
+
+/**
+ * Generate a talking video from portrait + audio using VEED Fabric 1.0.
+ * Single API call with lip-sync — no separate LipSync step needed.
+ * Preserves cartoon/illustrated style faithfully.
+ *
+ * KEY ADVANTAGE: Accepts ANY image (not just portrait) as start frame.
+ * So we can pass the last frame from the previous clip → seamless transition.
+ *
+ * Cost: $0.08/s (480p), $0.15/s (720p)
+ */
+export async function fabricDialog(
+  imageBuffer: Buffer,
+  audioBuffer: Buffer,
+  resolution: "480p" | "720p" = "480p",
+): Promise<string> {
+  console.log(`[fal.ai] VEED Fabric 1.0: uploading image + audio (${resolution})...`);
+
+  const imageUrl = await uploadToFal(imageBuffer, "frame.png", "image/png");
+  const audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+
+  const result = await runFal<FabricResult>("veed/fabric-1.0", {
+    image_url: imageUrl,
+    audio_url: audioUrl,
+    resolution,
+  });
+
+  console.log(`[fal.ai] VEED Fabric done: ${result.video.url}`);
+  return result.video.url;
+}
+
 // ── Seedance 1.5 Pro Image-to-Video ($0.26/5s) ────────────────────
 
 interface SeedanceResult {

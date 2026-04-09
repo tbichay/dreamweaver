@@ -165,21 +165,43 @@ export async function POST(request: Request) {
               videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "pro");
             }
           } else if (process.env.FAL_KEY) {
-            // ── STANDARD: Kling Avatar for dialog (best lip-sync), Seedance only for landscape ──
-            try {
-              send({ progress: "Generating dialog with Kling Avatar..." });
-              videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "standard");
-              console.log(`[Scene Clip] Generated with Kling Avatar v2 Standard (fal.ai)`);
-            } catch (falErr) {
-              console.error(`[Scene Clip] fal.ai failed:`, falErr instanceof Error ? falErr.message : falErr);
-              send({ progress: "fal.ai failed, trying Hedra..." });
+            // ── STANDARD: VEED Fabric (image+audio→lip-sync in one call) ──
+            // KEY: Use previous clip's last frame if available → seamless transition
+            let dialogStartImage = portrait; // Default: character portrait
+            if (sceneIndex > 0) {
               try {
-                videoUrl = await generateVideoKlingAvatar({
-                  imageBuffer: portrait, audioBuffer: audioSegment, prompt: fullPrompt,
-                  aspectRatio: "9:16", resolution: "720p",
-                });
-              } catch (hedraErr) {
-                throw new Error(`fal.ai: ${falErr instanceof Error ? falErr.message : "Fehler"}. Hedra: ${hedraErr instanceof Error ? hedraErr.message : "Fehler"}`);
+                const prevIdx = String(sceneIndex - 1).padStart(3, "0");
+                const { blobs: frameBlobs } = await list({ prefix: `films/${geschichteId}/frame-${prevIdx}`, limit: 1 });
+                if (frameBlobs.length > 0) {
+                  dialogStartImage = await loadBuffer(frameBlobs[0].url);
+                  console.log(`[Scene Clip] Using previous frame for seamless dialog transition`);
+                  send({ progress: "Using previous frame for seamless transition..." });
+                }
+              } catch { /* use portrait fallback */ }
+            }
+
+            try {
+              send({ progress: "Generating dialog with VEED Fabric..." });
+              videoUrl = await (await import("@/lib/fal")).fabricDialog(
+                dialogStartImage, audioSegment, "480p"
+              );
+              console.log(`[Scene Clip] Generated with VEED Fabric (fal.ai)`);
+            } catch (fabricErr) {
+              console.warn(`[Scene Clip] VEED Fabric failed:`, fabricErr instanceof Error ? fabricErr.message : fabricErr);
+              send({ progress: "Fabric failed, trying Kling Avatar..." });
+              try {
+                videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "standard");
+                console.log(`[Scene Clip] Fallback to Kling Avatar`);
+              } catch (klingErr) {
+                send({ progress: "Kling failed, trying Hedra..." });
+                try {
+                  videoUrl = await generateVideoKlingAvatar({
+                    imageBuffer: portrait, audioBuffer: audioSegment, prompt: fullPrompt,
+                    aspectRatio: "9:16", resolution: "720p",
+                  });
+                } catch (hedraErr) {
+                  throw new Error(`Alle Provider fehlgeschlagen. Fabric: ${fabricErr instanceof Error ? fabricErr.message : "Fehler"}. Kling: ${klingErr instanceof Error ? klingErr.message : "Fehler"}`);
+                }
               }
             }
           } else {

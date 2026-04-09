@@ -126,7 +126,7 @@ function estimateCostCents(scene: StoryboardScene): number {
     if (isPremium) {
       return Math.ceil(Math.max(5, dur) * 16.4); // Veo 3.1 + LipSync
     }
-    return 33; // Seedance + LipSync ~$0.33 per clip (fixed ~5s)
+    return Math.ceil(Math.max(5, dur) * 8); // VEED Fabric 480p ~$0.08/s
   }
   // Landscape: Premium = Kling Pro, Standard = Seedance
   if (isPremium) return 100; // Kling 3.0 Pro ~$1.00/clip
