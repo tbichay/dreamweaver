@@ -75,8 +75,11 @@ export async function POST(request: Request) {
         } catch { /* stream closed */ }
       };
 
-      // Keep-alive: send progress every 8 seconds
-      const keepAlive = setInterval(() => send({ progress: "generating..." }), 8000);
+      // IMMEDIATELY send first byte to prevent gateway timeout
+      send({ progress: "Starting..." });
+
+      // Keep-alive: send progress every 5 seconds
+      const keepAlive = setInterval(() => send({ progress: "generating..." }), 5000);
 
       try {
         send({ progress: "Loading audio..." });
