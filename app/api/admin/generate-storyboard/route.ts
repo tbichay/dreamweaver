@@ -13,12 +13,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { geschichteId, force, scenes: editedScenes, directingStyle } = await request.json() as {
+    const body = await request.json() as {
       geschichteId: string;
       force?: boolean;
       scenes?: unknown[];
       directingStyle?: string;
+      atmosphere?: string;
+      atmospherePreset?: string;
     };
+    const { geschichteId, force, scenes: editedScenes, directingStyle } = body;
+
+    // Resolve atmosphere: custom text or preset prompt
+    let atmosphere = body.atmosphere;
+    if (!atmosphere && body.atmospherePreset) {
+      const { ATMOSPHERE_PRESETS } = await import("@/lib/directing-styles");
+      atmosphere = ATMOSPHERE_PRESETS[body.atmospherePreset]?.prompt;
+    }
 
     // If scenes are provided, just save them (no generation)
     if (editedScenes && Array.isArray(editedScenes) && editedScenes.length > 0) {
@@ -57,7 +67,7 @@ export async function POST(request: Request) {
         const keepAlive = setInterval(() => send({ progress: "analyzing..." }), 5000);
 
         try {
-          const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined, directingStyle);
+          const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined, directingStyle, atmosphere);
 
           await prisma.geschichte.update({
             where: { id: geschichteId },

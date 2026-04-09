@@ -138,6 +138,7 @@ export async function analyzeStoryForFilm(
   timeline: TimelineEntry[],
   audioDurationSec?: number,
   directingStyle?: string,
+  atmosphere?: string,
 ): Promise<FilmScene[]> {
   // Parse the story segments for context
   const segments = parseStorySegments(storyText);
@@ -231,7 +232,9 @@ Antworte NUR mit einem JSON-Array.`;
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 16000,
-    system: DIRECTOR_SYSTEM + (directingStyle ? "\n\n" + (await import("./directing-styles")).getDirectingStylePrompt(directingStyle) : ""),
+    system: DIRECTOR_SYSTEM
+      + (directingStyle ? "\n\n" + (await import("./directing-styles")).getDirectingStylePrompt(directingStyle) : "")
+      + (atmosphere ? `\n\n## LICHT & ATMOSPHAERE (IDENTISCH in JEDER Szene)\n${atmosphere}\nWiederhole diese Licht-Beschreibung WOERTLICH in jeder sceneDescription. KEIN Lichtwechsel!` : ""),
     messages: [{ role: "user", content: prompt }],
   });
 

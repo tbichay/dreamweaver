@@ -149,6 +149,8 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const [projectTitle, setProjectTitle] = useState("");
   const [renderedFilmUrl, setRenderedFilmUrl] = useState<string | null>(null);
   const [directingStyle, setDirectingStyle] = useState("pixar-classic");
+  const [atmospherePreset, setAtmospherePreset] = useState("golden-hour");
+  const [customAtmosphere, setCustomAtmosphere] = useState("");
   const cancelBatchRef = useRef(false);
   const [batchCostCents, setBatchCostCents] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -341,7 +343,13 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       const res = await fetch("/api/admin/generate-storyboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ geschichteId: projectId, force: scenes.length > 0, directingStyle }),
+        body: JSON.stringify({
+          geschichteId: projectId,
+          force: scenes.length > 0,
+          directingStyle,
+          atmosphere: atmospherePreset === "custom" ? customAtmosphere : undefined,
+          atmospherePreset: atmospherePreset !== "custom" ? atmospherePreset : undefined,
+        }),
       });
 
       // Handle both JSON (cached) and SSE (generation) responses
@@ -717,16 +725,6 @@ export default function FilmEditor({ projectId, onBack }: Props) {
           >
             {regeneratingAudio ? "Audio wird generiert..." : "🔊 Audio neu"}
           </button>
-          <select
-            value={directingStyle}
-            onChange={(e) => setDirectingStyle(e.target.value)}
-            className="text-[9px] py-1 px-1.5 bg-white/5 border border-white/10 rounded text-white/50 shrink-0"
-          >
-            <option value="pixar-classic">🎬 Pixar Classic</option>
-            <option value="long-take">🎥 One Take</option>
-            <option value="dramatic">🎭 Dramatisch</option>
-            <option value="minimal">🧘 Zen</option>
-          </select>
           <button
             onClick={generateStoryboard}
             disabled={generatingStoryboard}
@@ -737,16 +735,51 @@ export default function FilmEditor({ projectId, onBack }: Props) {
             } disabled:cursor-wait`}
           >
             {generatingStoryboard ? (
-              <><span className="animate-spin">⏳</span> AI Director analysiert (~15s)...</>
+              <><span className="animate-spin">⏳</span> Director analysiert...</>
             ) : scenes.length > 0 ? (
               <>🔄 Storyboard neu</>
             ) : (
-              <>🎬 Storyboard generieren</>
+              <>🎬 Storyboard</>
             )}
           </button>
         </div>
 
-        {/* Row 2: Stats + Audio + Timeline */}
+        {/* Row 2: Regie + Atmosphaere */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={directingStyle}
+            onChange={(e) => setDirectingStyle(e.target.value)}
+            className="text-[9px] py-1 px-1.5 bg-white/5 border border-white/10 rounded text-white/50"
+          >
+            <option value="pixar-classic">🎬 Pixar</option>
+            <option value="long-take">🎥 One Take</option>
+            <option value="dramatic">🎭 Drama</option>
+            <option value="minimal">🧘 Zen</option>
+          </select>
+          <select
+            value={atmospherePreset}
+            onChange={(e) => setAtmospherePreset(e.target.value)}
+            className="text-[9px] py-1 px-1.5 bg-white/5 border border-white/10 rounded text-white/50"
+          >
+            <option value="golden-hour">🌅 Golden Hour</option>
+            <option value="blue-hour">🌆 Blaue Stunde</option>
+            <option value="bright-day">☀️ Sonnig</option>
+            <option value="moonlight">🌙 Mondnacht</option>
+            <option value="misty">🌫️ Nebel</option>
+            <option value="custom">✏️ Eigene</option>
+          </select>
+          {atmospherePreset === "custom" && (
+            <input
+              type="text"
+              value={customAtmosphere}
+              onChange={(e) => setCustomAtmosphere(e.target.value)}
+              placeholder="z.B. Warmes Kerzenlicht in einer Hoehle..."
+              className="flex-1 text-[9px] py-1 px-2 bg-white/5 border border-white/10 rounded text-white/60 placeholder-white/20 min-w-[150px]"
+            />
+          )}
+        </div>
+
+        {/* Row 3: Stats + Audio + Timeline */}
         {scenes.length > 0 && (
           <>
             <div className="flex items-center gap-3 text-[10px]">

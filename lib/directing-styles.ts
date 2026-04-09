@@ -202,6 +202,56 @@ Weniger ist mehr. Die Stille spricht. Raum zum Atmen lassen.
 
 export const DEFAULT_DIRECTING_STYLE = "pixar-classic";
 
+// ── Atmosphere Presets ─────────────────────────────────────────────
+
+export interface AtmospherePreset {
+  id: string;
+  name: string;
+  emoji: string;
+  prompt: string;
+}
+
+export const ATMOSPHERE_PRESETS: Record<string, AtmospherePreset> = {
+  "golden-hour": {
+    id: "golden-hour",
+    name: "Goldene Stunde",
+    emoji: "🌅",
+    prompt: "Warm golden sunset light filtering through eucalyptus leaves. Long soft shadows. Everything bathed in amber-orange warmth. Sky gradient from deep orange at horizon to soft gold above. Magical golden glow on all surfaces and characters.",
+  },
+  "blue-hour": {
+    id: "blue-hour",
+    name: "Blaue Stunde",
+    emoji: "🌆",
+    prompt: "Soft blue-purple twilight. Deep blue sky fading to warm pink at the horizon. First stars appearing. Cool blue ambient light with warm golden accents from within the tree. Magical, dreamy atmosphere.",
+  },
+  "bright-day": {
+    id: "bright-day",
+    name: "Sonniger Tag",
+    emoji: "☀️",
+    prompt: "Bright cheerful daylight. Clear blue sky with a few soft white clouds. Warm sunbeams filtering through green canopy creating dappled light patterns. Fresh, vibrant, alive atmosphere.",
+  },
+  "moonlight": {
+    id: "moonlight",
+    name: "Mondnacht",
+    emoji: "🌙",
+    prompt: "Silver moonlight illuminating the scene. Deep blue-purple night sky with glowing full moon and scattered stars. Soft silver-white light on characters. Gentle shadows. Magical fireflies. Peaceful, intimate night atmosphere.",
+  },
+  "misty": {
+    id: "misty",
+    name: "Morgennebel",
+    emoji: "🌫️",
+    prompt: "Soft morning mist swirling between branches. Diffused warm light breaking through fog. Pastel colors — soft pink, lavender, pale gold. Dewdrops glistening on leaves. Mysterious, gentle, awakening atmosphere.",
+  },
+  "custom": {
+    id: "custom",
+    name: "Eigene",
+    emoji: "✏️",
+    prompt: "",
+  },
+};
+
+export const DEFAULT_ATMOSPHERE = "golden-hour";
+
 export function getDirectingStylePrompt(styleId: string): string {
   const style = DIRECTING_STYLES[styleId];
   if (!style) return DIRECTING_STYLES[DEFAULT_DIRECTING_STYLE].prompt;
