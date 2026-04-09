@@ -30,6 +30,21 @@ interface Sequence {
   orderIndex: number;
   location?: string;
   sceneCount?: number;
+  audioUrl?: string;
+  audioDauerSek?: number;
+  videoUrl?: string;
+  scenes?: Array<{
+    id: string;
+    index: number;
+    type: string;
+    sceneDescription: string;
+    characterId?: string;
+    spokenText?: string;
+    audioStartMs: number;
+    audioEndMs: number;
+    videoUrl?: string;
+    status: string;
+  }>;
 }
 
 interface Project {
@@ -40,6 +55,7 @@ interface Project {
   directingStyle?: string;
   atmosphere?: string;
   language?: string;
+  videoUrl?: string;
   characters: Character[];
   sequences: Sequence[];
   createdAt: string;
@@ -768,27 +784,69 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         </div>
       )}
 
-      {/* Existing sequences preview */}
+      {/* Existing sequences with scenes */}
       {project.sequences.length > 0 && !generating && (
         <div>
-          <h4 className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Sequenzen</h4>
-          <div className="space-y-1.5">
+          <h4 className="text-[10px] text-white/30 uppercase tracking-wider mb-2">
+            Drehbuch — {project.sequences.length} Sequenzen
+          </h4>
+          <div className="space-y-3">
             {project.sequences
               .sort((a, b) => a.orderIndex - b.orderIndex)
               .map((seq, i) => (
-                <div key={seq.id} className="flex items-center gap-2 text-xs text-white/50">
-                  <span className="text-white/20 w-5 text-right">{i + 1}.</span>
-                  <span className="text-white/60">{seq.name}</span>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ml-auto ${
-                    seq.status === "mastered" ? "bg-[#a8d5b8]/20 text-[#a8d5b8]" :
-                    seq.status === "clips" ? "bg-[#d4a853]/20 text-[#d4a853]" :
-                    "bg-white/5 text-white/30"
-                  }`}>
-                    {seq.status}
-                  </span>
-                </div>
+                <SequencePreview key={seq.id} sequence={seq} index={i} characters={project.characters} />
               ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sequence Preview (Screenplay Tab) ──────────────────────────────
+
+function SequencePreview({ sequence, index, characters }: { sequence: Sequence; index: number; characters: Character[] }) {
+  const [open, setOpen] = useState(false);
+  const charMap = new Map(characters.map((c) => [c.id, c]));
+
+  return (
+    <div className="bg-white/3 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full px-3 py-2 flex items-center justify-between text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-white/20 w-4 text-right">{index + 1}</span>
+          <div>
+            <span className="text-xs text-white/60">{sequence.name}</span>
+            {sequence.location && (
+              <span className="text-[9px] text-white/25 ml-2">{sequence.location}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-white/25">{sequence.sceneCount || 0} Szenen</span>
+          <span className="text-white/15 text-[10px]">{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+      {open && sequence.scenes && (
+        <div className="px-3 pb-2 space-y-1.5 border-t border-white/5 pt-2">
+          {sequence.scenes.map((scene, si) => {
+            const char = scene.characterId ? charMap.get(scene.characterId) : null;
+            return (
+              <div key={scene.id || si} className="flex items-start gap-2 text-[10px]">
+                <span className="text-white/15 w-4 text-right shrink-0">{si + 1}</span>
+                <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] ${
+                  scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
+                  scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
+                  scene.type === "transition" ? "bg-purple-500/15 text-purple-300" :
+                  "bg-white/5 text-white/20"
+                }`}>{scene.type}</span>
+                {char && <span className="text-[9px] text-white/30">{char.emoji || ""} {char.name}</span>}
+                <span className="text-white/35 flex-1 truncate">{scene.sceneDescription?.slice(0, 80)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1262,6 +1320,45 @@ function SequenceCard({
               </button>
             )}
           </div>
+
+          {/* Audio Player */}
+          {sequence.audioUrl && !isGenerating && (
+            <div>
+              <p className="text-[9px] text-white/25 mb-1">
+                Audio ({sequence.audioDauerSek ? `${Math.round(sequence.audioDauerSek)}s` : ""})
+              </p>
+              <audio
+                controls
+                src={`/api/studio/blob?url=${encodeURIComponent(sequence.audioUrl)}`}
+                className="w-full h-8 opacity-70"
+              />
+            </div>
+          )}
+
+          {/* Scene List */}
+          {sequence.scenes && sequence.scenes.length > 0 && !isGenerating && (
+            <div>
+              <p className="text-[9px] text-white/25 mb-1">Szenen ({sequence.scenes.length})</p>
+              <div className="space-y-1">
+                {sequence.scenes.map((scene, si) => (
+                  <div key={scene.id || si} className="flex items-start gap-2 text-[10px]">
+                    <span className="text-white/15 w-4 text-right shrink-0 pt-0.5">{si + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className={`inline-block px-1 py-0.5 rounded text-[8px] mr-1.5 ${
+                        scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
+                        scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
+                        "bg-white/5 text-white/25"
+                      }`}>{scene.type}</span>
+                      <span className="text-white/40 truncate">
+                        {scene.sceneDescription?.slice(0, 60)}{(scene.sceneDescription?.length || 0) > 60 ? "..." : ""}
+                      </span>
+                      {scene.videoUrl && <span className="text-[#a8d5b8] ml-1">✓</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Progress */}
           {isGenerating && progress && (
