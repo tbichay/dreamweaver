@@ -1373,6 +1373,7 @@ function SequenceCard({
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
   const [clipGenerating, setClipGenerating] = useState(false);
+  const [generatingSceneIdx, setGeneratingSceneIdx] = useState<number | null>(null);
   const [showCostConfirm, setShowCostConfirm] = useState(false);
   const [clipQuality, setClipQuality] = useState<"standard" | "premium">("standard");
   const [progress, setProgress] = useState("");
@@ -1420,6 +1421,35 @@ function SequenceCard({
     setAudioGenerating(false);
     setProgress("");
     abortRef.current = null;
+  };
+
+  const generateSingleClip = async (sceneIndex: number) => {
+    setClipGenerating(true);
+    setGeneratingSceneIdx(sceneIndex);
+    setError("");
+    setProgress(`Clip ${sceneIndex + 1}...`);
+
+    try {
+      const res = await fetch(
+        `/api/studio/projects/${projectId}/sequences/${sequence.id}/clips`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sceneIndex, quality: clipQuality }),
+        },
+      );
+      await consumeSSE(res, {
+        onProgress: (p) => setProgress(`Clip ${sceneIndex + 1}: ${p}`),
+        onError: setError,
+        onDone: () => onUpdate(),
+      });
+    } catch (err) {
+      setError(`Clip ${sceneIndex + 1}: ${(err as Error).message}`);
+    }
+
+    setClipGenerating(false);
+    setGeneratingSceneIdx(null);
+    setProgress("");
   };
 
   const startClipGeneration = () => {
@@ -1586,26 +1616,41 @@ function SequenceCard({
           )}
 
           {/* Scene List */}
-          {sequence.scenes && sequence.scenes.length > 0 && !isGenerating && (
+          {sequence.scenes && sequence.scenes.length > 0 && (
             <div>
               <p className="text-[9px] text-white/25 mb-1">Szenen ({sequence.scenes.length})</p>
-              <div className="space-y-1">
-                {sequence.scenes.map((scene, si) => (
-                  <div key={scene.id || si} className="flex items-start gap-2 text-[10px]">
-                    <span className="text-white/15 w-4 text-right shrink-0 pt-0.5">{si + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <span className={`inline-block px-1 py-0.5 rounded text-[8px] mr-1.5 ${
+              <div className="space-y-1.5">
+                {sequence.scenes.map((scene, si) => {
+                  const isDone = scene.status === "done" && scene.videoUrl;
+                  const isThisGenerating = generatingSceneIdx === si;
+                  return (
+                    <div key={scene.id || si} className="flex items-center gap-2 text-[10px]">
+                      <span className="text-white/15 w-4 text-right shrink-0">{si + 1}</span>
+                      <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] ${
                         scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
                         scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
                         "bg-white/5 text-white/25"
                       }`}>{scene.type}</span>
-                      <span className="text-white/40 truncate">
-                        {scene.sceneDescription?.slice(0, 60)}{(scene.sceneDescription?.length || 0) > 60 ? "..." : ""}
+                      <span className="text-white/35 flex-1 truncate min-w-0">
+                        {scene.sceneDescription?.slice(0, 50)}{(scene.sceneDescription?.length || 0) > 50 ? "..." : ""}
                       </span>
-                      {scene.videoUrl && <span className="text-[#a8d5b8] ml-1">✓</span>}
+                      {isDone ? (
+                        <span className="text-[#a8d5b8] text-[8px] shrink-0">✓ fertig</span>
+                      ) : isThisGenerating ? (
+                        <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin shrink-0" />
+                      ) : canGenerateClips && !isGenerating ? (
+                        <button
+                          onClick={() => generateSingleClip(si)}
+                          className="text-[8px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0"
+                        >
+                          ▶ Clip
+                        </button>
+                      ) : (
+                        <span className="text-white/15 text-[8px] shrink-0">ausstehend</span>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
