@@ -68,6 +68,21 @@ export interface StudioScene {
   clipName?: string;
   status: "pending" | "generating" | "done" | "error";
   quality?: "standard" | "premium";
+
+  // Clip versions
+  versions?: ClipVersion[];
+  activeVersionIdx?: number;
+}
+
+/** A single clip version with metadata */
+export interface ClipVersion {
+  videoUrl: string;
+  provider: string;       // "kling-avatar", "seedance", "veo", etc.
+  quality: "standard" | "premium";
+  cost: number;           // Estimated cost in USD
+  durationSec: number;
+  createdAt: string;       // ISO timestamp
+  thumbnailUrl?: string;
 }
 
 /** A sequence — one continuous location/atmosphere */

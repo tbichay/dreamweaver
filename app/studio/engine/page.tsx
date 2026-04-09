@@ -45,6 +45,16 @@ interface Sequence {
     audioEndMs: number;
     videoUrl?: string;
     status: string;
+    quality?: string;
+    versions?: Array<{
+      videoUrl: string;
+      provider: string;
+      quality: string;
+      cost: number;
+      durationSec: number;
+      createdAt: string;
+    }>;
+    activeVersionIdx?: number;
   }>;
 }
 
@@ -1615,7 +1625,7 @@ function SequenceCard({
             </div>
           )}
 
-          {/* Scene List with Clip Previews */}
+          {/* Scene List with Clip Versions */}
           {sequence.scenes && sequence.scenes.length > 0 && (
             <div>
               <p className="text-[9px] text-white/25 mb-1">
@@ -1624,51 +1634,19 @@ function SequenceCard({
                   ` · ${sequence.scenes.filter((s) => s.status === "done").length} Clips fertig`}
               </p>
               <div className="space-y-2">
-                {sequence.scenes.map((scene, si) => {
-                  const isDone = scene.status === "done" && scene.videoUrl;
-                  const isThisGenerating = generatingSceneIdx === si;
-                  return (
-                    <div key={scene.id || si} className="rounded-lg overflow-hidden bg-white/[0.02]">
-                      {/* Scene header row */}
-                      <div className="flex items-center gap-2 text-[10px] px-2 py-1.5">
-                        <span className="text-white/15 w-4 text-right shrink-0">{si + 1}</span>
-                        <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] ${
-                          scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
-                          scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
-                          "bg-white/5 text-white/25"
-                        }`}>{scene.type}</span>
-                        <span className="text-white/35 flex-1 truncate min-w-0">
-                          {scene.sceneDescription?.slice(0, 50)}{(scene.sceneDescription?.length || 0) > 50 ? "..." : ""}
-                        </span>
-                        {isDone ? (
-                          <span className="text-[#a8d5b8] text-[8px] shrink-0">✓</span>
-                        ) : isThisGenerating ? (
-                          <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin shrink-0" />
-                        ) : canGenerateClips && !isGenerating ? (
-                          <button
-                            onClick={() => generateSingleClip(si)}
-                            className="text-[8px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0"
-                          >
-                            ▶ Clip
-                          </button>
-                        ) : (
-                          <span className="text-white/15 text-[8px] shrink-0">—</span>
-                        )}
-                      </div>
-                      {/* Clip video preview */}
-                      {isDone && scene.videoUrl && (
-                        <div className="px-2 pb-2">
-                          <video
-                            src={portraitSrc(scene.videoUrl)}
-                            controls
-                            preload="metadata"
-                            className="w-full max-h-[200px] rounded-lg bg-black/30"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {sequence.scenes.map((scene, si) => (
+                  <SceneClipCard
+                    key={scene.id || si}
+                    scene={scene}
+                    sceneIndex={si}
+                    sequenceId={sequence.id}
+                    projectId={projectId}
+                    isGenerating={generatingSceneIdx === si}
+                    canGenerate={canGenerateClips && !isGenerating}
+                    onGenerate={() => generateSingleClip(si)}
+                    onUpdate={onUpdate}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -1687,6 +1665,148 @@ function SequenceCard({
               {error}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Scene Clip Card (with versions) ────────────────────────────────
+
+function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating, canGenerate, onGenerate, onUpdate }: {
+  scene: NonNullable<Sequence["scenes"]>[number];
+  sceneIndex: number;
+  sequenceId: string;
+  projectId: string;
+  isGenerating: boolean;
+  canGenerate: boolean;
+  onGenerate: () => void;
+  onUpdate: () => void;
+}) {
+  const [expandedVideo, setExpandedVideo] = useState<string | null>(null);
+  const isDone = scene.status === "done" && scene.videoUrl;
+  const versions = scene.versions || [];
+  const activeIdx = scene.activeVersionIdx ?? (versions.length - 1);
+
+  const setActiveVersion = async (vIdx: number) => {
+    await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}/clips`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sceneIndex, action: "setActive", versionIdx: vIdx }),
+    });
+    onUpdate();
+  };
+
+  const deleteVersion = async (vIdx: number) => {
+    await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}/clips`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sceneIndex, action: "deleteVersion", versionIdx: vIdx }),
+    });
+    onUpdate();
+  };
+
+  return (
+    <div className="rounded-lg overflow-hidden bg-white/[0.02]">
+      {/* Scene header */}
+      <div className="flex items-center gap-2 text-[10px] px-2 py-1.5">
+        <span className="text-white/15 w-4 text-right shrink-0">{sceneIndex + 1}</span>
+        <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] ${
+          scene.type === "dialog" ? "bg-blue-500/15 text-blue-300" :
+          scene.type === "landscape" ? "bg-green-500/15 text-green-300" :
+          "bg-white/5 text-white/25"
+        }`}>{scene.type}</span>
+        <span className="text-white/35 flex-1 truncate min-w-0">
+          {scene.sceneDescription?.slice(0, 45)}{(scene.sceneDescription?.length || 0) > 45 ? "..." : ""}
+        </span>
+        {isGenerating ? (
+          <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin shrink-0" />
+        ) : canGenerate ? (
+          <button onClick={onGenerate} className="text-[8px] px-2 py-0.5 bg-[#d4a853]/15 text-[#d4a853] rounded hover:bg-[#d4a853]/25 shrink-0">
+            {isDone ? "🔄 Neu" : "▶ Clip"}
+          </button>
+        ) : isDone ? (
+          <span className="text-[#a8d5b8] text-[8px] shrink-0">✓</span>
+        ) : null}
+      </div>
+
+      {/* Version cards — horizontal scroll */}
+      {versions.length > 0 && (
+        <div className="px-2 pb-2">
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+            {versions.map((v, vi) => {
+              const isActive = vi === activeIdx;
+              return (
+                <div
+                  key={vi}
+                  className={`shrink-0 w-28 rounded-lg overflow-hidden cursor-pointer border transition-all ${
+                    isActive ? "border-[#a8d5b8]/50 ring-1 ring-[#a8d5b8]/20" : "border-white/5 hover:border-white/15"
+                  }`}
+                  onClick={() => setExpandedVideo(expandedVideo === v.videoUrl ? null : v.videoUrl)}
+                >
+                  {/* Thumbnail video */}
+                  <video
+                    src={portraitSrc(v.videoUrl)}
+                    preload="metadata"
+                    muted
+                    className="w-full h-16 object-cover bg-black/30"
+                  />
+                  {/* Meta info */}
+                  <div className="p-1.5 space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] text-white/30">{v.provider}</span>
+                      <span className="text-[7px] text-white/20">${v.cost.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] text-white/20">{v.durationSec.toFixed(1)}s · {v.quality}</span>
+                      {!isActive && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActiveVersion(vi); }}
+                          className="text-[7px] text-[#a8d5b8]/60 hover:text-[#a8d5b8]"
+                        >
+                          aktivieren
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[6px] text-white/15">
+                        {v.createdAt ? new Date(v.createdAt).toLocaleTimeString("de", { hour: "2-digit", minute: "2-digit" }) : ""}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteVersion(vi); }}
+                        className="text-[7px] text-red-400/40 hover:text-red-400"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Expanded video player */}
+          {expandedVideo && (
+            <div className="mt-2">
+              <video
+                src={portraitSrc(expandedVideo)}
+                controls
+                autoPlay
+                className="w-full max-h-[300px] rounded-lg bg-black/30"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Single video fallback for scenes with videoUrl but no versions array */}
+      {isDone && scene.videoUrl && versions.length === 0 && (
+        <div className="px-2 pb-2">
+          <video
+            src={portraitSrc(scene.videoUrl)}
+            controls
+            preload="metadata"
+            className="w-full max-h-[200px] rounded-lg bg-black/30"
+          />
         </div>
       )}
     </div>

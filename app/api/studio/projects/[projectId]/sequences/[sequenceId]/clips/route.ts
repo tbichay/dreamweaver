@@ -2,6 +2,7 @@
  * Studio Sequence Clips API — Generate video clips for sequence scenes
  *
  * POST: Generate a single scene clip (SSE streaming)
+ * PUT: Set active version or delete a version
  */
 
 import { auth } from "@/lib/auth";
@@ -250,19 +251,62 @@ export async function POST(
           console.warn("[Clip] Frame extraction failed:", err);
         }
 
-        // Save clip to Blob
+        // Save clip to Blob (versioned path)
         send({ progress: "Speichere Clip..." });
         const videoRes = await fetch(videoUrl);
         const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
-        const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(body.sceneIndex).padStart(3, "0")}.mp4`;
+        const timestamp = Date.now();
+        const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(body.sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`;
         const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
-        // Update scene in DB
-        const updatedScenes = scenes.map((s, i) =>
-          i === body.sceneIndex
-            ? { ...s, videoUrl: clipBlob.url, status: "done" as const, quality }
-            : s,
-        );
+        // Detect which provider was used
+        const provider = isDialog
+          ? (quality === "premium" ? "veo+lipsync" : "kling-avatar")
+          : (quality === "premium" ? "kling-pro" : "seedance");
+
+        const clipDurSec = hasAudio
+          ? (scene.audioEndMs - scene.audioStartMs) / 1000
+          : scene.durationHint || 5;
+
+        const estimatedCost = isDialog
+          ? (quality === "premium" ? 0.55 : 0.28)
+          : (quality === "premium" ? 0.84 : 0.13);
+
+        // Build new version entry
+        const newVersion = {
+          videoUrl: clipBlob.url,
+          provider,
+          quality,
+          cost: estimatedCost,
+          durationSec: clipDurSec,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Update scene in DB with version history
+        const updatedScenes = scenes.map((s, i) => {
+          if (i !== body.sceneIndex) return s;
+          const existingVersions = s.versions || [];
+          // If scene already had a videoUrl but no versions array, migrate it
+          if (s.videoUrl && existingVersions.length === 0) {
+            existingVersions.push({
+              videoUrl: s.videoUrl,
+              provider: "unknown",
+              quality: s.quality || "standard",
+              cost: 0,
+              durationSec: clipDurSec,
+              createdAt: s.videoUrl.includes("-v") ? "" : new Date().toISOString(),
+            });
+          }
+          const versions = [...existingVersions, newVersion];
+          return {
+            ...s,
+            videoUrl: clipBlob.url,
+            status: "done" as const,
+            quality,
+            versions,
+            activeVersionIdx: versions.length - 1,
+          };
+        });
 
         const doneCount = updatedScenes.filter((s) => s.status === "done").length;
         await prisma.studioSequence.update({
@@ -295,6 +339,70 @@ export async function POST(
   return new Response(readable, {
     headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
   });
+}
+
+/** Set active version or delete a version */
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ projectId: string; sequenceId: string }> },
+) {
+  const session = await auth();
+  if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { projectId, sequenceId } = await params;
+  const body = await request.json() as {
+    sceneIndex: number;
+    action: "setActive" | "deleteVersion";
+    versionIdx: number;
+  };
+
+  const sequence = await prisma.studioSequence.findFirst({
+    where: { id: sequenceId, project: { id: projectId, userId: session.user.id } },
+  });
+  if (!sequence) return Response.json({ error: "Nicht gefunden" }, { status: 404 });
+
+  const scenes = (sequence.scenes as unknown as StudioScene[]) || [];
+  const scene = scenes[body.sceneIndex];
+  if (!scene) return Response.json({ error: "Szene nicht gefunden" }, { status: 404 });
+
+  const versions = scene.versions || [];
+
+  if (body.action === "setActive") {
+    if (body.versionIdx < 0 || body.versionIdx >= versions.length) {
+      return Response.json({ error: "Version nicht gefunden" }, { status: 404 });
+    }
+    scene.activeVersionIdx = body.versionIdx;
+    scene.videoUrl = versions[body.versionIdx].videoUrl;
+  } else if (body.action === "deleteVersion") {
+    if (versions.length <= 1) {
+      // Delete last version = reset scene
+      scene.versions = [];
+      scene.activeVersionIdx = undefined;
+      scene.videoUrl = undefined;
+      scene.status = "pending";
+    } else {
+      versions.splice(body.versionIdx, 1);
+      scene.versions = versions;
+      // Adjust activeVersionIdx
+      if (scene.activeVersionIdx !== undefined && scene.activeVersionIdx >= versions.length) {
+        scene.activeVersionIdx = versions.length - 1;
+      }
+      scene.videoUrl = versions[scene.activeVersionIdx || 0]?.videoUrl;
+    }
+  }
+
+  scenes[body.sceneIndex] = scene;
+  const doneCount = scenes.filter((s) => s.status === "done").length;
+
+  await prisma.studioSequence.update({
+    where: { id: sequenceId },
+    data: {
+      scenes: JSON.parse(JSON.stringify(scenes)),
+      clipCount: doneCount,
+    },
+  });
+
+  return Response.json({ scene, doneCount });
 }
 
 function buildScenePrompt(scene: StudioScene, charDescription?: string | null, stylePrompt?: string | null): string {
