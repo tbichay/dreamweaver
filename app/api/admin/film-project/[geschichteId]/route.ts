@@ -63,10 +63,16 @@ export async function GET(
       if (b.pathname.includes("/versions/")) continue; // Skip version backups
       const name = b.pathname.split("/").pop() || "";
 
-      // Parse timing-based name: clip-4000-9000-koda.mp4
-      const timingMatch = name.match(/^clip-(\d+)-(\d+)-(.+)\.mp4$/);
+      // Parse new format: clip-003-4000-9000-koda.mp4 (with scene index)
+      const newMatch = name.match(/^clip-(\d+)-(\d+)-(\d+)-(.+)\.mp4$/);
+      // Parse old format: clip-4000-9000-koda.mp4 (without scene index)
+      const oldTimingMatch = !newMatch ? name.match(/^clip-(\d+)-(\d+)-(.+)\.mp4$/) : null;
       // Parse index-based name: scene-003.mp4
       const indexMatch = name.match(/^scene-(\d+)\.mp4$/);
+
+      const timingMatch = newMatch
+        ? [null, newMatch[2], newMatch[3], newMatch[4]] // Extract timing from new format
+        : oldTimingMatch;
 
       if (timingMatch) {
         // Check for metadata JSON
@@ -80,6 +86,7 @@ export async function GET(
         }
 
         existingClips.push({
+          sceneIndex: newMatch ? parseInt(newMatch[1]) : undefined,
           audioStartMs: parseInt(timingMatch[1]),
           audioEndMs: parseInt(timingMatch[2]),
           characterId: timingMatch[3] === "landscape" ? undefined : timingMatch[3],
@@ -109,16 +116,16 @@ export async function GET(
     const sceneEnd = scene.audioEndMs as number;
     const sceneChar = scene.characterId as string | undefined;
 
-    // Priority 1: Match by audio timing (within 500ms tolerance)
-    let clip = existingClips.find((c) =>
-      c.audioStartMs !== undefined &&
-      Math.abs((c.audioStartMs || 0) - sceneStart) < 500 &&
-      Math.abs((c.audioEndMs || 0) - sceneEnd) < 500
-    );
+    // Priority 1: Match by scene index in new clip format (clip-003-...)
+    let clip = existingClips.find((c) => c.sceneIndex === i);
 
-    // Priority 2: Match by scene index (backward compatibility)
+    // Priority 2: Match by audio timing (within 500ms tolerance)
     if (!clip) {
-      clip = existingClips.find((c) => c.sceneIndex === i);
+      clip = existingClips.find((c) =>
+        c.audioStartMs !== undefined &&
+        Math.abs((c.audioStartMs || 0) - sceneStart) < 500 &&
+        Math.abs((c.audioEndMs || 0) - sceneEnd) < 500
+      );
     }
 
     return {

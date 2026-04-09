@@ -254,8 +254,8 @@ export async function POST(request: Request) {
 
         const paddedIdx = String(sceneIndex).padStart(3, "0");
         const charId = scene.characterId || "landscape";
-        // Timing-based clip name: survives storyboard regeneration
-        const clipName = `clip-${scene.audioStartMs}-${scene.audioEndMs}-${charId}`;
+        // Include scene index to prevent collisions when multiple scenes share timing
+        const clipName = `clip-${paddedIdx}-${scene.audioStartMs}-${scene.audioEndMs}-${charId}`;
 
         // Versioned copy (never deleted)
         await put(`films/${geschichteId}/versions/${clipName}-v${Date.now()}.mp4`, videoBuffer,
