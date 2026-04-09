@@ -1006,17 +1006,20 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                       {/* Clip Versions — horizontal scrollable cards */}
                       {scene.promptVersions && scene.promptVersions.length > 1 && (
                         <div>
-                          <p className="text-[8px] text-white/25 mb-1">{scene.promptVersions.length} Versionen</p>
-                          <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
+                          <p className="text-[9px] text-white/50 mb-2 font-medium">{scene.promptVersions.length} Versionen</p>
+                          <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
                             {scene.promptVersions.map((ver, vi) => {
                               const isActive = ver.isSelected || ver.id === scene.selectedPromptId;
+                              const meta = (ver as unknown as { provider?: string; estimatedCostUsd?: string }).provider;
                               return (
                                 <div
                                   key={ver.id}
-                                  className={`shrink-0 rounded-lg overflow-hidden cursor-pointer transition-all ${
-                                    isActive ? "ring-2 ring-[#d4a853]" : "ring-1 ring-white/10 opacity-60 hover:opacity-100"
+                                  className={`shrink-0 rounded-xl overflow-hidden cursor-pointer transition-all ${
+                                    isActive
+                                      ? "ring-2 ring-[#d4a853] shadow-[0_0_12px_rgba(212,168,83,0.2)]"
+                                      : "ring-1 ring-white/15 opacity-70 hover:opacity-100 hover:ring-white/30"
                                   }`}
-                                  style={{ width: 80 }}
+                                  style={{ width: 110 }}
                                   onClick={() => {
                                     const u = [...scenes];
                                     u[i] = {
@@ -1037,21 +1040,26 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                                   }}
                                 >
                                   {/* Video thumbnail */}
-                                  <div className="w-20 h-12 bg-[#1a2e1a] relative">
+                                  <div className="w-[110px] h-16 bg-[#0a1a0a] relative">
                                     {ver.videoUrl ? (
                                       <video src={ver.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
                                     ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-[8px] text-white/20">kein Video</div>
+                                      <div className="w-full h-full flex items-center justify-center text-[9px] text-white/30">kein Video</div>
                                     )}
                                     {isActive && (
-                                      <div className="absolute top-0.5 left-0.5 bg-[#d4a853] text-black text-[6px] px-1 rounded font-bold">Aktiv</div>
+                                      <div className="absolute top-1 left-1 bg-[#d4a853] text-black text-[7px] px-1.5 py-0.5 rounded-md font-bold shadow">Aktiv</div>
                                     )}
                                   </div>
                                   {/* Info */}
-                                  <div className="p-1 bg-white/5">
-                                    <p className="text-[7px] text-white/40 truncate">v{vi + 1}</p>
-                                    <p className="text-[6px] text-white/20 truncate">{ver.createdAt?.substring(11, 16) || ""}</p>
-                                    {/* Delete button */}
+                                  <div className="p-1.5 bg-white/[0.03]">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[9px] text-white/70 font-medium">v{vi + 1}</span>
+                                      <span className="text-[8px] text-white/40">{ver.createdAt?.substring(11, 16) || ""}</span>
+                                    </div>
+                                    {meta && (
+                                      <p className="text-[7px] text-[#a8d5b8]/60 truncate mt-0.5">{meta.replace("fal.ai/", "")}</p>
+                                    )}
+                                    <p className="text-[7px] text-white/30 truncate mt-0.5">{ver.prompt?.substring(0, 30)}...</p>
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1060,7 +1068,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                                         u[i] = { ...u[i], promptVersions: (u[i].promptVersions || []).filter((v) => v.id !== ver.id) };
                                         setScenes(u);
                                       }}
-                                      className="text-[6px] text-red-400/30 hover:text-red-400/70 mt-0.5"
+                                      className="text-[8px] text-red-400/40 hover:text-red-400/80 mt-1"
                                     >
                                       Loeschen
                                     </button>
@@ -1177,8 +1185,8 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                             </button>
                             <div className="flex-1 min-w-0">
                               {scene.clipMetadata && (
-                                <div className="text-[7px] text-white/20 mb-1 space-y-0.5">
-                                  <p>{scene.clipMetadata.provider} · {scene.clipMetadata.audioDurationSec}s · ~${scene.clipMetadata.estimatedCostUsd}</p>
+                                <div className="text-[8px] text-white/40 mb-1.5 space-y-0.5">
+                                  <p className="text-[#a8d5b8]/60">{scene.clipMetadata.provider?.replace("fal.ai/", "")} · {scene.clipMetadata.audioDurationSec}s · ~${scene.clipMetadata.estimatedCostUsd}</p>
                                   <p>{scene.clipMetadata.generatedAt?.substring(0, 16)?.replace("T", " ")}</p>
                                 </div>
                               )}
