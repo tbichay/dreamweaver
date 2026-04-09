@@ -19,25 +19,25 @@ function ensureConfigured() {
 
 // ── File Upload Helper ─────────────────────────────────────────────
 
-// Cache uploaded URLs by content hash to avoid re-uploading same files
-const uploadCache = new Map<string, string>();
+// Cache uploaded URLs with timestamp — URLs expire after ~10 minutes
+const uploadCache = new Map<string, { url: string; timestamp: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes (conservative, URLs last ~10min)
 
 function bufferHash(buffer: Buffer): string {
-  // Simple hash: first 32 bytes + length
   return `${buffer.subarray(0, 32).toString("hex")}_${buffer.byteLength}`;
 }
 
 export async function uploadToFal(buffer: Buffer, filename: string, contentType: string): Promise<string> {
   const hash = bufferHash(buffer);
   const cached = uploadCache.get(hash);
-  if (cached) {
-    console.log(`[fal.ai] Using cached upload for ${filename}`);
-    return cached;
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    console.log(`[fal.ai] Using cached upload for ${filename} (${((Date.now() - cached.timestamp) / 1000).toFixed(0)}s old)`);
+    return cached.url;
   }
   ensureConfigured();
   const file = new File([new Uint8Array(buffer)], filename, { type: contentType });
   const url = await fal.storage.upload(file);
-  uploadCache.set(hash, url);
+  uploadCache.set(hash, { url, timestamp: Date.now() });
   return url;
 }
 

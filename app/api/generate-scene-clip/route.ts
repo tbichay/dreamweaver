@@ -270,12 +270,13 @@ export async function POST(request: Request) {
             const isPremiumLandscape = scene.quality === "premium";
 
             if (isPremiumLandscape) {
-              // Premium: Kling 3.0 Pro (no Elements — they cause download errors)
+              // Premium: Kling 3.0 Pro with character references
               send({ progress: "Generating landscape (Kling 3.0 Pro)..." });
               try {
                 videoUrl = await klingI2V({
                   imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
                   aspectRatio: "9:16", quality: "pro",
+                  characterElements: referenceImages.length > 0 ? referenceImages.slice(0, 1) : undefined, // Max 1 element to avoid URL expiry
                   generateAudio: !hasAudio,
                 });
               } catch (klingErr) {
