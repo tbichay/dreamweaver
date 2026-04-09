@@ -165,7 +165,29 @@ export async function POST(
           }
         } else {
           // ── LANDSCAPE / TRANSITION ──
-          const imageSource = prevFrame || portraitBuffer;
+          // Load sequence landscape image as fallback
+          let landscapeBuffer: Buffer | undefined;
+          if (sequence.landscapeRefUrl) {
+            try {
+              const lsUrl = resolveUrl(sequence.landscapeRefUrl);
+              // Private blob URLs need the blob SDK, public URLs can be fetched directly
+              if (lsUrl.includes(".blob.vercel-storage.com")) {
+                const lsBlob = await get(lsUrl, { access: "private" });
+                if (lsBlob?.stream) {
+                  const reader = lsBlob.stream.getReader();
+                  const chunks: Uint8Array[] = [];
+                  let chunk;
+                  while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+                  landscapeBuffer = Buffer.concat(chunks);
+                }
+              } else {
+                const lsRes = await fetch(lsUrl);
+                if (lsRes.ok) landscapeBuffer = Buffer.from(await lsRes.arrayBuffer());
+              }
+            } catch { /* no landscape */ }
+          }
+
+          const imageSource = prevFrame || landscapeBuffer || portraitBuffer;
           if (!imageSource) {
             send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Portrait zuweisen.`, skipped: true });
             clearInterval(keepAlive);

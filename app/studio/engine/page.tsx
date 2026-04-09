@@ -33,6 +33,7 @@ interface Sequence {
   audioUrl?: string;
   audioDauerSek?: number;
   videoUrl?: string;
+  landscapeRefUrl?: string;
   scenes?: Array<{
     id: string;
     index: number;
@@ -1250,6 +1251,98 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   );
 }
 
+// ── Landscape Section (within SequenceCard) ────────────────────────
+
+function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequence; projectId: string; onUpdate: () => void }) {
+  const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [showPrompt, setShowPrompt] = useState(false);
+
+  const generateLandscape = async () => {
+    setGenerating(true);
+    try {
+      await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}/landscape`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: customPrompt || undefined }),
+      });
+      onUpdate();
+    } catch { /* */ }
+    setGenerating(false);
+  };
+
+  const uploadLandscape = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}/landscape`, {
+        method: "POST",
+        body: formData,
+      });
+      onUpdate();
+    } catch { /* */ }
+    setUploading(false);
+  };
+
+  return (
+    <div>
+      <p className="text-[9px] text-white/25 mb-1.5">Landscape / Hintergrund</p>
+      {sequence.landscapeRefUrl ? (
+        <div className="relative group">
+          <img
+            src={portraitSrc(sequence.landscapeRefUrl)}
+            alt="Landscape"
+            className="w-full h-24 object-cover rounded-lg"
+          />
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 rounded-lg transition-opacity">
+            <button onClick={generateLandscape} disabled={generating} className="text-[9px] px-2 py-1 bg-white/20 text-white rounded">
+              {generating ? "..." : "🔄 Neu"}
+            </button>
+            <label className="text-[9px] px-2 py-1 bg-white/20 text-white rounded cursor-pointer">
+              📷 Upload
+              <input type="file" accept="image/*" onChange={uploadLandscape} className="hidden" />
+            </label>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowPrompt(!showPrompt)}
+            className="text-[9px] px-2.5 py-1.5 bg-[#d4a853]/15 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/25"
+          >
+            {generating ? "Generiert..." : "🎨 AI Landscape"}
+          </button>
+          <label className="text-[9px] px-2.5 py-1.5 bg-white/5 text-white/30 rounded-lg hover:text-white/50 cursor-pointer">
+            {uploading ? "..." : "📷 Upload"}
+            <input type="file" accept="image/*" onChange={uploadLandscape} className="hidden" />
+          </label>
+        </div>
+      )}
+      {showPrompt && !sequence.landscapeRefUrl && (
+        <div className="mt-2 flex gap-2">
+          <input
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            placeholder={`z.B. ${sequence.location || "Magischer Wald"} bei Sonnenuntergang`}
+            className="flex-1 text-[10px] bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/60 placeholder-white/20"
+          />
+          <button
+            onClick={generateLandscape}
+            disabled={generating}
+            className="text-[9px] px-3 py-1.5 bg-[#d4a853] text-black rounded-lg font-medium disabled:opacity-50"
+          >
+            {generating ? "..." : "Generieren"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Sequence Card (within Production Tab) ──────────────────────────
 
 function SequenceCard({
@@ -1276,9 +1369,11 @@ function SequenceCard({
   const sceneCount = sequence.sceneCount || sequence.scenes?.length || 0;
   const dialogScenes = sequence.scenes?.filter((s) => s.type === "dialog").length || Math.ceil(sceneCount * 0.6);
   const landscapeScenes = sceneCount - dialogScenes;
+  // Cost per ~5s clip: Dialog=Kling Avatar ~$0.28, Landscape=Seedance ~$0.13
+  // Premium: Dialog=Veo+LipSync ~$0.55, Landscape=Kling Pro ~$0.84
   const estimatedCost = clipQuality === "premium"
-    ? dialogScenes * 0.17 + landscapeScenes * 0.17  // Veo+LipSync / Kling Pro
-    : dialogScenes * 0.056 + landscapeScenes * 0.026; // Kling Avatar / Seedance
+    ? dialogScenes * 0.55 + landscapeScenes * 0.84
+    : dialogScenes * 0.28 + landscapeScenes * 0.13;
 
   const generateAudio = async () => {
     setAudioGenerating(true);
@@ -1428,6 +1523,9 @@ function SequenceCard({
             )}
           </div>
 
+          {/* Landscape Image */}
+          <LandscapeSection sequence={sequence} projectId={projectId} onUpdate={onUpdate} />
+
           {/* Cost Confirmation */}
           {showCostConfirm && (
             <div className="bg-[#d4a853]/10 border border-[#d4a853]/20 rounded-xl p-3 space-y-2">
@@ -1435,8 +1533,8 @@ function SequenceCard({
               <div className="text-[10px] text-white/50 space-y-0.5">
                 <p>{dialogScenes} Dialog-Szenen · {landscapeScenes} Landscape-Szenen</p>
                 <p>Qualitaet: <select value={clipQuality} onChange={(e) => setClipQuality(e.target.value as "standard" | "premium")} className="bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white/60 text-[10px]">
-                  <option value="standard">Standard (~${(dialogScenes * 0.056 + landscapeScenes * 0.026).toFixed(2)})</option>
-                  <option value="premium">Premium (~${(dialogScenes * 0.17 + landscapeScenes * 0.17).toFixed(2)})</option>
+                  <option value="standard">Standard (~${(dialogScenes * 0.28 + landscapeScenes * 0.13).toFixed(2)})</option>
+                  <option value="premium">Premium (~${(dialogScenes * 0.55 + landscapeScenes * 0.84).toFixed(2)})</option>
                 </select></p>
                 <p className="text-[#d4a853] font-medium mt-1">
                   Geschaetzte Kosten: ~${estimatedCost.toFixed(2)}
