@@ -220,16 +220,54 @@ function statusColor(s: string) {
 
 // ── Story Tab ──────────────────────────────────────────────────────
 
+type StoryInputMode = "text" | "ai" | "upload";
+
+const INPUT_MODES: { id: StoryInputMode; label: string; icon: string }[] = [
+  { id: "text", label: "Text", icon: "✏️" },
+  { id: "ai", label: "AI generieren", icon: "🤖" },
+  { id: "upload", label: "Upload", icon: "📄" },
+];
+
+const TONE_OPTIONS = [
+  { id: "warm", label: "Warm & Geborgen" },
+  { id: "adventurous", label: "Abenteuerlich" },
+  { id: "calming", label: "Beruhigend" },
+  { id: "funny", label: "Lustig" },
+  { id: "dramatic", label: "Dramatisch" },
+  { id: "educational", label: "Lehrreich" },
+  { id: "reflective", label: "Nachdenklich" },
+];
+
+const LENGTH_OPTIONS = [
+  { id: "short", label: "Kurz (2-3 min)" },
+  { id: "medium", label: "Mittel (5-7 min)" },
+  { id: "long", label: "Lang (10-15 min)" },
+];
+
 function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: string) => void }) {
+  const [mode, setMode] = useState<StoryInputMode>(project.storyText ? "text" : "ai");
   const [text, setText] = useState(project.storyText || "");
   const [name, setName] = useState(project.name);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Reset when project changes
+  // AI generation state
+  const [theme, setTheme] = useState("");
+  const [tone, setTone] = useState("warm");
+  const [length, setLength] = useState("medium");
+  const [setting, setSetting] = useState("");
+  const [childName, setChildName] = useState("");
+  const [childAge, setChildAge] = useState("");
+  const [goal, setGoal] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [genProgress, setGenProgress] = useState("");
+  const [genError, setGenError] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     setText(project.storyText || "");
     setName(project.name);
+    if (project.storyText) setMode("text");
   }, [project.id, project.storyText, project.name]);
 
   const save = async () => {
@@ -238,12 +276,105 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
     await fetch(`/api/studio/projects/${project.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, storyText: text, storySource: "typed" }),
+      body: JSON.stringify({ name, storyText: text, storySource: mode === "ai" ? "ai" : "typed" }),
     });
     onUpdate(project.id);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const generateStory = async () => {
+    if (!theme.trim()) return;
+    setGenerating(true);
+    setGenProgress("Starte...");
+    setGenError("");
+    setText("");
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // Build brief with KoalaTree default characters
+    const brief = {
+      theme,
+      tone,
+      length,
+      setting: setting || undefined,
+      pedagogicalGoal: goal || undefined,
+      language: "de",
+      audience: {
+        name: childName || undefined,
+        age: childAge ? parseInt(childAge) : undefined,
+      },
+      characters: [
+        { id: "koda", name: "Koda", markerId: "[KODA]", role: "lead" as const, personality: "weise, warm, geduldig", species: "Koala", speakingStyle: "langsam und bedaechtig" },
+        { id: "kiki", name: "Kiki", markerId: "[KIKI]", role: "supporting" as const, personality: "frech, keck, witzig", species: "Kookaburra", speakingStyle: "schnell und aufgeregt" },
+        { id: "luna", name: "Luna", markerId: "[LUNA]", role: "supporting" as const, personality: "sanft, traeumerisch, mysterioes", species: "Eule", speakingStyle: "leise und poetisch" },
+        { id: "mika", name: "Mika", markerId: "[MIKA]", role: "supporting" as const, personality: "mutig, abenteuerlustig, wild", species: "Dingo", speakingStyle: "energisch und begeistert" },
+      ],
+    };
+
+    try {
+      const res = await fetch("/api/studio/generate-story", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brief, projectId: project.id }),
+        signal: controller.signal,
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) { setGenError("Kein Stream"); setGenerating(false); return; }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.chunk) {
+              fullText += data.chunk;
+              setText(fullText);
+            }
+            if (data.progress) setGenProgress(data.progress);
+            if (data.error) setGenError(data.error);
+            if (data.done && !data.error) {
+              if (data.title) setName(data.title);
+              if (data.text) setText(data.text);
+            }
+          } catch { /* */ }
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") setGenError((err as Error).message);
+    }
+
+    setGenerating(false);
+    setGenProgress("");
+    abortRef.current = null;
+    onUpdate(project.id);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type === "text/plain" || file.name.endsWith(".txt")) {
+      const content = await file.text();
+      setText(content);
+      setName(file.name.replace(/\.txt$/, ""));
+    } else {
+      setGenError("Nur .txt Dateien werden unterstuetzt. PDF/DOCX kommt spaeter.");
+    }
   };
 
   const wordCount = text.split(/\s+/).filter(Boolean).length;
@@ -262,33 +393,178 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
         />
       </div>
 
-      {/* Story Text */}
-      <div>
-        <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
-          Geschichte
-        </label>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={"Paste oder schreibe deine Geschichte hier...\n\nVerwende Charakter-Marker wie [KODA], [KIKI] etc."}
-          rows={12}
-          className="w-full text-sm bg-white/5 border border-white/10 rounded-xl p-3 text-white/80 placeholder-white/20 resize-y"
-        />
-        <p className="text-[9px] text-white/20 mt-1">
-          {wordCount} Woerter · ~{Math.ceil(wordCount * 0.4)}s Audio
-        </p>
+      {/* Input Mode Selector */}
+      <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
+        {INPUT_MODES.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setMode(m.id)}
+            className={`flex-1 py-1.5 rounded-md text-[10px] transition-all ${
+              mode === m.id
+                ? "bg-[#3d6b4a]/40 text-[#a8d5b8] font-medium"
+                : "text-white/30 hover:text-white/50"
+            }`}
+          >
+            {m.icon} {m.label}
+          </button>
+        ))}
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={save}
-          disabled={saving || (!text.trim() && !name.trim())}
-          className="px-4 py-2 rounded-xl bg-[#4a7c59] text-white text-xs font-medium hover:bg-[#5a8c69] disabled:opacity-50"
-        >
-          {saving ? "Speichert..." : "Speichern"}
-        </button>
-        {saved && <span className="text-[10px] text-[#a8d5b8]">Gespeichert!</span>}
-      </div>
+      {/* TEXT MODE */}
+      {mode === "text" && (
+        <div>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={"Paste oder schreibe deine Geschichte hier...\n\nVerwende Charakter-Marker wie [KODA], [KIKI] etc."}
+            rows={12}
+            className="w-full text-sm bg-white/5 border border-white/10 rounded-xl p-3 text-white/80 placeholder-white/20 resize-y"
+          />
+          <p className="text-[9px] text-white/20 mt-1">
+            {wordCount} Woerter · ~{Math.ceil(wordCount / 2.5)}s Audio
+          </p>
+        </div>
+      )}
+
+      {/* AI MODE */}
+      {mode === "ai" && (
+        <div className="space-y-3">
+          {/* Theme */}
+          <div>
+            <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Thema / Idee</label>
+            <textarea
+              value={theme}
+              onChange={(e) => setTheme(e.target.value)}
+              placeholder="z.B. Koda erklaert warum Mut nicht heisst keine Angst zu haben..."
+              rows={2}
+              className="w-full text-xs bg-white/5 border border-white/10 rounded-xl p-2.5 text-white/70 placeholder-white/20"
+            />
+          </div>
+
+          {/* Tone + Length */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Stimmung</label>
+              <select value={tone} onChange={(e) => setTone(e.target.value)} className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70">
+                {TONE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Laenge</label>
+              <select value={length} onChange={(e) => setLength(e.target.value)} className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70">
+                {LENGTH_OPTIONS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Optional: Setting + Goal */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Setting (optional)</label>
+              <input value={setting} onChange={(e) => setSetting(e.target.value)} placeholder="z.B. Magischer Wald" className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70 placeholder-white/20" />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Paed. Ziel (optional)</label>
+              <input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="z.B. Mut, Selbstbewusstsein" className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70 placeholder-white/20" />
+            </div>
+          </div>
+
+          {/* Optional: Personalization */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Kind Name (optional)</label>
+              <input value={childName} onChange={(e) => setChildName(e.target.value)} placeholder="Fuer Personalisierung" className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70 placeholder-white/20" />
+            </div>
+            <div className="w-20">
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Alter</label>
+              <input value={childAge} onChange={(e) => setChildAge(e.target.value)} type="number" min="2" max="99" placeholder="5" className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white/70 placeholder-white/20" />
+            </div>
+          </div>
+
+          {/* Generate Button */}
+          {!generating ? (
+            <button
+              onClick={generateStory}
+              disabled={!theme.trim()}
+              className="w-full py-2.5 rounded-xl bg-[#d4a853] text-black text-sm font-medium hover:bg-[#e4b863] disabled:opacity-50"
+            >
+              🤖 Geschichte generieren
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-3 h-3 border-2 border-[#a8d5b8] border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-white/50">{genProgress}</span>
+              </div>
+              <button onClick={() => abortRef.current?.abort()} className="text-[10px] px-3 py-1.5 bg-red-500/20 text-red-300 rounded-lg">
+                Abbrechen
+              </button>
+            </div>
+          )}
+
+          {/* Generated text preview */}
+          {text && !generating && (
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1">Generierte Geschichte</label>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={10}
+                className="w-full text-sm bg-white/5 border border-white/10 rounded-xl p-3 text-white/80 resize-y"
+              />
+              <p className="text-[9px] text-white/20 mt-1">
+                {wordCount} Woerter · ~{Math.ceil(wordCount / 2.5)}s Audio · Kannst du noch bearbeiten
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* UPLOAD MODE */}
+      {mode === "upload" && (
+        <div className="space-y-3">
+          <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center">
+            <input type="file" accept=".txt" onChange={handleFileUpload} className="hidden" id="story-upload" />
+            <label htmlFor="story-upload" className="cursor-pointer">
+              <p className="text-2xl mb-2">📄</p>
+              <p className="text-xs text-white/40">Klicke oder ziehe eine .txt Datei</p>
+              <p className="text-[9px] text-white/20 mt-1">PDF und DOCX Support kommt spaeter</p>
+            </label>
+          </div>
+          {text && (
+            <div>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={10}
+                className="w-full text-sm bg-white/5 border border-white/10 rounded-xl p-3 text-white/80 resize-y"
+              />
+              <p className="text-[9px] text-white/20 mt-1">
+                {wordCount} Woerter · ~{Math.ceil(wordCount / 2.5)}s Audio
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Error */}
+      {genError && (
+        <div className="text-[10px] text-red-300 bg-red-500/10 rounded-lg px-2.5 py-1.5">{genError}</div>
+      )}
+
+      {/* Save Button (all modes) */}
+      {text.trim() && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="px-4 py-2 rounded-xl bg-[#4a7c59] text-white text-xs font-medium hover:bg-[#5a8c69] disabled:opacity-50"
+          >
+            {saving ? "Speichert..." : "Speichern"}
+          </button>
+          {saved && <span className="text-[10px] text-[#a8d5b8]">Gespeichert!</span>}
+        </div>
+      )}
     </div>
   );
 }
