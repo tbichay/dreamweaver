@@ -90,15 +90,20 @@ export async function POST(
           audioSegment = segmentMp3(fullAudio, scene.audioStartMs, scene.audioEndMs);
         }
 
-        // Find character portrait
+        // Find character portrait — try scene character, then lead, then any
         const character = scene.characterId
           ? sequence.project.characters.find((c) => c.id === scene.characterId)
           : null;
 
+        // Resolve portrait: scene character → lead character → any character with portrait
+        const portraitChar = character?.portraitUrl ? character
+          : sequence.project.characters.find((c) => c.role === "lead" && c.portraitUrl)
+          || sequence.project.characters.find((c) => c.portraitUrl);
+
         let portraitBuffer: Buffer | undefined;
-        if (character?.portraitUrl) {
-          send({ progress: "Lade Portrait..." });
-          const portraitUrl = resolveUrl(character.portraitUrl);
+        if (portraitChar?.portraitUrl) {
+          send({ progress: `Lade Portrait (${portraitChar.name})...` });
+          const portraitUrl = resolveUrl(portraitChar.portraitUrl);
           const portraitRes = await fetch(portraitUrl);
           if (portraitRes.ok) {
             portraitBuffer = Buffer.from(await portraitRes.arrayBuffer());
