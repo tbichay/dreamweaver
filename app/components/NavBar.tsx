@@ -12,7 +12,7 @@ import { useFullscreen } from "@/lib/fullscreen-context";
 function UserAvatarImg({ userId, initial, size }: { userId?: string; initial: string; size: number }) {
   const [err, setErr] = useState(false);
   if (!userId || err) return <>{initial}</>;
-  return <img src={`/api/avatars/${userId}`} alt="" className="w-full h-full object-cover" onError={() => setErr(true)} />;
+  return <img src={`/api/avatars/${userId}?t=${Date.now()}`} alt="" className="w-full h-full object-cover aspect-square" onError={() => setErr(true)} />;
 }
 
 function UserMenu() {

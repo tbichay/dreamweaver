@@ -29,10 +29,17 @@ export async function GET(
     const result = await get(avatarUrl, { access: "private" });
     if (!result?.stream) return new Response("Not found", { status: 404 });
 
-    return new Response(result.stream, {
+    // Read full buffer for proper Content-Length
+    const chunks: Uint8Array[] = [];
+    const reader = result.stream.getReader();
+    while (true) { const { done, value } = await reader.read(); if (done) break; if (value) chunks.push(value); }
+    const buffer = Buffer.concat(chunks);
+
+    return new Response(buffer, {
       headers: {
         "Content-Type": result.blob.contentType || "image/webp",
-        "Cache-Control": "public, max-age=300",
+        "Content-Length": String(buffer.byteLength),
+        "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });
   } catch {

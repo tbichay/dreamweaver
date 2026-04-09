@@ -34,11 +34,14 @@ export async function POST(request: Request) {
 
     // Upload (überschreibt automatisch wenn existiert)
     const blobPath = `avatars/${type}/${targetId}.webp`;
-    const blob = await put(blobPath, processed, {
+    // Use unique path (timestamp) to avoid overwrite issues on private stores
+    const uniquePath = `avatars/${type}/${targetId}-${Date.now()}.webp`;
+    const blob = await put(uniquePath, processed, {
       access: "private",
       contentType: "image/webp",
-      allowOverwrite: true,
     });
+
+    console.log(`[Avatar] Uploaded: ${uniquePath} → ${blob.url.substring(0, 60)}...`);
 
     // DB updaten (speichere Blob-URL intern, gebe Proxy-URL zurück)
     const proxyUrl = `/api/avatars/${targetId}`;
