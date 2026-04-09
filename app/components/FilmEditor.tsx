@@ -339,9 +339,12 @@ export default function FilmEditor({ projectId, onBack }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ geschichteId: projectId, force: scenes.length > 0 }),
       });
-      const ct = res.headers.get("content-type") || "";
-      if (!ct.includes("json")) throw new Error("Session abgelaufen — bitte Seite neu laden");
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server-Antwort nicht lesbar (Status ${res.status}). Bitte Seite neu laden.`);
+      }
       if (!res.ok) throw new Error(data.error || "Storyboard-Fehler");
       setScenes(data.scenes.map((s: StoryboardScene) => ({ ...s, quality: "standard", status: "pending" })));
       setSelectedScene(0);
