@@ -467,22 +467,58 @@ app/
 
 ---
 
-## 11. Offene Fragen / Entscheidungen
+## 11. Produkt-Architektur: Studio + Story
 
-1. **Sequenz-Uebergaenge**: Wie ueberblenden wir zwischen Sequenzen?
-   - Hard Cut mit Fade-to-Black?
-   - Visueller Uebergang (Wolken, Blaetter, Wasser)?
-   - Text-Einblendung ("Drei Tage spaeter...")?
+### Zwei Produkte, eine Engine
 
-2. **Kosten-Kontrolle**: Soll es ein Budget-Limit pro Film geben?
-   - "Stoppe wenn $X erreicht"
-   - Kosten-Schaetzung VOR dem Start
+| Produkt | Domain | Zielgruppe | Was es ist |
+|---------|--------|------------|------------|
+| **KoalaTree Studio** | `koalatree.io` | Entwickler, Creator, Verlage | Die Engine. API + Dashboard. Eigene API-Keys. |
+| **KoalaTree** | `koalatree.ai` | Familien, Kinder | Die Kinder-App. Nutzt Studio intern. |
+| **KoalaTree App** | `koalatree.app` | Mobile User | PWA / Native App (spaeter) |
 
-3. **Versionen**: Soll man mehrere Versionen eines Films behalten?
-   - Version 1: Standard-Qualitaet
-   - Version 2: Premium neu gerendert
-   - Oder: nur die aktuelle Version
+KoalaTree (Story-App) ist ein **Kunde** von KoalaTree Studio -- genau wie ein externer Verlag.
 
-4. **Kollaboration**: Spaeter mehrere User an einem Film?
-   - Regisseur, Cutter, Sprecher
-   - Oder: Single-User erstmal
+### Studio-User vs Story-User
+
+| | Studio (koalatree.io) | Story (koalatree.ai) |
+|---|---|---|
+| API Keys | Eigene (fal.ai, ElevenLabs) | KoalaTree's Keys |
+| Charaktere | Custom (Wizard) | 7 KoalaTree-Tiere |
+| Stile | Alle (2D, 3D, Anime, Real) | Disney 1994 |
+| Ausgabe | Audio + Film | Audio (Default), Film (Premium) |
+
+### Audio-Only vs Film: Zwei Rendering-Modi
+
+Ein **Basis-Storyboard** (Story-Beats) wird aus der Geschichte generiert. Daraus kann Audio ODER Film ODER beides gerendert werden:
+
+**Audio-Rendering (Hoerspiel):**
+- Direkt aus Basis-Storyboard (kein Film-Storyboard noetig)
+- Pausen fuer Spannung, SFX fuer "Kino im Kopf"
+- Tempo optimiert fuer Zuhoeren
+- Ergebnis: MP3
+
+**Film-Rendering:**
+- Basis-Storyboard → Film-Storyboard (+ Kamera, Locations, Regie)
+- Audio NACH Film-Storyboard (mit Pausen fuer Landscape-Szenen)
+- Video-Clips + Mastering
+- Ergebnis: MP4
+
+---
+
+## 12. Entschiedene Fragen
+
+1. **Sequenz-Uebergaenge**: Regie-Stil entscheidet (Pixar=visuell, Dramatisch=Fade)
+2. **Kosten-Kontrolle**: Budget-Limit mit Warnung bei 80%, Stop bei Limit
+3. **Story-Quelle**: AI generiert ODER User laedt hoch
+4. **Mehrsprachigkeit**: Architektur mitgedacht (gleiche Clips, anderes Audio)
+5. **Charaktere**: Wizard mit Extraktion aus Geschichte
+6. **Content-Typ**: Generisch (nicht nur Kinder)
+7. **Drehbuch**: Automatisch mit Review
+
+## 13. Offene Fragen
+
+1. **Versionen**: Mehrere Film-Versionen pro Projekt?
+2. **Kollaboration**: Spaeter mehrere User?
+3. **Monetarisierung Studio**: Pay-per-Use, Abo, oder beides?
+4. **Open Source**: Teile der Engine open-sourcen fuer Community?
