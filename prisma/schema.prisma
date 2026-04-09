@@ -225,6 +225,8 @@ model StudioSettings {
   updatedAt  DateTime @updatedAt
 }
 
+// ── V1 Film Project (legacy, still used by current film-maker) ──
+
 model FilmProject {
   id              String   @id @default(cuid())
   userId          String
@@ -242,4 +244,126 @@ model FilmProject {
   updatedAt       DateTime @updatedAt
 
   @@index([userId])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ── V2 Studio: Film Pipeline (Multi-Sequence, Generic Engine) ──
+// ══════════════════════════════════════════════════════════════════
+
+// A Studio Project — container for a complete film production
+model StudioProject {
+  id              String            @id @default(cuid())
+  userId          String
+  name            String
+  description     String?
+
+  // Story
+  storyText       String?           // Full story text with character markers
+  storySource     String?           // "generated" | "uploaded" | "typed"
+  language        String            @default("de")
+
+  // Style
+  stylePrompt     String?           // Visual style (Disney 2D, Pixar 3D, Anime...)
+  directingStyle  String?           // Directing preset ID
+  atmosphere      String?           // Default atmosphere for all sequences
+
+  // Production state
+  status          String            @default("draft") // draft | screenplay | characters | production | completed
+  screenplay      Json?             // The full screenplay (acts → sequences → scenes)
+  basisStoryboard Json?             // Story beats (shared between audio + film rendering)
+
+  // Output
+  audioUrl        String?           // Audio-only rendering (MP3)
+  videoUrl        String?           // Final assembled film (MP4)
+  audioDauerSek   Float?
+
+  // Budget
+  budgetLimitCents Int?             // Max budget in cents (null = unlimited)
+  currentCostCents Int              @default(0)
+
+  // Relations
+  characters      StudioCharacter[]
+  sequences       StudioSequence[]
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+// A character in a Studio Project
+model StudioCharacter {
+  id              String          @id @default(cuid())
+  projectId       String
+  project         StudioProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name            String          // "Koda"
+  markerId        String          // "[KODA]" — marker in story text
+  description     String?         // Visual description for AI prompts
+  personality     String?         // Personality/speaking style
+  species         String?         // "Koala", "Kookaburra" etc.
+
+  // Visual
+  portraitUrl     String?         // Reference portrait image URL
+  portraits       Json?           // Multiple reference images: ReferenceEntry
+
+  // Voice
+  voiceId         String?         // ElevenLabs Voice ID
+  voiceSettings   Json?           // { stability, similarity_boost, style, speed }
+
+  // Metadata
+  role            String?         // "lead" | "supporting" | "narrator" | "minor"
+  color           String?         // Brand color hex
+  emoji           String?         // Display emoji
+
+  orderIndex      Int             @default(0)
+  createdAt       DateTime        @default(now())
+
+  @@index([projectId])
+}
+
+// A sequence in a Studio Project (= one location/atmosphere)
+model StudioSequence {
+  id              String          @id @default(cuid())
+  projectId       String
+  project         StudioProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  orderIndex      Int             // Position in the film
+  name            String          // "Am KoalaTree", "Am Meer"
+
+  // Location & Atmosphere
+  location        String?         // Location description
+  atmosphereId    String?         // Atmosphere preset ID
+  atmosphereText  String?         // Custom atmosphere prompt
+  directingStyle  String?         // Override directing style (or inherit from project)
+  landscapeRefUrl String?         // Reference landscape image
+
+  // Story segment
+  storySegment    String?         // Portion of story text for this sequence
+  characterIds    String[]        // Characters in this sequence
+
+  // Storyboard & Scenes
+  scenes          Json?           // FilmScene[] (camera, transitions, timing)
+  sceneCount      Int?
+
+  // Audio
+  audioUrl        String?         // Generated audio for this sequence
+  audioDauerSek   Float?
+  timeline        Json?           // Audio timeline entries
+
+  // Video
+  videoUrl        String?         // Mastered sequence video
+  clipCount       Int             @default(0)
+  clipsCompleted  Int             @default(0)
+
+  // State
+  status          String          @default("draft") // draft | storyboard | audio | clips | mastered
+  costCents       Int             @default(0)
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([orderIndex])
 }
