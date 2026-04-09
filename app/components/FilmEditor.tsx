@@ -1003,52 +1003,73 @@ export default function FilmEditor({ projectId, onBack }: Props) {
                         </button>
                       </div>
 
-                      {/* Prompt Versions */}
+                      {/* Clip Versions — horizontal scrollable cards */}
                       {scene.promptVersions && scene.promptVersions.length > 1 && (
-                        <PromptVersions
-                          versions={scene.promptVersions}
-                          onSelect={(id) => {
-                            const version = scene.promptVersions?.find((v) => v.id === id);
-                            if (!version) return;
-                            const u = [...scenes];
-                            u[i] = {
-                              ...u[i],
-                              sceneDescription: version.prompt,
-                              videoUrl: version.videoUrl,
-                              selectedPromptId: id,
-                              promptVersions: (u[i].promptVersions || []).map((v) => ({ ...v, isSelected: v.id === id })),
-                            };
-                            setScenes(u);
-
-                            // Re-extract last frame for this version so next clip starts correctly
-                            if (version.videoUrl && projectId) {
-                              fetch("/api/admin/extract-frame", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ geschichteId: projectId, sceneIndex: i, videoUrl: version.videoUrl }),
-                              }).catch(() => {}); // Fire and forget
-                            }
-                          }}
-                          onAdd={(prompt) => {
-                            const u = [...scenes];
-                            const newV: PromptVersion = { id: `v-${Date.now()}`, prompt, createdAt: new Date().toISOString(), isSelected: true };
-                            u[i] = {
-                              ...u[i],
-                              sceneDescription: prompt,
-                              promptVersions: [...(u[i].promptVersions || []).map((v) => ({ ...v, isSelected: false })), newV],
-                              selectedPromptId: newV.id,
-                            };
-                            setScenes(u);
-                          }}
-                          onDelete={(id) => {
-                            const u = [...scenes];
-                            u[i] = {
-                              ...u[i],
-                              promptVersions: (u[i].promptVersions || []).filter((v) => v.id !== id),
-                            };
-                            setScenes(u);
-                          }}
-                        />
+                        <div>
+                          <p className="text-[8px] text-white/25 mb-1">{scene.promptVersions.length} Versionen</p>
+                          <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
+                            {scene.promptVersions.map((ver, vi) => {
+                              const isActive = ver.isSelected || ver.id === scene.selectedPromptId;
+                              return (
+                                <div
+                                  key={ver.id}
+                                  className={`shrink-0 rounded-lg overflow-hidden cursor-pointer transition-all ${
+                                    isActive ? "ring-2 ring-[#d4a853]" : "ring-1 ring-white/10 opacity-60 hover:opacity-100"
+                                  }`}
+                                  style={{ width: 80 }}
+                                  onClick={() => {
+                                    const u = [...scenes];
+                                    u[i] = {
+                                      ...u[i],
+                                      sceneDescription: ver.prompt,
+                                      videoUrl: ver.videoUrl,
+                                      selectedPromptId: ver.id,
+                                      promptVersions: (u[i].promptVersions || []).map((v) => ({ ...v, isSelected: v.id === ver.id })),
+                                    };
+                                    setScenes(u);
+                                    if (ver.videoUrl && projectId) {
+                                      fetch("/api/admin/extract-frame", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ geschichteId: projectId, sceneIndex: i, videoUrl: ver.videoUrl }),
+                                      }).catch(() => {});
+                                    }
+                                  }}
+                                >
+                                  {/* Video thumbnail */}
+                                  <div className="w-20 h-12 bg-[#1a2e1a] relative">
+                                    {ver.videoUrl ? (
+                                      <video src={ver.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[8px] text-white/20">kein Video</div>
+                                    )}
+                                    {isActive && (
+                                      <div className="absolute top-0.5 left-0.5 bg-[#d4a853] text-black text-[6px] px-1 rounded font-bold">Aktiv</div>
+                                    )}
+                                  </div>
+                                  {/* Info */}
+                                  <div className="p-1 bg-white/5">
+                                    <p className="text-[7px] text-white/40 truncate">v{vi + 1}</p>
+                                    <p className="text-[6px] text-white/20 truncate">{ver.createdAt?.substring(11, 16) || ""}</p>
+                                    {/* Delete button */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (!confirm("Version loeschen?")) return;
+                                        const u = [...scenes];
+                                        u[i] = { ...u[i], promptVersions: (u[i].promptVersions || []).filter((v) => v.id !== ver.id) };
+                                        setScenes(u);
+                                      }}
+                                      className="text-[6px] text-red-400/30 hover:text-red-400/70 mt-0.5"
+                                    >
+                                      Loeschen
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       )}
 
                       {/* Scene image generators */}
