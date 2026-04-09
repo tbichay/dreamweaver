@@ -290,6 +290,94 @@ export async function klingMultiScene(
   return videoUrls;
 }
 
+// ── Seedance 1.5 Pro Image-to-Video ($0.26/5s) ────────────────────
+
+interface SeedanceResult {
+  video: { url: string };
+  seed: number;
+}
+
+/**
+ * Generate a video from a still image using Seedance 1.5 Pro.
+ * Produces native audio (ambient sounds, foley) but NOT custom voice.
+ * For lip-sync with custom audio, combine with klingLipSync().
+ *
+ * Cost: ~$0.26 per 5s clip (720p with audio)
+ * Much cheaper than Kling Avatar ($0.60) or Kling 3.0 Pro ($0.97)
+ */
+export async function seedanceI2V(options: {
+  imageBuffer: Buffer;
+  prompt: string;
+  durationSeconds?: number;
+  aspectRatio?: "16:9" | "9:16" | "1:1";
+  endImageBuffer?: Buffer;
+  generateAudio?: boolean;
+}): Promise<string> {
+  const {
+    imageBuffer,
+    prompt,
+    durationSeconds = 5,
+    aspectRatio = "9:16",
+    endImageBuffer,
+    generateAudio = true,
+  } = options;
+
+  console.log(`[fal.ai] Seedance 1.5 Pro I2V: uploading...`);
+
+  const imageUrl = await uploadToFal(imageBuffer, "start.png", "image/png");
+
+  const input: Record<string, unknown> = {
+    image_url: imageUrl,
+    prompt,
+    duration: Math.min(12, Math.max(4, durationSeconds)),
+    aspect_ratio: aspectRatio,
+    resolution: "720p",
+    generate_audio: generateAudio,
+  };
+
+  if (endImageBuffer) {
+    input.end_image_url = await uploadToFal(endImageBuffer, "end.png", "image/png");
+    console.log(`[fal.ai] Seedance end frame uploaded`);
+  }
+
+  const result = await runFal<SeedanceResult>("fal-ai/bytedance/seedance/v1.5/pro/image-to-video", input);
+  console.log(`[fal.ai] Seedance 1.5 done: ${result.video.url}`);
+  return result.video.url;
+}
+
+/**
+ * Generate a dialog clip using Seedance 1.5 + Kling LipSync.
+ * 1. Seedance generates video from portrait (~$0.26)
+ * 2. Kling LipSync syncs our audio onto it (~$0.07)
+ * Total: ~$0.33 per 5s clip (vs $0.60 with Kling Avatar)
+ */
+export async function seedanceDialog(
+  imageBuffer: Buffer,
+  audioBuffer: Buffer,
+  prompt: string,
+  aspectRatio: "16:9" | "9:16" | "1:1" = "9:16",
+): Promise<string> {
+  console.log(`[fal.ai] Seedance Dialog: generating video + lip-sync...`);
+
+  // 1. Generate video from portrait (no audio — Seedance generates its own)
+  const videoUrl = await seedanceI2V({
+    imageBuffer,
+    prompt: `${prompt}. Character speaking naturally with expressive gestures.`,
+    durationSeconds: 5,
+    aspectRatio,
+    generateAudio: false, // We'll add our own audio via LipSync
+  });
+
+  // 2. Download the video
+  const videoBuffer = await downloadVideo(videoUrl);
+
+  // 3. Apply our audio via Kling LipSync
+  const lipSyncUrl = await klingLipSync(videoBuffer, audioBuffer);
+  console.log(`[fal.ai] Seedance Dialog done with lip-sync`);
+
+  return lipSyncUrl;
+}
+
 // ── Frame Extraction ($0.0002/s — practically free) ────────────────
 
 interface FrameResult {

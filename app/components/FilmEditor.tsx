@@ -122,16 +122,14 @@ function estimateCostCents(scene: StoryboardScene): number {
   const isPremium = scene.quality === "premium";
 
   if (scene.type === "dialog" || scene.type === "intro" || scene.type === "outro") {
-    // fal.ai charges minimum 5s, actual rate ~$0.12/s (incl. overhead)
-    const billableDur = Math.max(5, dur);
     if (isPremium) {
-      return Math.ceil(billableDur * 16.4); // Veo 3.1 + LipSync
+      return Math.ceil(Math.max(5, dur) * 16.4); // Veo 3.1 + LipSync
     }
-    return Math.ceil(billableDur * 12); // Kling Avatar ~$0.12/s real cost
+    return 33; // Seedance + LipSync ~$0.33 per clip (fixed ~5s)
   }
-  // Landscape: Kling 3.0 Pro ($0.168/s + overhead) or Standard ($0.084/s + overhead)
-  const landscapeDur = 5;
-  return isPremium ? Math.ceil(landscapeDur * 20) : Math.ceil(landscapeDur * 12);
+  // Landscape: Premium = Kling Pro, Standard = Seedance
+  if (isPremium) return 100; // Kling 3.0 Pro ~$1.00/clip
+  return 26; // Seedance 1.5 ~$0.26/clip
 }
 
 function formatCost(cents: number): string {

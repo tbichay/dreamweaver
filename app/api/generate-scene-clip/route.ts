@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { generateVideo, generateVideoKlingAvatar, generateSceneVideo, downloadVideo as downloadHedraVideo } from "@/lib/hedra";
-import { klingAvatar, klingI2V, klingLipSync, downloadVideo as downloadFalVideo, extractLastFrame } from "@/lib/fal";
+import { klingAvatar, klingI2V, klingLipSync, seedanceI2V, seedanceDialog, downloadVideo as downloadFalVideo, extractLastFrame } from "@/lib/fal";
 import { generateVeoVideo, downloadVeoVideo } from "@/lib/veo";
 import { put, get, list } from "@vercel/blob";
 import { CHARACTERS, type CharacterKey } from "@/lib/studio";
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
           console.log(`[Scene Clip] Scene ${sceneIndex}: audio ${scene.audioStartMs}-${scene.audioEndMs}ms (${expectedDurSec.toFixed(1)}s), segment ${(audioSegment.byteLength / 1024).toFixed(0)}KB, full ${(fullAudio.byteLength / 1024).toFixed(0)}KB`);
         }
 
-        let videoUrl: string;
+        let videoUrl = "";
         let sceneImage: Buffer | undefined;
 
         const isDialogLike = (scene.type === "dialog" || scene.type === "intro" || scene.type === "outro") && scene.characterId;
@@ -162,8 +162,19 @@ export async function POST(request: Request) {
               videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "pro");
             }
           } else if (process.env.FAL_KEY) {
-            // ── STANDARD: Kling Avatar Standard ──
-            send({ progress: "Generating with Kling Avatar (fal.ai)..." });
+            // ── STANDARD: Try Seedance + LipSync first (cheaper), fallback to Kling Avatar ──
+            let usedSeedance = false;
+            try {
+              send({ progress: "Generating with Seedance + LipSync (~$0.33)..." });
+              videoUrl = await seedanceDialog(portrait, audioSegment, fullPrompt, "9:16");
+              usedSeedance = true;
+              console.log(`[Scene Clip] Generated with Seedance 1.5 + Kling LipSync (fal.ai)`);
+            } catch (seedErr) {
+              console.warn(`[Scene Clip] Seedance failed, trying Kling Avatar:`, seedErr instanceof Error ? seedErr.message : seedErr);
+              send({ progress: "Seedance failed, using Kling Avatar..." });
+            }
+
+            if (!usedSeedance) {
             try {
               videoUrl = await klingAvatar(portrait, audioSegment, fullPrompt, "standard");
               console.log(`[Scene Clip] Generated with Kling Avatar v2 Standard (fal.ai)`);
@@ -179,6 +190,7 @@ export async function POST(request: Request) {
                 throw new Error(`fal.ai: ${falErr instanceof Error ? falErr.message : "Fehler"}. Hedra: ${hedraErr instanceof Error ? hedraErr.message : "Fehler"}`);
               }
             }
+            } // end if (!usedSeedance)
           } else {
             send({ progress: "Generating with Hedra..." });
             videoUrl = await generateVideo({
@@ -254,22 +266,39 @@ export async function POST(request: Request) {
           }
 
           if (process.env.FAL_KEY) {
-            const landscapeQuality = scene.quality === "premium" ? "pro" : "standard";
-            send({ progress: `Generating landscape (Kling 3.0 ${landscapeQuality})...` });
-            try {
-              videoUrl = await klingI2V({
-                imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
-                aspectRatio: "9:16", quality: landscapeQuality,
-                characterElements: referenceImages.length > 0 ? referenceImages : undefined,
-                generateAudio: !hasAudio,
-              });
-            } catch (klingErr) {
-              const errMsg = klingErr instanceof Error ? klingErr.message : String(klingErr);
-              if (landscapeQuality === "pro") {
-                console.error(`[Scene Clip] Kling Pro failed:`, errMsg);
-                throw new Error(`Premium (Kling Pro) fehlgeschlagen: ${errMsg}. Bitte auf Standard wechseln oder nochmal versuchen.`);
+            const isPremiumLandscape = scene.quality === "premium";
+
+            if (isPremiumLandscape) {
+              // Premium: Kling 3.0 Pro with Element Binding
+              send({ progress: "Generating landscape (Kling 3.0 Pro + Elements)..." });
+              try {
+                videoUrl = await klingI2V({
+                  imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
+                  aspectRatio: "9:16", quality: "pro",
+                  characterElements: referenceImages.length > 0 ? referenceImages : undefined,
+                  generateAudio: !hasAudio,
+                });
+              } catch (klingErr) {
+                console.error(`[Scene Clip] Kling Pro failed:`, klingErr instanceof Error ? klingErr.message : klingErr);
+                throw new Error(`Premium (Kling Pro) fehlgeschlagen: ${klingErr instanceof Error ? klingErr.message : "Fehler"}. Bitte auf Standard wechseln.`);
               }
-              throw klingErr;
+            } else {
+              // Standard: Try Seedance first (cheaper), fallback to Kling Standard
+              try {
+                send({ progress: "Generating landscape (Seedance 1.5 ~$0.26)..." });
+                videoUrl = await seedanceI2V({
+                  imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
+                  aspectRatio: "9:16", generateAudio: !hasAudio,
+                });
+                console.log(`[Scene Clip] Generated landscape with Seedance 1.5`);
+              } catch (seedErr) {
+                console.warn(`[Scene Clip] Seedance failed, trying Kling Standard:`, seedErr instanceof Error ? seedErr.message : seedErr);
+                send({ progress: "Seedance failed, using Kling Standard..." });
+                videoUrl = await klingI2V({
+                  imageBuffer: sceneImage!, prompt: animationPrompt, durationSeconds: 5,
+                  aspectRatio: "9:16", quality: "standard", generateAudio: !hasAudio,
+                });
+              }
             }
           } else {
             videoUrl = await generateSceneVideo({
