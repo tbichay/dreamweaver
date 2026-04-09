@@ -137,6 +137,7 @@ export async function analyzeStoryForFilm(
   storyText: string,
   timeline: TimelineEntry[],
   audioDurationSec?: number,
+  directingStyle?: string,
 ): Promise<FilmScene[]> {
   // Parse the story segments for context
   const segments = parseStorySegments(storyText);
@@ -230,7 +231,7 @@ Antworte NUR mit einem JSON-Array.`;
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 16000,
-    system: DIRECTOR_SYSTEM,
+    system: DIRECTOR_SYSTEM + (directingStyle ? "\n\n" + (await import("./directing-styles")).getDirectingStylePrompt(directingStyle) : ""),
     messages: [{ role: "user", content: prompt }],
   });
 

@@ -13,10 +13,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { geschichteId, force, scenes: editedScenes } = await request.json() as {
+    const { geschichteId, force, scenes: editedScenes, directingStyle } = await request.json() as {
       geschichteId: string;
       force?: boolean;
-      scenes?: unknown[]; // Save edited scenes from the Storyboard Editor
+      scenes?: unknown[];
+      directingStyle?: string;
     };
 
     // If scenes are provided, just save them (no generation)
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
         const keepAlive = setInterval(() => send({ progress: "analyzing..." }), 5000);
 
         try {
-          const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined);
+          const scenes = await analyzeStoryForFilm(geschichte.text, timeline, geschichte.audioDauerSek || undefined, directingStyle);
 
           await prisma.geschichte.update({
             where: { id: geschichteId },

@@ -148,6 +148,9 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const [selectedScene, setSelectedScene] = useState(0);
   const [projectTitle, setProjectTitle] = useState("");
   const [renderedFilmUrl, setRenderedFilmUrl] = useState<string | null>(null);
+  const [directingStyle, setDirectingStyle] = useState("pixar-classic");
+  const cancelBatchRef = useRef(false);
+  const [batchCostCents, setBatchCostCents] = useState(0);
   const [loading, setLoading] = useState(false);
   const [generatingStoryboard, setGeneratingStoryboard] = useState(false);
   const [generatingScene, setGeneratingScene] = useState(false);
@@ -338,7 +341,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       const res = await fetch("/api/admin/generate-storyboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ geschichteId: projectId, force: scenes.length > 0 }),
+        body: JSON.stringify({ geschichteId: projectId, force: scenes.length > 0, directingStyle }),
       });
 
       // Handle both JSON (cached) and SSE (generation) responses
@@ -540,45 +543,31 @@ export default function FilmEditor({ projectId, onBack }: Props) {
   const generateAll = async () => {
     if (!projectId) return;
     setGeneratingAll(true);
+    cancelBatchRef.current = false;
+    setBatchCostCents(0);
+
     const pending = scenes
       .map((s, i) => ({ scene: s, index: i }))
       .filter(({ scene }) => !scene.videoUrl && scene.status !== "done");
 
     for (const { scene, index } of pending) {
+      // Check if user cancelled
+      if (cancelBatchRef.current) {
+        setSceneProgress(`Gestoppt nach ${index} Clips (${formatCost(batchCostCents)} bisher)`);
+        break;
+      }
+
       setSelectedScene(index);
       setGeneratingSceneIndex(index);
+      setSceneProgress(`Clip ${pending.indexOf({ scene, index } as never) + 1}/${pending.length} — ${formatCost(batchCostCents)} bisher`);
       const u = [...scenes];
       u[index] = { ...u[index], status: "generating" };
       setScenes(u);
 
       try {
-        const res = await fetch("/api/generate-scene-clip", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ geschichteId: projectId, sceneIndex: index, scene }),
-        });
-        const ct = res.headers.get("content-type") || "";
-        if (!ct.includes("json")) throw new Error("Session abgelaufen — bitte Seite neu laden");
-        const data = await res.json();
-        if (res.ok) {
-          const newVersion: PromptVersion = {
-            id: `v-${Date.now()}`,
-            prompt: scene.sceneDescription,
-            createdAt: new Date().toISOString(),
-            videoUrl: data.videoUrl,
-            isSelected: true,
-          };
-          const existingVersions = (scene.promptVersions || []).map((v) => ({ ...v, isSelected: false }));
-          const u2 = [...scenes];
-          u2[index] = {
-            ...u2[index],
-            videoUrl: data.videoUrl,
-            status: "done",
-            promptVersions: [...existingVersions, newVersion],
-            selectedPromptId: newVersion.id,
-          };
-          setScenes(u2);
-        }
+        await generateSceneClip(index);
+        // Add estimated cost
+        setBatchCostCents((prev) => prev + estimateCostCents(scene));
       } catch {
         /* continue to next */
       }
@@ -728,6 +717,16 @@ export default function FilmEditor({ projectId, onBack }: Props) {
           >
             {regeneratingAudio ? "Audio wird generiert..." : "🔊 Audio neu"}
           </button>
+          <select
+            value={directingStyle}
+            onChange={(e) => setDirectingStyle(e.target.value)}
+            className="text-[9px] py-1 px-1.5 bg-white/5 border border-white/10 rounded text-white/50 shrink-0"
+          >
+            <option value="pixar-classic">🎬 Pixar Classic</option>
+            <option value="long-take">🎥 One Take</option>
+            <option value="dramatic">🎭 Dramatisch</option>
+            <option value="minimal">🧘 Zen</option>
+          </select>
           <button
             onClick={generateStoryboard}
             disabled={generatingStoryboard}
@@ -740,7 +739,7 @@ export default function FilmEditor({ projectId, onBack }: Props) {
             {generatingStoryboard ? (
               <><span className="animate-spin">⏳</span> AI Director analysiert (~15s)...</>
             ) : scenes.length > 0 ? (
-              <>🔄 Storyboard neu generieren</>
+              <>🔄 Storyboard neu</>
             ) : (
               <>🎬 Storyboard generieren</>
             )}
@@ -1482,16 +1481,27 @@ export default function FilmEditor({ projectId, onBack }: Props) {
       {scenes.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1a2e1a]/95 backdrop-blur-sm border-t border-white/5 px-4 py-3">
           <div className="max-w-3xl mx-auto flex items-center gap-2">
-            {pendingCount > 0 && (
+            {pendingCount > 0 && !generatingAll && (
               <button
                 onClick={generateAll}
-                disabled={generatingAll || generatingScene}
+                disabled={generatingScene}
                 className="flex-1 text-[10px] py-2.5 rounded-xl font-medium bg-[#4a7c59] text-white hover:bg-[#5a8c69] disabled:opacity-50 transition-all"
               >
-                {generatingAll
-                  ? `Generiert... (${generatingSceneIndex !== null ? generatingSceneIndex + 1 : ""}/${pendingCount})`
-                  : `Alle offenen Clips generieren (${pendingCount} Szenen · ${formatCost(scenes.filter(s => !s.videoUrl && s.status !== "done").reduce((sum, s) => sum + estimateCostCents(s), 0))})`}
+                Alle offenen Clips generieren ({pendingCount} Szenen · {formatCost(scenes.filter(s => !s.videoUrl && s.status !== "done").reduce((sum, s) => sum + estimateCostCents(s), 0))})
               </button>
+            )}
+            {generatingAll && (
+              <div className="flex-1 flex items-center gap-2">
+                <div className="flex-1 text-[10px] py-2.5 px-3 rounded-xl bg-[#4a7c59]/30 text-[#a8d5b8]">
+                  Generiert... ({generatingSceneIndex !== null ? generatingSceneIndex + 1 : "?"}/{pendingCount}) · {formatCost(batchCostCents)} bisher
+                </div>
+                <button
+                  onClick={() => { cancelBatchRef.current = true; }}
+                  className="text-[10px] py-2.5 px-3 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 font-medium shrink-0"
+                >
+                  Stoppen
+                </button>
+              </div>
             )}
             <button
               onClick={() => setFilmMode(true)}
