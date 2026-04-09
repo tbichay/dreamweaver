@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 
 const STUDIO_TOOLS = [
   { href: "/studio", label: "Übersicht", emoji: "🏠", exact: true },
-  { href: "/studio/film-v2", label: "Studio V2", emoji: "🎬" },
+  { href: "/studio/engine", label: "Engine", emoji: "🎬" },
   { href: "/studio/film-maker", label: "Film-Maker", emoji: "🎥" },
   { href: "/studio/videos", label: "Marketing Videos", emoji: "🎬" },
   { href: "/studio/portraits", label: "Portraits", emoji: "🎨" },
