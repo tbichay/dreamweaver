@@ -126,7 +126,7 @@ function estimateCostCents(scene: StoryboardScene): number {
     if (isPremium) {
       return Math.ceil(Math.max(5, dur) * 16.4); // Veo 3.1 + LipSync
     }
-    return Math.ceil(Math.max(5, dur) * 8); // VEED Fabric 480p ~$0.08/s
+    return Math.ceil(Math.max(5, dur) * 12); // Kling Avatar ~$0.12/s real cost
   }
   // Landscape: Premium = Kling Pro, Standard = Seedance
   if (isPremium) return 100; // Kling 3.0 Pro ~$1.00/clip
