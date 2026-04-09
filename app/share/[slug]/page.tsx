@@ -91,7 +91,22 @@ export default async function SharedStoryPage({ params }: Props) {
       <div className="flex-1 flex flex-col items-center px-4 py-8">
         <div className="w-full max-w-3xl">
 
-          {/* Player */}
+          {/* Film Video (if available) */}
+          {story.videoUrl && (
+            <div className="mb-6">
+              <div className="bg-black rounded-2xl overflow-hidden aspect-[9/16] max-h-[500px] mx-auto">
+                <video
+                  src={`/api/video/film/${story.id}`}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Audio Player */}
           {hasAudio && timeline.length > 0 && (
             <div className="mb-6">
               <SharedStoryPlayer

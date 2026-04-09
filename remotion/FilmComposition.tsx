@@ -178,7 +178,8 @@ const Film: React.FC<FilmProps> = ({
           >
             <Video
               src={scene.videoUrl}
-              muted
+              muted={scene.type === "dialog"}
+              volume={scene.type === "dialog" ? 0 : 0.3}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           </CrossfadeTransition>
