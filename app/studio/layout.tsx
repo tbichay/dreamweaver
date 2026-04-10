@@ -34,8 +34,12 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
   useEffect(() => {
-    // Detect domain
-    setIsEngine(window.location.hostname.includes("koalatree.io"));
+    // Detect domain or ?theme=engine override for preview testing
+    const params = new URLSearchParams(window.location.search);
+    setIsEngine(
+      window.location.hostname.includes("koalatree.io") ||
+      params.get("theme") === "engine"
+    );
 
     fetch("/api/admin/onboarding")
       .then((r) => r.json())
