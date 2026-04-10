@@ -68,7 +68,8 @@ export async function POST(request: Request) {
   const angleConfig = ANGLE_PROMPTS[body.angle];
 
   const outfitHint = actor.outfit ? ` Outfit: ${actor.outfit}.` : "";
-  const prompt = `${styleHint}. Character: ${body.description}.${outfitHint} ${angleConfig.suffix} No text, no watermarks, no logos.`;
+  const traitsHint = actor.traits ? ` Traits: ${actor.traits}.` : "";
+  const prompt = `${styleHint}. Character: ${body.description}.${outfitHint}${traitsHint} ${angleConfig.suffix} No text, no watermarks, no logos.`;
 
   // Use front portrait as reference for profile/fullBody consistency
   const imageInputs: Array<{ image: string; detail: string }> = [];

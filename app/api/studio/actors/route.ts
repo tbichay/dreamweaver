@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     portraitAssetId?: string;
     style?: string;
     outfit?: string;
+    traits?: string;
     tags?: string[];
   };
 
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
       portraitAssetId: body.portraitAssetId,
       style: body.style,
       outfit: body.outfit,
+      traits: body.traits,
       tags: body.tags || [],
     },
   });
@@ -74,6 +76,7 @@ export async function PUT(request: Request) {
       portraitAssetId?: string;
       style?: string;
       outfit?: string | null;
+      traits?: string | null;
       tags?: string[];
     };
   };

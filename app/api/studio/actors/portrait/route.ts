@@ -45,7 +45,8 @@ export async function POST(request: Request) {
     : "High quality portrait";
 
   const outfitHint = actor.outfit ? ` Outfit: ${actor.outfit}.` : "";
-  const portraitPrompt = `${styleHint}. Character: ${body.description}.${outfitHint} Head and shoulders portrait, looking slightly to the side, expressive eyes. No text, no watermarks, no logos.`;
+  const traitsHint = actor.traits ? ` Traits: ${actor.traits}.` : "";
+  const portraitPrompt = `${styleHint}. Character: ${body.description}.${outfitHint}${traitsHint} Head and shoulders portrait, looking slightly to the side, expressive eyes. No text, no watermarks, no logos.`;
 
   const response = await (openai.images.generate as any)({
     model: "gpt-image-1",

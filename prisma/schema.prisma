@@ -468,6 +468,7 @@ model DigitalActor {
   portraitAssetId String?         // Primary portrait from Asset library
   style           String?         // "realistic" | "animated" etc.
   outfit          String?         // "Schwarze Lederjacke, weisses T-Shirt, Jeans"
+  traits          String?         // "Traegt runde Brille, Narbe ueber linkem Auge"
   characterSheet  Json?           // { front?: url, profile?: url, fullBody?: url }
 
   // Metadata

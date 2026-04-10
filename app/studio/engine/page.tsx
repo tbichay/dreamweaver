@@ -1041,6 +1041,20 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
     } catch { /* */ }
   };
 
+  const [showVersions, setShowVersions] = useState(false);
+
+  const switchVersion = async (idx: number) => {
+    try {
+      await fetch(`/api/studio/projects/${projectId}/characters`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterId: character.id, updates: { switchToSnapshot: idx } }),
+      });
+      setShowVersions(false);
+      onUpdate();
+    } catch { /* */ }
+  };
+
   const inputId = `portrait-${character.id}`;
 
   return (
@@ -1102,13 +1116,32 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       )}
       {/* Cast Actor button + status */}
       {character.actorId ? (
-        <div className="mt-1.5 flex items-center gap-1 justify-center">
-          <span className="text-[7px] text-purple-300/70">
-            {actors.find(a => a.id === character.actorId)?.name || "Actor"}
-          </span>
-          <button onClick={resyncActor} className="text-[7px] text-[#d4a853]/50 hover:text-[#d4a853]" title="Vom Actor aktualisieren">&#x21BB;</button>
-          <button onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }} className="text-[7px] text-white/30 hover:text-white/50" title="Anderen Actor waehlen">&#x270E;</button>
-        </div>
+        <>
+          <div className="mt-1.5 flex items-center gap-1 justify-center">
+            <span className="text-[7px] text-purple-300/70">
+              {actors.find(a => a.id === character.actorId)?.name || "Actor"}
+            </span>
+            <button onClick={resyncActor} className="text-[7px] text-[#d4a853]/50 hover:text-[#d4a853]" title="Vom Actor aktualisieren">&#x21BB;</button>
+            {character.castHistory && (character.castHistory as Array<Record<string, unknown>>).length > 0 && (
+              <button onClick={() => setShowVersions(!showVersions)} className="text-[7px] text-white/30 hover:text-white/50" title="Versionen">&#x23F3;</button>
+            )}
+            <button onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }} className="text-[7px] text-white/30 hover:text-white/50" title="Anderen Actor waehlen">&#x270E;</button>
+          </div>
+          {showVersions && character.castHistory && (
+            <div className="mt-1 bg-[#1a2e1a] border border-white/10 rounded-lg p-1.5 text-left">
+              <p className="text-[7px] text-white/25 px-1 mb-1">Versionen (aktuell: {character.castSnapshot ? new Date((character.castSnapshot as Record<string, string>).syncedAt).toLocaleString("de", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "?"})</p>
+              {(character.castHistory as Array<Record<string, string>>).map((snap, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => switchVersion(idx)}
+                  className="w-full text-left px-2 py-0.5 rounded text-[8px] text-white/40 hover:bg-white/5 hover:text-white/60"
+                >
+                  {new Date(snap.syncedAt).toLocaleString("de", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       ) : (
         <button
           onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }}

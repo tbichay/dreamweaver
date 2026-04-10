@@ -28,6 +28,7 @@ interface DigitalActor {
   portraitAssetId?: string;
   style?: string;
   outfit?: string;
+  traits?: string;
   characterSheet?: CharacterSheet | null;
   tags: string[];
   createdAt: string;
@@ -79,6 +80,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [outfit, setOutfit] = useState("");
+  const [traits, setTraits] = useState("");
   const [style, setStyle] = useState("realistic");
   const [saving, setSaving] = useState(false);
   const [actorId, setActorId] = useState<string | null>(null);
@@ -104,7 +106,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim(), outfit: outfit.trim() || undefined, style, tags: [] }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim(), outfit: outfit.trim() || undefined, traits: traits.trim() || undefined, style, tags: [] }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Fehler beim Erstellen"); return null; }
@@ -202,7 +204,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: actorId, updates: { name: name.trim(), description: description.trim(), outfit: outfit.trim() || undefined, style } }),
+        body: JSON.stringify({ id: actorId, updates: { name: name.trim(), description: description.trim(), outfit: outfit.trim() || undefined, traits: traits.trim() || undefined, style } }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Speichern fehlgeschlagen"); return; }
@@ -279,6 +281,21 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
           />
           <p className="text-[9px] text-white/20 mt-0.5">
             Wird in jeden Portrait-Prompt eingebaut fuer konsistentes Aussehen
+          </p>
+        </div>
+
+        {/* Traits */}
+        <div>
+          <label className="block text-[10px] text-white/40 mb-1">Eigenschaften</label>
+          <input
+            type="text"
+            value={traits}
+            onChange={(e) => setTraits(e.target.value)}
+            placeholder='z.B. "Traegt Brille, Narbe ueber linkem Auge, markantes Kinn"'
+            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[#a8d5b8]/40"
+          />
+          <p className="text-[9px] text-white/20 mt-0.5">
+            Bleibende Merkmale die in jeder Rolle sichtbar sein sollen
           </p>
         </div>
 
@@ -515,6 +532,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
   const [editName, setEditName] = useState(actor.name);
   const [editDesc, setEditDesc] = useState(actor.description || "");
   const [editOutfit, setEditOutfit] = useState(actor.outfit || "");
+  const [editTraits, setEditTraits] = useState(actor.traits || "");
   const [editStyle, setEditStyle] = useState(actor.style || "realistic");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -543,7 +561,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim(), outfit: editOutfit.trim() || null, style: editStyle } }),
+        body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim(), outfit: editOutfit.trim() || null, traits: editTraits.trim() || null, style: editStyle } }),
       });
       const data = await res.json();
       if (res.ok) { onUpdate(data.actor); setEditing(false); }
@@ -675,6 +693,13 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
                 placeholder="Outfit / Kleidung"
                 className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 focus:outline-none focus:border-[#a8d5b8]/40"
               />
+              <input
+                type="text"
+                value={editTraits}
+                onChange={(e) => setEditTraits(e.target.value)}
+                placeholder="Eigenschaften (Brille, Narbe, etc.)"
+                className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 focus:outline-none focus:border-[#a8d5b8]/40"
+              />
               <div className="flex gap-2">
                 <button onClick={handleSaveEdit} disabled={saving} className="px-2 py-1 rounded bg-[#3d6b4a]/40 text-[#a8d5b8] text-[10px] hover:bg-[#3d6b4a]/60 disabled:opacity-30">
                   {saving ? "..." : "Speichern"}
@@ -698,6 +723,9 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
               )}
               {actor.outfit && (
                 <p className="text-[10px] text-white/25 mt-0.5">Outfit: {actor.outfit}</p>
+              )}
+              {actor.traits && (
+                <p className="text-[10px] text-white/25 mt-0.5">Traits: {actor.traits}</p>
               )}
               {actor._count && actor._count.characters > 0 && (
                 <p className="text-[9px] text-purple-300/40 mt-0.5">In {actor._count.characters} {actor._count.characters === 1 ? "Projekt" : "Projekten"} besetzt</p>
