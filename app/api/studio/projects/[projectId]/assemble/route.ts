@@ -6,6 +6,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { put, get } from "@vercel/blob";
 import type { StudioScene } from "@/lib/studio/types";
 
 export const maxDuration = 300;
@@ -96,6 +97,43 @@ export async function POST(
           throw new Error("Keine fertigen Clips gefunden");
         }
 
+        // Concatenate audio from all sequences into one file
+        let storyAudioUrl: string | undefined;
+        if (audioUrls.length === 1) {
+          storyAudioUrl = audioUrls[0];
+        } else if (audioUrls.length > 1) {
+          send({ progress: "Kombiniere Audio aus allen Sequenzen..." });
+          const audioChunks: Buffer[] = [];
+          for (const url of audioUrls) {
+            try {
+              if (url.includes(".blob.vercel-storage.com")) {
+                const blob = await get(url, { access: "private" });
+                if (blob?.stream) {
+                  const reader = blob.stream.getReader();
+                  const chunks: Uint8Array[] = [];
+                  let chunk;
+                  while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+                  audioChunks.push(Buffer.concat(chunks));
+                }
+              } else {
+                const res = await fetch(url);
+                audioChunks.push(Buffer.from(await res.arrayBuffer()));
+              }
+            } catch (err) {
+              console.warn("[Assemble] Failed to load audio:", url, err);
+            }
+          }
+          if (audioChunks.length > 0) {
+            const combined = Buffer.concat(audioChunks);
+            const combinedBlob = await put(
+              `studio/${projectId}/combined-audio.mp3`,
+              combined,
+              { access: "private", contentType: "audio/mpeg" },
+            );
+            storyAudioUrl = combinedBlob.url;
+          }
+        }
+
         send({ progress: `${allScenes.length} Clips, starte Remotion Lambda...` });
 
         // Render via Remotion Lambda
@@ -103,7 +141,7 @@ export async function POST(
         const videoUrl = await renderFilmOnLambda({
           geschichteId: projectId,
           scenes: allScenes,
-          storyAudioUrl: audioUrls[0], // TODO: concatenate all audio URLs
+          storyAudioUrl,
           backgroundMusicUrl: body.musicUrl,
           musicVolume: body.musicVolume ?? 0.08,
           title: project.name,
