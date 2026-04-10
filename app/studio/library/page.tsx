@@ -348,74 +348,128 @@ const ANGLES: { id: "front" | "profile" | "fullBody"; label: string; desc: strin
 
 function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalActor; blobProxy: (url: string) => string; onUpdate: (actor: DigitalActor) => void }) {
   const [generating, setGenerating] = useState<string | null>(null);
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [allProgress, setAllProgress] = useState("");
   const sheet = actor.characterSheet || {};
+
+  const generateAngle = async (angle: "front" | "profile" | "fullBody"): Promise<CharacterSheet | null> => {
+    const res = await fetch("/api/studio/actors/character-sheet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        actorId: actor.id,
+        angle,
+        description: actor.description || actor.name,
+        style: actor.style || "realistic",
+      }),
+    });
+    const data = await res.json();
+    return res.ok ? data.characterSheet : null;
+  };
 
   const handleGenerate = async (angle: "front" | "profile" | "fullBody") => {
     setGenerating(angle);
     try {
-      const res = await fetch("/api/studio/actors/character-sheet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          actorId: actor.id,
-          angle,
-          description: actor.description || actor.name,
-          style: actor.style || "realistic",
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        onUpdate({ ...actor, characterSheet: data.characterSheet });
-      }
+      const newSheet = await generateAngle(angle);
+      if (newSheet) onUpdate({ ...actor, characterSheet: newSheet });
     } catch { /* ignore */ }
     setGenerating(null);
   };
 
-  // Resolve asset ID to blob URL for display
-  const resolveSheetUrl = (assetIdOrUrl: string | undefined) => {
-    if (!assetIdOrUrl) return null;
-    // If it starts with http, it's already a URL
-    if (assetIdOrUrl.startsWith("http")) return assetIdOrUrl;
-    // Otherwise it's an asset ID — use blob proxy
-    return `/api/blob?assetId=${encodeURIComponent(assetIdOrUrl)}`;
+  const handleGenerateAll = async () => {
+    setGeneratingAll(true);
+    let latestSheet: CharacterSheet | null = null;
+
+    try {
+      // Step 1: Front zuerst (wird als Referenz fuer die anderen gebraucht)
+      setAllProgress("Front wird generiert...");
+      setGenerating("front");
+      latestSheet = await generateAngle("front");
+      if (latestSheet) onUpdate({ ...actor, characterSheet: latestSheet });
+
+      // Step 2: Profil + Ganzkoerper parallel (nutzen Front als Referenz)
+      setAllProgress("Profil + Ganzkoerper werden generiert...");
+      setGenerating("profile");
+      const [profileSheet, fullBodySheet] = await Promise.all([
+        generateAngle("profile"),
+        generateAngle("fullBody"),
+      ]);
+
+      // Merge results
+      const merged = { ...latestSheet };
+      if (profileSheet) Object.assign(merged, { profile: profileSheet.profile });
+      if (fullBodySheet) Object.assign(merged, { fullBody: fullBodySheet.fullBody });
+      onUpdate({ ...actor, characterSheet: merged });
+    } catch { /* ignore */ }
+
+    setGenerating(null);
+    setGeneratingAll(false);
+    setAllProgress("");
   };
 
   const filledCount = ANGLES.filter((a) => sheet[a.id]).length;
+  const isGenerating = generating !== null;
 
   return (
     <div className="mt-3 pt-3 border-t border-white/5">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[10px] text-white/30">Character Sheet</span>
         <span className="text-[8px] text-white/15">{filledCount}/3</span>
+        {!generatingAll && (
+          <button
+            onClick={handleGenerateAll}
+            disabled={isGenerating}
+            className="ml-auto px-2 py-0.5 rounded bg-[#d4a853]/10 text-[#d4a853]/60 text-[8px] hover:text-[#d4a853] disabled:opacity-30 transition-all"
+          >
+            {filledCount > 0 ? "Alle neu generieren" : "Alle generieren"}
+          </button>
+        )}
       </div>
+
+      {generatingAll && allProgress && (
+        <p className="text-[9px] text-[#d4a853]/50 mb-2">{allProgress}</p>
+      )}
+
       <div className="grid grid-cols-3 gap-2">
         {ANGLES.map(({ id, label, desc }) => {
-          const url = resolveSheetUrl(sheet[id]);
-          const isGenerating = generating === id;
+          const url = sheet[id] || null;
+          const isThisGenerating = generating === id;
           return (
             <div key={id} className="text-center">
-              <div className={`rounded-lg overflow-hidden bg-white/5 border border-white/5 ${id === "fullBody" ? "aspect-[2/3]" : "aspect-square"}`}>
+              <div className={`rounded-lg overflow-hidden bg-white/5 border border-white/5 ${id === "fullBody" ? "aspect-[2/3]" : "aspect-square"} ${isThisGenerating ? "animate-pulse" : ""}`}>
                 {url ? (
                   <img src={blobProxy(url)} alt={label} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-white/10 text-lg">{id === "front" ? "👤" : id === "profile" ? "👤" : "🧍"}</span>
+                    {isThisGenerating ? (
+                      <span className="text-[#d4a853]/30 text-[10px]">...</span>
+                    ) : (
+                      <span className="text-white/10 text-lg">{id === "fullBody" ? "\uD83E\uDDCD" : "\uD83D\uDC64"}</span>
+                    )}
                   </div>
                 )}
               </div>
               <p className="text-[8px] text-white/30 mt-1">{label}</p>
-              <button
-                onClick={() => handleGenerate(id)}
-                disabled={isGenerating || generating !== null}
-                className="text-[8px] text-[#d4a853]/50 hover:text-[#d4a853] disabled:opacity-30 mt-0.5"
-                title={desc}
-              >
-                {isGenerating ? "..." : url ? "Neu" : "Generieren"}
-              </button>
+              {!generatingAll && (
+                <button
+                  onClick={() => handleGenerate(id)}
+                  disabled={isGenerating}
+                  className="text-[8px] text-[#d4a853]/50 hover:text-[#d4a853] disabled:opacity-30 mt-0.5"
+                  title={desc}
+                >
+                  {isThisGenerating ? "..." : url ? "Neu" : "Generieren"}
+                </button>
+              )}
             </div>
           );
         })}
       </div>
+
+      {!generatingAll && filledCount === 0 && (
+        <p className="text-[8px] text-white/15 mt-2 text-center">
+          Front wird zuerst generiert und als Referenz fuer Profil + Ganzkoerper verwendet.
+        </p>
+      )}
     </div>
   );
 }

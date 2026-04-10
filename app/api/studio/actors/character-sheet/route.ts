@@ -136,14 +136,14 @@ export async function POST(request: Request) {
     assetId = asset?.id;
   } catch { /* asset save optional */ }
 
-  // Update character sheet JSON on actor
+  // Update character sheet JSON on actor — always use blob URL for display
   const currentSheet = (actor.characterSheet as Record<string, string> | null) || {};
-  currentSheet[body.angle] = assetId || blob.url;
+  currentSheet[body.angle] = blob.url;
 
   // If generating front, also update portraitAssetId
   const updateData: Record<string, unknown> = { characterSheet: currentSheet };
-  if (body.angle === "front" && assetId) {
-    updateData.portraitAssetId = assetId;
+  if (body.angle === "front") {
+    updateData.portraitAssetId = blob.url;
   }
 
   await prisma.digitalActor.update({

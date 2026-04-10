@@ -86,10 +86,10 @@ export async function POST(request: Request) {
     assetId = asset?.id;
   } catch { /* asset save optional */ }
 
-  // Update actor with portrait
+  // Update actor with portrait — always use blob URL for display compatibility
   await prisma.digitalActor.update({
     where: { id: body.actorId },
-    data: { portraitAssetId: assetId || blob.url },
+    data: { portraitAssetId: blob.url },
   });
 
   return Response.json({ portraitUrl: blob.url, assetId });
