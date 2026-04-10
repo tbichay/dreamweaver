@@ -871,7 +871,7 @@ export async function designVoice(
       },
       body: JSON.stringify({
         voice_description: description,
-        text: sampleText || "Hallo, ich bin bereit fuer meinen Auftritt. Lass uns anfangen!",
+        text: sampleText || "Hallo, ich bin bereit fuer meinen grossen Auftritt. Heute ist ein wunderbarer Tag und ich freue mich darauf, euch meine Geschichte zu erzaehlen. Lasst uns gemeinsam anfangen!",
       }),
     },
     "Voice Design",
