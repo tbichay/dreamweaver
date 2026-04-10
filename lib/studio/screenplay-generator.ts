@@ -165,10 +165,13 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
       : getDirectingStylePrompt("pixar-classic");
   }
 
-  // Build character descriptions
-  const charDescriptions = characters.map((c) =>
-    `- ${c.markerId} = "${c.name}" (${c.species || "Charakter"}): ${c.description || "Keine Beschreibung"}. Persoenlichkeit: ${c.personality || "Neutral"}`
-  ).join("\n");
+  // Build character descriptions with char-N aliases for AI
+  const charIdMap = new Map<string, string>(); // "char-0" → real character ID
+  const charDescriptions = characters.map((c, i) => {
+    const alias = `char-${i}`;
+    charIdMap.set(alias, c.id);
+    return `- ${alias} = ${c.markerId} "${c.name}" (${c.species || "Charakter"}): ${c.description || "Keine Beschreibung"}. Persoenlichkeit: ${c.personality || "Neutral"}`;
+  }).join("\n");
 
   // Build beats summary
   const beatsSummary = storyboard.beats.map((b) =>
@@ -274,11 +277,15 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
       const rs = rawScenes[sci];
       const duration = ((rs.durationHint as number) || 5) * 1000;
 
+      // Map char-N alias back to real character ID
+      const rawCharId = rs.characterId as string | undefined;
+      const resolvedCharId = rawCharId ? (charIdMap.get(rawCharId) || rawCharId) : undefined;
+
       scenes.push({
         id: `seq${si}-scene${sci}`,
         index: sci,
         beatIds: (rs.beatIds as string[]) || [],
-        characterId: rs.characterId as string | undefined,
+        characterId: resolvedCharId,
         spokenText: rs.spokenText as string | undefined,
         type: (rs.type as StudioScene["type"]) || "dialog",
         sceneDescription: (rs.sceneDescription as string) || "",
@@ -306,7 +313,7 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
       atmosphere: atmosphereText,
       directingStyle: directingStyle || "pixar-classic",
       storySegment: "", // Filled by caller
-      characterIds: (rawSeq.characterIds as string[]) || [],
+      characterIds: ((rawSeq.characterIds as string[]) || []).map((cid) => charIdMap.get(cid) || cid),
       scenes,
       transitionType: (rawSeq.transitionType as ScreenplaySequence["transitionType"]) || "fade-to-black",
     });
