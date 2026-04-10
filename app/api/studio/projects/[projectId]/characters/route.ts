@@ -157,6 +157,9 @@ export async function PUT(
         voiceId: actor.voiceId,
         voiceSettings: actor.voiceSettings,
         portraitUrl,
+        description: actor.description,
+        outfit: actor.outfit,
+        traits: actor.traits,
         syncedAt: new Date().toISOString(),
       };
 
@@ -172,6 +175,8 @@ export async function PUT(
       castData.voiceId = actor.voiceId;
       castData.voiceSettings = actor.voiceSettings ? JSON.parse(JSON.stringify(actor.voiceSettings)) : undefined;
       if (portraitUrl) castData.portraitUrl = portraitUrl;
+      // Override character description with actor data
+      if (actor.description) castData.description = actor.description;
     } else {
       // Uncast: clear actorId, keep voice/portrait data
       castData.actorId = null;
