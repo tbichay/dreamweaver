@@ -19,7 +19,7 @@ function buildCharacterPrompt(characterId: string, sceneDescription: string): st
   return prompt;
 }
 
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 

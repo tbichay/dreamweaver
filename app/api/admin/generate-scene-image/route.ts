@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { toFile } from "openai";
 import { STYLE_PREFIX, CHARACTERS, SCENES, type CharacterKey, type SceneKey } from "@/lib/studio";
 
-export const maxDuration = 120;
+export const maxDuration = 800;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 const openai = new OpenAI();

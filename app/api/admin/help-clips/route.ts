@@ -3,7 +3,7 @@ import { generateAudio } from "@/lib/elevenlabs";
 import { put, list } from "@vercel/blob";
 import { HELP_CLIPS, HELP_CLIP_IDS } from "@/lib/help-clips";
 
-export const maxDuration = 300; // 5 minutes for all clips
+export const maxDuration = 800; // 5 minutes for all clips
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 

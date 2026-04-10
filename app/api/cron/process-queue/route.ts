@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { generateAudio } from "@/lib/elevenlabs";
 import { Resend } from "resend";
 
-export const maxDuration = 300; // 5 minutes max for audio generation
+export const maxDuration = 800; // 5 minutes max for audio generation
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const emailFrom = process.env.EMAIL_FROM || "KoalaTree <noreply@koalatree.ai>";

@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { list, get, put } from "@vercel/blob";
 
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 

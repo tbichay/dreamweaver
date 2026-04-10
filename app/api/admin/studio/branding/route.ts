@@ -9,7 +9,7 @@ import {
   type BrandingIconSize,
 } from "@/lib/studio";
 
-export const maxDuration = 120;
+export const maxDuration = 800;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 

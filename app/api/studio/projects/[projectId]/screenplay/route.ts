@@ -8,7 +8,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 export async function POST(
   request: Request,

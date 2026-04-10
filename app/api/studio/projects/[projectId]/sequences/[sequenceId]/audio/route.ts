@@ -23,7 +23,7 @@ import type { StudioScene } from "@/lib/studio/types";
 import type { CharacterVoiceSettings } from "@/lib/types";
 import { CHARACTERS } from "@/lib/types";
 
-export const maxDuration = 120;
+export const maxDuration = 800;
 
 export async function GET(
   _request: Request,

@@ -14,7 +14,7 @@ import {
   SCENES,
 } from "@/lib/studio";
 
-export const maxDuration = 120; // 2 minutes — image gen can be slow
+export const maxDuration = 800; // 2 minutes — image gen can be slow
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 

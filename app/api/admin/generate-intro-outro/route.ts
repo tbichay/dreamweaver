@@ -4,7 +4,7 @@ import { put, list } from "@vercel/blob";
 import OpenAI from "openai";
 import { STYLE_PREFIX, CHARACTERS, SCENES, type CharacterKey } from "@/lib/studio";
 
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 const openai = new OpenAI();

@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { generateVideo, downloadVideo } from "@/lib/hedra";
 import { put, list, get } from "@vercel/blob";
 
-export const maxDuration = 300; // 5 minutes
+export const maxDuration = 800; // 5 minutes
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 

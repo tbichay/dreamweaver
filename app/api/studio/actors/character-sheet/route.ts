@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db";
 import { put } from "@vercel/blob";
 import OpenAI from "openai";
 
-export const maxDuration = 60;
+export const maxDuration = 800;
 
 type Angle = "front" | "profile" | "fullBody";
 

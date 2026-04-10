@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db";
 import { put } from "@vercel/blob";
 import OpenAI from "openai";
 
-export const maxDuration = 60;
+export const maxDuration = 800;
 
 export async function POST(request: Request) {
   const session = await auth();

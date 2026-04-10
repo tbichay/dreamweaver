@@ -51,30 +51,50 @@ async function main() {
 
   console.log(`📂 Found ${clips.length} scene clips\n`);
 
-  // 2. Create Intro Title Card
-  console.log("🎬 Creating intro...");
+  // 2. Prepare Intro (download from blob or create fallback)
+  console.log("🎬 Preparing intro...");
   const introPath = join(MASTER_DIR, "intro.mp4");
-  try {
-    execSync(
-      `ffmpeg -y -f lavfi -i "color=c=0x1a2e1a:s=720x1280:d=3:r=30" -f lavfi -i "anullsrc=r=44100:cl=stereo" -t 3 -vf "drawtext=text='KoalaTree':fontsize=64:fontcolor=0xf5eed6:x=(w-text_w)/2:y=(h-text_h)/2-40,drawtext=text='präsentiert':fontsize=28:fontcolor=0xa8d5b8:x=(w-text_w)/2:y=(h-text_h)/2+40" -c:v libx264 -preset fast -crf 18 -c:a aac -shortest "${introPath}"`,
-      { stdio: "pipe" }
-    );
-    console.log("  ✓ Intro card (3s)");
-  } catch (e) {
-    console.log("  ⚠ Intro creation failed (font issue?), skipping");
+  if (introClipUrl) {
+    try {
+      const res = await fetch(introClipUrl);
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        writeFileSync(introPath, buf);
+        console.log(`  ✓ Intro downloaded (${(buf.length / 1024).toFixed(0)}KB)`);
+      }
+    } catch { console.log("  ⚠ Intro download failed"); }
+  }
+  if (!existsSync(introPath)) {
+    try {
+      execSync(
+        `ffmpeg -y -f lavfi -i "color=c=0x1a2e1a:s=720x1280:d=3:r=30" -f lavfi -i "anullsrc=r=44100:cl=stereo" -t 3 -vf "drawtext=text='KoalaTree':fontsize=64:fontcolor=0xf5eed6:x=(w-text_w)/2:y=(h-text_h)/2-40,drawtext=text='präsentiert':fontsize=28:fontcolor=0xa8d5b8:x=(w-text_w)/2:y=(h-text_h)/2+40" -c:v libx264 -preset fast -crf 18 -c:a aac -shortest "${introPath}"`,
+        { stdio: "pipe" }
+      );
+      console.log("  ✓ Intro card (3s fallback)");
+    } catch { console.log("  ⚠ Intro creation failed, skipping"); }
   }
 
-  // 3. Create Outro Card
-  console.log("🎬 Creating outro...");
+  // 3. Prepare Outro
+  console.log("🎬 Preparing outro...");
   const outroPath = join(MASTER_DIR, "outro.mp4");
-  try {
-    execSync(
-      `ffmpeg -y -f lavfi -i "color=c=0x1a2e1a:s=720x1280:d=4:r=30" -f lavfi -i "anullsrc=r=44100:cl=stereo" -t 4 -vf "drawtext=text='Erstellt mit':fontsize=24:fontcolor=0xa8d5b880:x=(w-text_w)/2:y=(h-text_h)/2-30,drawtext=text='KoalaTree':fontsize=48:fontcolor=0xf5eed6:x=(w-text_w)/2:y=(h-text_h)/2+20" -c:v libx264 -preset fast -crf 18 -c:a aac -shortest "${outroPath}"`,
-      { stdio: "pipe" }
-    );
-    console.log("  ✓ Outro card (4s)");
-  } catch (e) {
-    console.log("  ⚠ Outro creation failed, skipping");
+  if (outroClipUrl) {
+    try {
+      const res = await fetch(outroClipUrl);
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        writeFileSync(outroPath, buf);
+        console.log(`  ✓ Outro downloaded (${(buf.length / 1024).toFixed(0)}KB)`);
+      }
+    } catch { console.log("  ⚠ Outro download failed"); }
+  }
+  if (!existsSync(outroPath)) {
+    try {
+      execSync(
+        `ffmpeg -y -f lavfi -i "color=c=0x1a2e1a:s=720x1280:d=4:r=30" -f lavfi -i "anullsrc=r=44100:cl=stereo" -t 4 -vf "drawtext=text='Erstellt mit':fontsize=24:fontcolor=0xa8d5b880:x=(w-text_w)/2:y=(h-text_h)/2-30,drawtext=text='KoalaTree':fontsize=48:fontcolor=0xf5eed6:x=(w-text_w)/2:y=(h-text_h)/2+20" -c:v libx264 -preset fast -crf 18 -c:a aac -shortest "${outroPath}"`,
+        { stdio: "pipe" }
+      );
+      console.log("  ✓ Outro card (4s fallback)");
+    } catch { console.log("  ⚠ Outro creation failed, skipping"); }
   }
 
   // 4. Normalize and color-grade each clip

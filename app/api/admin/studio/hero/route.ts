@@ -3,7 +3,7 @@ import { put, list, get } from "@vercel/blob";
 import sharp from "sharp";
 import { CHARACTERS, HERO_POSITIONS, type CharacterKey } from "@/lib/studio";
 
-export const maxDuration = 60;
+export const maxDuration = 800;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 const HERO_WIDTH = 1536;

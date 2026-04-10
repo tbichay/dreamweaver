@@ -7,7 +7,7 @@ import { berechneAlter } from "@/lib/utils";
 
 const anthropic = new Anthropic();
 
-export const maxDuration = 120;
+export const maxDuration = 800;
 
 export async function POST(request: Request) {
   const session = await auth();

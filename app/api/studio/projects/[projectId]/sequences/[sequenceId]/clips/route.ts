@@ -12,7 +12,7 @@ import { klingAvatar, klingI2V, seedanceI2V, extractLastFrame } from "@/lib/fal"
 import { segmentMp3 } from "@/lib/audio-segment";
 import type { StudioScene } from "@/lib/studio/types";
 
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 /** Resolve relative URLs to absolute for server-side fetch */
 function resolveUrl(url: string): string {
