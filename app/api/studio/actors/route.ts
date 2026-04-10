@@ -15,6 +15,7 @@ export async function GET() {
   const actors = await prisma.digitalActor.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
+    include: { _count: { select: { characters: true } } },
   });
 
   return Response.json({ actors });

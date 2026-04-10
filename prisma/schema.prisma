@@ -312,6 +312,12 @@ model StudioCharacter {
   voiceId         String?         // ElevenLabs Voice ID
   voiceSettings   Json?           // { stability, similarity_boost, style, speed }
 
+  // Actor Casting
+  actorId         String?         // FK to DigitalActor (null = uncast)
+  actor           DigitalActor?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  castSnapshot    Json?           // { voiceId, voiceSettings, portraitUrl, syncedAt }
+  castHistory     Json?           // Array of past snapshots for version switching
+
   // Metadata
   role            String?         // "lead" | "supporting" | "narrator" | "minor"
   color           String?         // Brand color hex
@@ -321,6 +327,7 @@ model StudioCharacter {
   createdAt       DateTime        @default(now())
 
   @@index([projectId])
+  @@index([actorId])
 }
 
 // A sequence in a Studio Project (= one location/atmosphere)
@@ -460,9 +467,13 @@ model DigitalActor {
   // Appearance
   portraitAssetId String?         // Primary portrait from Asset library
   style           String?         // "realistic" | "animated" etc.
+  characterSheet  Json?           // { front?: assetId, profile?: assetId, fullBody?: assetId }
 
   // Metadata
   tags            String[]        // ["actor", "male", "german", "action"]
+
+  // Relations
+  characters      StudioCharacter[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

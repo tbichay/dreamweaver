@@ -11,8 +11,10 @@ interface DigitalActor {
   voiceId?: string;
   voicePreviewUrl?: string;
   portraitAssetId?: string;
+  style?: string;
   tags: string[];
   createdAt: string;
+  _count?: { characters: number };
 }
 
 interface Asset {
@@ -59,6 +61,7 @@ interface NewActorFormProps {
 function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [style, setStyle] = useState("realistic");
   const [saving, setSaving] = useState(false);
   const [actorId, setActorId] = useState<string | null>(null);
 
@@ -83,7 +86,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim(), tags: [] }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim(), style, tags: [] }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Fehler beim Erstellen"); return null; }
@@ -144,7 +147,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors/portrait", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actorId: id, description: description || name, style: "realistic" }),
+        body: JSON.stringify({ actorId: id, description: description || name, style }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Portrait fehlgeschlagen"); return; }
@@ -181,7 +184,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: actorId, updates: { name: name.trim(), description: description.trim() } }),
+        body: JSON.stringify({ id: actorId, updates: { name: name.trim(), description: description.trim(), style } }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Speichern fehlgeschlagen"); return; }
@@ -229,6 +232,21 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
           <p className="text-[9px] text-white/20 mt-0.5">
             Wird fuer Stimm- und Portrait-Generierung verwendet
           </p>
+        </div>
+
+        {/* Style */}
+        <div>
+          <label className="block text-[10px] text-white/40 mb-1">Stil</label>
+          <select
+            value={style}
+            onChange={(e) => setStyle(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 focus:outline-none focus:border-[#a8d5b8]/40"
+          >
+            <option value="realistic">Realistisch</option>
+            <option value="disney-2d">Disney 2D</option>
+            <option value="pixar-3d">Pixar 3D</option>
+            <option value="ghibli">Ghibli</option>
+          </select>
         </div>
 
         {/* Voice Section */}
@@ -321,11 +339,14 @@ interface ActorDetailProps {
   onUpdate: (actor: DigitalActor) => void;
 }
 
-function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate }: ActorDetailProps) {
+function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onDelete }: ActorDetailProps & { onDelete: (id: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(actor.name);
   const [editDesc, setEditDesc] = useState(actor.description || "");
+  const [editStyle, setEditStyle] = useState(actor.style || "realistic");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [playingPreview, setPlayingPreview] = useState(false);
 
   // Voice regeneration
@@ -343,12 +364,21 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate }: A
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim() } }),
+        body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim(), style: editStyle } }),
       });
       const data = await res.json();
       if (res.ok) { onUpdate(data.actor); setEditing(false); }
     } catch { /* ignore */ }
     setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/studio/actors?id=${actor.id}`, { method: "DELETE" });
+      if (res.ok) onDelete(actor.id);
+    } catch { /* ignore */ }
+    setDeleting(false);
   };
 
   const handlePlayVoice = (url: string) => {
@@ -430,6 +460,16 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate }: A
                 rows={2}
                 className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 focus:outline-none focus:border-[#a8d5b8]/40 resize-none"
               />
+              <select
+                value={editStyle}
+                onChange={(e) => setEditStyle(e.target.value)}
+                className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/70 focus:outline-none focus:border-[#a8d5b8]/40"
+              >
+                <option value="realistic">Realistisch</option>
+                <option value="disney-2d">Disney 2D</option>
+                <option value="pixar-3d">Pixar 3D</option>
+                <option value="ghibli">Ghibli</option>
+              </select>
               <div className="flex gap-2">
                 <button onClick={handleSaveEdit} disabled={saving} className="px-2 py-1 rounded bg-[#3d6b4a]/40 text-[#a8d5b8] text-[10px] hover:bg-[#3d6b4a]/60 disabled:opacity-30">
                   {saving ? "..." : "Speichern"}
@@ -443,10 +483,16 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate }: A
             <>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-[#f5eed6]">{actor.name}</h3>
+                {actor.style && (
+                  <span className="text-[8px] px-1.5 py-0.5 bg-purple-500/10 rounded text-purple-300/60">{actor.style}</span>
+                )}
                 <button onClick={() => setEditing(true)} className="text-[9px] text-white/20 hover:text-white/40">Bearbeiten</button>
               </div>
               {actor.description && (
                 <p className="text-[11px] text-white/40 mt-0.5">{actor.description}</p>
+              )}
+              {actor._count && actor._count.characters > 0 && (
+                <p className="text-[9px] text-purple-300/40 mt-0.5">In {actor._count.characters} {actor._count.characters === 1 ? "Projekt" : "Projekten"} besetzt</p>
               )}
             </>
           )}
@@ -526,12 +572,38 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate }: A
         </div>
       </div>
 
-      <button
-        onClick={onClose}
-        className="mt-3 w-full py-1.5 rounded-lg bg-white/5 text-white/30 text-[10px] hover:text-white/50 transition-all"
-      >
-        Schliessen
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={onClose}
+          className="flex-1 py-1.5 rounded-lg bg-white/5 text-white/30 text-[10px] hover:text-white/50 transition-all"
+        >
+          Schliessen
+        </button>
+        {confirmDelete ? (
+          <div className="flex gap-1">
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-[10px] hover:bg-red-500/30 disabled:opacity-30"
+            >
+              {deleting ? "..." : "Ja, loeschen"}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="px-3 py-1.5 rounded-lg bg-white/5 text-white/30 text-[10px] hover:text-white/50"
+            >
+              Nein
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400/40 text-[10px] hover:text-red-400/70 transition-all"
+          >
+            Loeschen
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -859,6 +931,10 @@ export default function LibraryPage() {
               onUpdate={(updated) => {
                 setActors((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
               }}
+              onDelete={(id) => {
+                setActors((prev) => prev.filter((a) => a.id !== id));
+                setSelectedActorId(null);
+              }}
             />
           )}
 
@@ -890,6 +966,10 @@ export default function LibraryPage() {
                     </div>
 
                     <p className="text-xs font-medium text-[#f5eed6] mt-2 text-center truncate">{actor.name}</p>
+
+                    {actor.style && (
+                      <p className="text-[7px] text-purple-300/40 text-center mt-0.5">{actor.style}</p>
+                    )}
 
                     {actor.description && (
                       <p className="text-[9px] text-white/30 mt-0.5 text-center truncate">{actor.description}</p>

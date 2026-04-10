@@ -130,6 +130,68 @@ export async function PUT(
   });
   if (!char) return Response.json({ error: "Charakter nicht gefunden" }, { status: 404 });
 
+  // ── Actor Casting Logic ──
+  const castData: Record<string, unknown> = {};
+
+  if (body.updates.actorId !== undefined) {
+    if (body.updates.actorId) {
+      // Cast: load actor, create snapshot, copy voice + portrait
+      const actor = await prisma.digitalActor.findFirst({
+        where: { id: body.updates.actorId as string, userId: session.user.id },
+      });
+      if (!actor) return Response.json({ error: "Actor nicht gefunden" }, { status: 404 });
+
+      // Resolve portrait URL from asset
+      let portraitUrl: string | undefined;
+      if (actor.portraitAssetId) {
+        const asset = await prisma.asset.findUnique({ where: { id: actor.portraitAssetId } });
+        if (asset) portraitUrl = asset.blobUrl;
+      }
+
+      const snapshot = {
+        voiceId: actor.voiceId,
+        voiceSettings: actor.voiceSettings,
+        portraitUrl,
+        syncedAt: new Date().toISOString(),
+      };
+
+      // Push old snapshot to history if re-syncing
+      if (char.actorId === actor.id && char.castSnapshot) {
+        const history = (char.castHistory as Record<string, unknown>[] | null) || [];
+        history.push(char.castSnapshot as Record<string, unknown>);
+        castData.castHistory = history;
+      }
+
+      castData.actorId = actor.id;
+      castData.castSnapshot = snapshot;
+      castData.voiceId = actor.voiceId;
+      castData.voiceSettings = actor.voiceSettings ? JSON.parse(JSON.stringify(actor.voiceSettings)) : undefined;
+      if (portraitUrl) castData.portraitUrl = portraitUrl;
+    } else {
+      // Uncast: clear actorId, keep voice/portrait data
+      castData.actorId = null;
+    }
+  }
+
+  // ── Version Switch Logic ──
+  if (body.updates.switchToSnapshot !== undefined) {
+    const history = (char.castHistory as Record<string, unknown>[] | null) || [];
+    const idx = body.updates.switchToSnapshot as number;
+    if (idx >= 0 && idx < history.length) {
+      const chosen = history[idx];
+      // Move current snapshot to history, apply chosen
+      const newHistory = [...history];
+      newHistory.splice(idx, 1);
+      if (char.castSnapshot) newHistory.push(char.castSnapshot as Record<string, unknown>);
+
+      castData.castSnapshot = chosen;
+      castData.castHistory = newHistory;
+      castData.voiceId = chosen.voiceId as string | undefined;
+      castData.voiceSettings = chosen.voiceSettings ? JSON.parse(JSON.stringify(chosen.voiceSettings)) : undefined;
+      if (chosen.portraitUrl) castData.portraitUrl = chosen.portraitUrl as string;
+    }
+  }
+
   const updated = await prisma.studioCharacter.update({
     where: { id: body.characterId },
     data: {
@@ -138,11 +200,14 @@ export async function PUT(
       personality: body.updates.personality as string | undefined,
       species: body.updates.species as string | undefined,
       role: body.updates.role as string | undefined,
-      voiceId: body.updates.voiceId as string | undefined,
-      voiceSettings: body.updates.voiceSettings ? JSON.parse(JSON.stringify(body.updates.voiceSettings)) : undefined,
-      portraitUrl: body.updates.portraitUrl as string | undefined,
+      voiceId: (castData.voiceId as string | undefined) ?? body.updates.voiceId as string | undefined,
+      voiceSettings: castData.voiceSettings ?? (body.updates.voiceSettings ? JSON.parse(JSON.stringify(body.updates.voiceSettings)) : undefined),
+      portraitUrl: (castData.portraitUrl as string | undefined) ?? body.updates.portraitUrl as string | undefined,
       emoji: body.updates.emoji as string | undefined,
       color: body.updates.color as string | undefined,
+      ...(castData.actorId !== undefined ? { actorId: castData.actorId as string | null } : {}),
+      ...(castData.castSnapshot !== undefined ? { castSnapshot: castData.castSnapshot as object } : {}),
+      ...(castData.castHistory !== undefined ? { castHistory: castData.castHistory as object } : {}),
     },
   });
 

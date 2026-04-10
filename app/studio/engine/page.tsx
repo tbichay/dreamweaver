@@ -21,6 +21,9 @@ interface Character {
   species?: string;
   portraitUrl?: string;
   voiceId?: string;
+  actorId?: string | null;
+  castSnapshot?: { voiceId?: string; voiceSettings?: Record<string, number>; portraitUrl?: string; syncedAt?: string } | null;
+  castHistory?: Array<{ voiceId?: string; voiceSettings?: Record<string, number>; portraitUrl?: string; syncedAt?: string }> | null;
 }
 
 interface Sequence {
@@ -929,7 +932,9 @@ interface DigitalActor {
   voiceSettings?: Record<string, unknown>;
   voicePreviewUrl?: string;
   portraitAssetId?: string;
+  style?: string;
   tags: string[];
+  _count?: { characters: number };
 }
 
 function CharacterCard({ character, projectId, onUpdate, visualStyle }: { character: Character; projectId: string; onUpdate: () => void; visualStyle?: string }) {
@@ -1001,16 +1006,37 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
 
   const castActor = async (actor: DigitalActor) => {
     try {
-      const updates: Record<string, unknown> = {};
-      if (actor.voiceId) updates.voiceId = actor.voiceId;
-      if (actor.voiceSettings) updates.voiceSettings = actor.voiceSettings;
-
       await fetch(`/api/studio/projects/${projectId}/characters`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ characterId: character.id, updates }),
+        body: JSON.stringify({ characterId: character.id, updates: { actorId: actor.id } }),
       });
       setShowCastMenu(false);
+      onUpdate();
+    } catch { /* */ }
+  };
+
+  const uncastActor = async () => {
+    try {
+      await fetch(`/api/studio/projects/${projectId}/characters`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterId: character.id, updates: { actorId: null } }),
+      });
+      setShowCastMenu(false);
+      onUpdate();
+    } catch { /* */ }
+  };
+
+  const resyncActor = async () => {
+    if (!character.actorId) return;
+    try {
+      // Re-cast the same actor to create a new snapshot
+      await fetch(`/api/studio/projects/${projectId}/characters`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterId: character.id, updates: { actorId: character.actorId } }),
+      });
       onUpdate();
     } catch { /* */ }
   };
@@ -1074,14 +1100,24 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
           </button>
         </div>
       )}
-      {/* Cast Actor button */}
-      <button
-        onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }}
-        className="mt-1.5 text-[7px] text-purple-300/60 hover:text-purple-300 transition-colors"
-      >
-        {character.voiceId ? "Stimme aendern" : "Schauspieler casten"}
-      </button>
-      {character.voiceId && (
+      {/* Cast Actor button + status */}
+      {character.actorId ? (
+        <div className="mt-1.5 flex items-center gap-1 justify-center">
+          <span className="text-[7px] text-purple-300/70">
+            {actors.find(a => a.id === character.actorId)?.name || "Actor"}
+          </span>
+          <button onClick={resyncActor} className="text-[7px] text-[#d4a853]/50 hover:text-[#d4a853]" title="Vom Actor aktualisieren">&#x21BB;</button>
+          <button onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }} className="text-[7px] text-white/30 hover:text-white/50" title="Anderen Actor waehlen">&#x270E;</button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }}
+          className="mt-1.5 text-[7px] text-purple-300/60 hover:text-purple-300 transition-colors"
+        >
+          {character.voiceId ? "Stimme aendern" : "Schauspieler casten"}
+        </button>
+      )}
+      {character.voiceId && !character.actorId && (
         <p className="text-[7px] text-green-400/40 mt-0.5">Stimme zugewiesen</p>
       )}
       {/* Cast Actor dropdown */}
@@ -1098,14 +1134,26 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
                 <button
                   key={actor.id}
                   onClick={() => castActor(actor)}
-                  className="w-full text-left px-2 py-1 rounded text-[9px] text-white/50 hover:bg-white/5 hover:text-white/80 flex items-center gap-1.5"
+                  className={`w-full text-left px-2 py-1 rounded text-[9px] hover:bg-white/5 flex items-center gap-1.5 ${character.actorId === actor.id ? "text-purple-300/80 bg-purple-500/10" : "text-white/50 hover:text-white/80"}`}
                 >
-                  <span className="text-[10px]">{actor.voiceId ? "🎙" : "🎭"}</span>
-                  <span>{actor.name}</span>
-                  {actor.description && <span className="text-white/20 truncate flex-1">{actor.description}</span>}
+                  {actor.portraitAssetId ? (
+                    <img src={`/api/blob?path=${encodeURIComponent(actor.portraitAssetId)}`} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <span className="text-[10px]">{actor.voiceId ? "\uD83C\uDFA4" : "\uD83C\uDFAD"}</span>
+                  )}
+                  <span className="truncate">{actor.name}</span>
+                  {actor.style && <span className="text-[7px] text-white/15 flex-shrink-0">{actor.style}</span>}
                 </button>
               ))}
             </div>
+          )}
+          {character.actorId && (
+            <button
+              onClick={uncastActor}
+              className="mt-1 w-full text-left px-2 py-0.5 text-[8px] text-red-400/50 hover:text-red-400/80"
+            >
+              Uncast
+            </button>
           )}
           <button
             onClick={() => setShowCastMenu(false)}
