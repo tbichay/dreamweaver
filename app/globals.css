@@ -180,6 +180,95 @@ button, a, [role="button"], summary, label, select, input, textarea {
   transform: translateY(-2px);
 }
 
+/* ── Engine Theme (koalatree.io) ── */
+
+[data-theme="engine"] {
+  background: #141414;
+  color: #E8E8E8;
+}
+
+[data-theme="engine"] .card {
+  background: #1E1E1E;
+  border-color: #2A2A2A;
+  border-radius: 0.75rem;
+}
+
+[data-theme="engine"] .card:hover {
+  background: #262626;
+  border-color: #3A3A3A;
+  transform: translateY(-1px);
+}
+
+[data-theme="engine"] .btn-primary {
+  background: transparent;
+  border: 1px solid #C8A97E;
+  color: #C8A97E;
+}
+
+[data-theme="engine"] .btn-primary:hover {
+  background: rgba(200, 169, 126, 0.1);
+  box-shadow: none;
+  transform: none;
+}
+
+[data-theme="engine"] select,
+[data-theme="engine"] input,
+[data-theme="engine"] textarea {
+  background: transparent;
+  border-color: #2A2A2A;
+  color: #E8E8E8;
+}
+
+[data-theme="engine"] select:focus,
+[data-theme="engine"] input:focus,
+[data-theme="engine"] textarea:focus {
+  border-color: #C8A97E;
+  outline: none;
+}
+
+[data-theme="engine"] select option {
+  background: #1E1E1E;
+  color: #E8E8E8;
+}
+
+/* Engine color overrides — remap KoalaTree green palette to neutral dark */
+/* These target the Tailwind arbitrary value classes used in studio pages */
+
+/* Primary text: cream → off-white */
+[data-theme="engine"] [class*="text-\[#f5eed6\]"] { color: #E8E8E8 !important; }
+
+/* Green accent text → amber */
+[data-theme="engine"] [class*="text-\[#a8d5b8\]"] { color: #C8A97E !important; }
+
+/* Green backgrounds → dark surface */
+[data-theme="engine"] [class*="bg-\[#4a7c59\]"],
+[data-theme="engine"] [class*="bg-\[#3d6b4a\]"] { background: transparent !important; border: 1px solid #C8A97E !important; color: #C8A97E !important; }
+
+[data-theme="engine"] [class*="bg-\[#5a8c69\]"] { background: rgba(200,169,126,0.1) !important; }
+
+/* Gold accent stays but gets refined */
+[data-theme="engine"] [class*="bg-\[#d4a853\]"] { background: #C8A97E !important; }
+
+/* Green tinted backgrounds → neutral */
+[data-theme="engine"] [class*="bg-\[#3d6b4a\]\/"] { background: rgba(200,169,126,0.15) !important; }
+[data-theme="engine"] [class*="bg-\[#162816\]"] { background: #1A1A1A !important; }
+
+/* Border overrides */
+[data-theme="engine"] [class*="border-\[#4a7c59\]"] { border-color: #C8A97E !important; }
+[data-theme="engine"] [class*="border-\[#a8d5b8\]"] { border-color: #C8A97E !important; }
+
+/* White/5 backgrounds → slightly lighter on dark */
+[data-theme="engine"] [class*="bg-white\/5"],
+[data-theme="engine"] [class*="bg-white\/\[0.02\]"],
+[data-theme="engine"] [class*="bg-white\/\[0.03\]"],
+[data-theme="engine"] [class*="bg-white\/3"] { background: #1E1E1E !important; }
+
+[data-theme="engine"] [class*="bg-white\/10"] { background: #262626 !important; }
+
+/* Border white/5 → dark border */
+[data-theme="engine"] [class*="border-white\/5"],
+[data-theme="engine"] [class*="border-white\/10"] { border-color: #2A2A2A !important; }
+
 /* Button styles — clean gradient */
 .btn-primary {
   background: linear-gradient(135deg, #4a7c59, #3d6b4a);
