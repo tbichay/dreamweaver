@@ -97,19 +97,48 @@ export async function POST(
           throw new Error("Keine fertigen Clips gefunden");
         }
 
-        // Resolve private Blob URLs to public download URLs for Remotion Lambda
-        send({ progress: "Bereite Clips fuer Rendering vor..." });
-        const { head } = await import("@vercel/blob");
+        // Upload private Blob clips to S3 for Remotion Lambda access
+        send({ progress: `Lade ${allScenes.length} Clips auf S3...` });
+        const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+        const s3 = new S3Client({
+          region: "eu-central-1",
+          credentials: {
+            accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID!,
+            secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY!,
+          },
+        });
+
+        const s3Bucket = (process.env.REMOTION_SERVE_URL || "").match(/s3\..*\.amazonaws\.com\/(.+?)\/sites/)?.[0]
+          ? "remotionlambda-eucentral1-hn67lohl74"
+          : "remotionlambda-eucentral1-hn67lohl74"; // Fallback bucket name
+
         for (let i = 0; i < allScenes.length; i++) {
           const url = allScenes[i].videoUrl;
-          if (url.includes(".private.blob.vercel-storage.com")) {
+          if (url.includes(".blob.vercel-storage.com")) {
             try {
-              const blobInfo = await head(url);
-              if (blobInfo.downloadUrl) {
-                allScenes[i].videoUrl = blobInfo.downloadUrl;
-              }
+              send({ progress: `Clip ${i + 1}/${allScenes.length} auf S3...` });
+              // Download from private Blob
+              const blobData = await get(url, { access: "private" });
+              if (!blobData?.stream) continue;
+              const reader = blobData.stream.getReader();
+              const chunks: Uint8Array[] = [];
+              let chunk;
+              while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+              const buffer = Buffer.concat(chunks);
+
+              // Upload to S3 with public-read
+              const s3Key = `temp-render/${projectId}/clip-${String(i).padStart(3, "0")}.mp4`;
+              await s3.send(new PutObjectCommand({
+                Bucket: s3Bucket,
+                Key: s3Key,
+                Body: buffer,
+                ContentType: "video/mp4",
+                ACL: "public-read",
+              }));
+
+              allScenes[i].videoUrl = `https://${s3Bucket}.s3.eu-central-1.amazonaws.com/${s3Key}`;
             } catch (err) {
-              console.warn(`[Assemble] Could not resolve download URL for clip ${i}:`, err);
+              console.warn(`[Assemble] S3 upload failed for clip ${i}:`, err);
             }
           }
         }
@@ -151,12 +180,30 @@ export async function POST(
           }
         }
 
-        // Also resolve audio URL for Remotion
-        if (storyAudioUrl?.includes(".private.blob.vercel-storage.com")) {
+        // Also upload audio to S3 for Remotion
+        if (storyAudioUrl?.includes(".blob.vercel-storage.com")) {
           try {
-            const audioInfo = await head(storyAudioUrl);
-            if (audioInfo.downloadUrl) storyAudioUrl = audioInfo.downloadUrl;
-          } catch { /* keep original */ }
+            send({ progress: "Audio auf S3..." });
+            const audioBlobData = await get(storyAudioUrl, { access: "private" });
+            if (audioBlobData?.stream) {
+              const reader = audioBlobData.stream.getReader();
+              const chunks: Uint8Array[] = [];
+              let chunk;
+              while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+              const buffer = Buffer.concat(chunks);
+              const s3Key = `temp-render/${projectId}/audio.mp3`;
+              await s3.send(new PutObjectCommand({
+                Bucket: s3Bucket,
+                Key: s3Key,
+                Body: buffer,
+                ContentType: "audio/mpeg",
+                ACL: "public-read",
+              }));
+              storyAudioUrl = `https://${s3Bucket}.s3.eu-central-1.amazonaws.com/${s3Key}`;
+            }
+          } catch (err) {
+            console.warn("[Assemble] Audio S3 upload failed:", err);
+          }
         }
 
         send({ progress: `${allScenes.length} Clips, starte Remotion Lambda...` });
