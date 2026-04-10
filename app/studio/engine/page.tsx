@@ -685,11 +685,19 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         signal: controller.signal,
       });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setError(errData.error || `Fehler ${res.status}`);
+        setGenerating(false);
+        return;
+      }
+
       const reader = res.body?.getReader();
       if (!reader) { setError("Kein Stream"); setGenerating(false); return; }
 
       const decoder = new TextDecoder();
       let buffer = "";
+      let gotDone = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -705,11 +713,18 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             const data = JSON.parse(line.slice(6));
             if (data.progress) setProgress(data.progress);
             if (data.error) setError(data.error);
-            if (data.done && !data.error) {
-              setResult({ sequences: data.sequences || 0, scenes: data.scenes || 0 });
+            if (data.done) {
+              gotDone = true;
+              if (!data.error) {
+                setResult({ sequences: data.sequences || 0, scenes: data.scenes || 0 });
+              }
             }
           } catch { /* ignore parse errors */ }
         }
+      }
+
+      if (!gotDone) {
+        setError("Verbindung unterbrochen. Bitte nochmal versuchen.");
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
