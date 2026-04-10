@@ -48,8 +48,35 @@ function cleanResponse(request: NextRequest, response: NextResponse): NextRespon
 }
 
 export async function proxy(request: NextRequest) {
-  if (isPublic(request.nextUrl.pathname)) {
-    return cleanResponse(request, NextResponse.next());
+  const pathname = request.nextUrl.pathname;
+  const host = request.headers.get("host") || "";
+  const isEngine = host.includes("koalatree.io");
+  const isDev = host.includes("localhost") || host.includes("127.0.0.1");
+
+  // ── Domain Routing: koalatree.io → Engine only ──
+  if (isEngine && !isDev) {
+    const isStudioRoute = pathname.startsWith("/studio") || pathname.startsWith("/api/studio");
+    const isAuthRoute = pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up") || pathname.startsWith("/api/auth");
+    const isStaticAsset = pathname.startsWith("/api/images") || pathname.startsWith("/api/icons") || pathname.startsWith("/api/audio");
+    const isEngineRoot = pathname === "/";
+
+    // Root → redirect to Engine
+    if (isEngineRoot) {
+      return cleanResponse(request, NextResponse.redirect(new URL("/studio/engine", request.url)));
+    }
+
+    // Block Kids App routes on Engine domain
+    if (!isStudioRoute && !isAuthRoute && !isStaticAsset && !isPublic(pathname)) {
+      return cleanResponse(request, NextResponse.redirect(new URL("/studio/engine", request.url)));
+    }
+  }
+
+  // ── Inject domain context as header for layouts ──
+  const response = NextResponse.next();
+  if (isEngine) response.headers.set("x-koalatree-domain", "engine");
+
+  if (isPublic(pathname)) {
+    return cleanResponse(request, response);
   }
 
   // Session-Cookie prüfen — Auth.js nutzt __Secure- Prefix auf HTTPS
@@ -59,15 +86,15 @@ export async function proxy(request: NextRequest) {
 
   if (!hasSession) {
     // API routes: return JSON 401 instead of redirect (prevents JSON parse errors in frontend)
-    if (request.nextUrl.pathname.startsWith("/api/")) {
+    if (pathname.startsWith("/api/")) {
       return cleanResponse(request, NextResponse.json({ error: "Nicht eingeloggt" }, { status: 401 }));
     }
     const signInUrl = new URL("/sign-in", request.url);
-    signInUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
+    signInUrl.searchParams.set("callbackUrl", pathname);
     return cleanResponse(request, NextResponse.redirect(signInUrl));
   }
 
-  return cleanResponse(request, NextResponse.next());
+  return cleanResponse(request, response);
 }
 
 export const config = {
