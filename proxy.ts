@@ -24,6 +24,7 @@ const publicPaths = [
   "/api/admin/render-film",   // SSE streaming — auth checked in handler
   "/api/admin/generate-storyboard", // Long-running — auth checked in handler
   "/api/studio/projects",     // Studio V2 — SSE streaming, auth checked in handlers
+  "/engine",           // Engine landing page (public on koalatree.io)
   "/share",
   "/einladung",        // Invitation acceptance page
 ];
@@ -58,16 +59,19 @@ export async function proxy(request: NextRequest) {
     const isStudioRoute = pathname.startsWith("/studio") || pathname.startsWith("/api/studio");
     const isAuthRoute = pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up") || pathname.startsWith("/api/auth");
     const isStaticAsset = pathname.startsWith("/api/images") || pathname.startsWith("/api/icons") || pathname.startsWith("/api/audio");
-    const isEngineRoot = pathname === "/";
+    const isEngineLanding = pathname === "/" || pathname === "/engine";
 
-    // Root → redirect to Engine
-    if (isEngineRoot) {
-      return cleanResponse(request, NextResponse.redirect(new URL("/studio/engine", request.url)));
+    // Root + /engine → Public landing page (no auth needed)
+    if (isEngineLanding) {
+      // Rewrite to /engine page (public, no redirect loop)
+      const url = request.nextUrl.clone();
+      url.pathname = "/engine";
+      return cleanResponse(request, NextResponse.rewrite(url));
     }
 
     // Block Kids App routes on Engine domain
     if (!isStudioRoute && !isAuthRoute && !isStaticAsset && !isPublic(pathname)) {
-      return cleanResponse(request, NextResponse.redirect(new URL("/studio/engine", request.url)));
+      return cleanResponse(request, NextResponse.redirect(new URL("/engine", request.url)));
     }
   }
 
