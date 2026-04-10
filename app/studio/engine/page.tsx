@@ -1507,6 +1507,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
               sequence={seq}
               index={i}
               projectId={project.id}
+              hasActorsCast={project.characters?.some((c: Character) => c.actorId) || false}
               onUpdate={() => onUpdate(project.id)}
             />
           ))}
@@ -1677,11 +1678,13 @@ function SequenceCard({
   sequence,
   index,
   projectId,
+  hasActorsCast,
   onUpdate,
 }: {
   sequence: Sequence;
   index: number;
   projectId: string;
+  hasActorsCast: boolean;
   onUpdate: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -1875,6 +1878,11 @@ function SequenceCard({
               >
                 🔄 Audio neu
               </button>
+            )}
+            {hasActorsCast && sequence.audioUrl && !isGenerating && (
+              <span className="text-[9px] text-amber-400/60 px-2 py-1 bg-amber-500/10 rounded-lg">
+                Actors gecastet — Audio neu generieren fuer richtige Stimmen
+              </span>
             )}
             {isGenerating && (
               <button
