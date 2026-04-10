@@ -114,9 +114,9 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
 
   console.log(`[Lambda Render] Render started: ${renderId} (bucket: ${bucketName})`);
 
-  // 4. Poll for completion
-  let progress = 0;
-  while (progress < 1) {
+  // 4. Poll for completion (max 5 minutes)
+  const maxPolls = 150; // 150 * 2s = 5 min
+  for (let poll = 0; poll < maxPolls; poll++) {
     const status = await getRenderProgress({
       renderId,
       bucketName,
@@ -128,19 +128,24 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
       throw new Error(`Lambda render failed: ${JSON.stringify(status.errors)}`);
     }
 
-    progress = status.overallProgress;
-    const pct = Math.round(progress * 100);
+    const pct = Math.round(status.overallProgress * 100);
     const msg = pct < 10 ? "Starte Rendering..." : pct < 50 ? "Frames werden gerendert..." : pct < 90 ? "Clips werden zusammengefuegt..." : "Finalisierung...";
-    console.log(`[Lambda Render] Progress: ${pct}%`);
+    console.log(`[Lambda Render] Progress: ${pct}% (poll ${poll + 1})`);
     options.onProgress?.(pct, msg);
 
-    if (status.done && status.outputFile) {
-      console.log(`[Lambda Render] Done! Output: ${status.outputFile}`);
-      return status.outputFile;
+    if (status.done) {
+      if (status.outputFile) {
+        console.log(`[Lambda Render] Done! Output: ${status.outputFile}`);
+        return status.outputFile;
+      }
+      // done but no output — wait a bit more, might be finalizing
+      if (poll > 0) {
+        console.warn(`[Lambda Render] Done but no outputFile yet, waiting...`);
+      }
     }
 
     await new Promise((r) => setTimeout(r, 2000));
   }
 
-  throw new Error("Lambda render completed but no output file found");
+  throw new Error("Lambda render timed out after 5 minutes");
 }
