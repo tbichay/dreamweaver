@@ -21,8 +21,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // 6-stelliger Code statt langer Token-URL
         return String(Math.floor(100000 + Math.random() * 900000));
       },
-      async sendVerificationRequest({ identifier: email, token, provider }) {
-        const baseUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "https://www.koalatree.ai";
+      async sendVerificationRequest({ identifier: email, token, provider, url }) {
+        // Extract origin from the verification URL to match the domain the user came from
+        let baseUrl: string;
+        try {
+          baseUrl = new URL(url).origin;
+        } catch {
+          baseUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "https://koalatree.ai";
+        }
         await resend.emails.send({
           from: provider.from as string,
           to: email,

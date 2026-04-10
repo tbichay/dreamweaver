@@ -9,7 +9,12 @@ import { useSearchParams } from "next/navigation";
 
 export default function SignInPage() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+  // Default callback: /studio/engine on engine domain, /dashboard on kids app
+  const isEngine = typeof window !== "undefined" && (
+    window.location.hostname.includes("koalatree.io") ||
+    new URLSearchParams(window.location.search).get("theme") === "engine"
+  );
+  const callbackUrl = searchParams.get("callbackUrl") ?? (isEngine ? "/studio/engine" : "/dashboard");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
