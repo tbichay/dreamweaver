@@ -172,11 +172,18 @@ Erstelle das Drehbuch als JSON. Beachte:
   // Build mode section
   const modeDescriptions: Record<string, { title: string; instructions: string }> = {
     film: {
-      title: "FILM mit Dialog & Lip-Sync",
-      instructions: `Jede Szene mit sprechendem Charakter ist dialog-Typ. Der Charakter hat LIP-SYNC — seine Lippen bewegen sich zum gesprochenen Text.
-Schreibe echte gesprochene Dialoge in spokenText. Jeder Charakter spricht DIREKT (keine Erzaehlerstimme).
-Dialog-Szenen MUESSEN einen characterId haben. Landscape-Szenen haben KEINEN characterId.
-Wechsle zwischen dialog und landscape fuer visuelles Storytelling.`,
+      title: "FILM — Wie ein Kinofilm, KEIN Erzaehler",
+      instructions: `WICHTIG: Dies ist ein KINOFILM. Es gibt KEINEN Erzaehler. KEINE Off-Stimme. KEIN Voiceover.
+
+Die Geschichte wird NUR durch Bilder, Dialoge der Charaktere und Soundeffekte erzaehlt.
+- landscape-Szenen: KEIN spokenText, KEIN characterId. Nur visuelle Szene + SFX/Ambience.
+- dialog-Szenen: NUR echte gesprochene Saetze des Charakters. KEINE Beschreibung was passiert.
+  Beispiel RICHTIG: spokenText = "Verdammt, die Bremsen reagieren nicht!"
+  Beispiel FALSCH: spokenText = "Max kaempft mit dem Lenkrad waehrend der Regen auf die Scheibe prasselt"
+- Der spokenText ist EXAKT das was der Charakter SAGT. Nicht was er tut oder fuehlt.
+- Lip-Sync wird automatisch generiert — die Lippen des Charakters bewegen sich zum Text.
+- Nutze VIELE landscape-Szenen fuer Action die OHNE Worte erzaehlt wird.
+- Dialog ist KURZ und PRAEGNANT — wie im echten Film. Max 1-2 Saetze pro dialog-Szene.`,
     },
     hoerspiel: {
       title: "HOERSPIEL mit mehreren Stimmen & SFX",
