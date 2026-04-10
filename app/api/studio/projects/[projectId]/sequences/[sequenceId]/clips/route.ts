@@ -46,7 +46,7 @@ export async function POST(
     where: { id: sequenceId, project: { id: projectId, userId: session.user.id } },
     include: {
       project: {
-        include: { characters: true },
+        include: { characters: { include: { actor: true } } },
       },
     },
   });
@@ -174,7 +174,7 @@ export async function POST(
 
         if (isDialog && portraitBuffer) {
           // ── DIALOG with LIP-SYNC ──
-          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription);
+          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, character?.actor);
           const segDur = Math.min(15, Math.max(1, (scene.audioEndMs - scene.audioStartMs) / 1000));
 
           if (quality === "premium") {
@@ -302,7 +302,7 @@ export async function POST(
             return;
           }
 
-          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription);
+          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, character?.actor);
           // Audio timing is master — use actual audio duration for ALL scene types
           const audioDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
           const durSec = audioDurSec > 0
@@ -425,7 +425,7 @@ export async function POST(
             durationSec: clipDurSec,
             generatedBy: {
               model: provider,
-              prompt: buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription),
+              prompt: buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription, character?.actor),
             },
             modelId: provider,
             costCents: Math.round(estimatedCost * 100),
@@ -590,13 +590,18 @@ function buildScenePrompt(
   defaultStyle?: string,
   atmosphereText?: string | null,
   prevSceneDescription?: string | null,
+  actorData?: { outfit?: string | null; traits?: string | null } | null,
 ): string {
   const parts: string[] = [];
   // Visual style
   parts.push(`Style: ${stylePrompt || defaultStyle || "Photorealistic, cinematic lighting, professional cinematography."}`);
-  // Character consistency
+  // Character consistency (with actor traits/outfit if cast)
   if (charDescription) {
-    parts.push(`Character: ${charDescription}. Maintain EXACT visual consistency with the reference character image — same face, same clothing, same colors.`);
+    let charLine = `Character: ${charDescription}.`;
+    if (actorData?.outfit) charLine += ` Outfit: ${actorData.outfit}.`;
+    if (actorData?.traits) charLine += ` Traits: ${actorData.traits}.`;
+    charLine += " Maintain EXACT visual consistency with the reference character image — same face, same clothing, same colors.";
+    parts.push(charLine);
   }
   // Continuity from previous scene
   if (prevSceneDescription) {
