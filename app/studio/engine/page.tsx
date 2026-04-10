@@ -1256,9 +1256,9 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             </div>
           )}
 
-          {filmUrl && (
+          {(project.videoUrl || filmUrl) && (
             <div className="mt-3">
-              <video src={filmUrl} controls className="w-full rounded-xl max-h-[400px]" />
+              <video src={project.videoUrl || filmUrl} controls className="w-full rounded-xl max-h-[400px]" />
             </div>
           )}
         </div>
