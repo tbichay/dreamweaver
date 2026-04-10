@@ -27,6 +27,7 @@ interface ClipRequest {
   sceneIndex: number;
   quality?: "standard" | "premium";
   stylePrompt?: string;
+  mode?: "film" | "hoerspiel" | "audiobook"; // film = lip-sync, hoerspiel/audiobook = no lip-sync
   force?: boolean;
 }
 
@@ -145,7 +146,11 @@ export async function POST(
         }
 
         let videoUrl = "";
-        const isDialog = (scene.type === "dialog") && scene.characterId && hasAudio;
+        // Lip-sync only in film mode. Hoerspiel/audiobook use landscape-style video for all scenes.
+        const screenplayData = sequence.project.screenplay as Record<string, unknown> | null;
+        const clipMode = body.mode || (screenplayData?.mode as string) || "film";
+        const isLipSync = (scene.type === "dialog") && scene.characterId && hasAudio && clipMode === "film";
+        const isDialog = isLipSync; // Legacy alias
 
         if (isDialog && portraitBuffer) {
           // ── DIALOG: Lip-sync video ──

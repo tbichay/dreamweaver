@@ -116,12 +116,13 @@ export async function POST(
           mode: body.mode || "audiobook",
         });
 
-        // Save to DB
+        // Save to DB (store mode in screenplay metadata)
+        const screenplayWithMeta = { ...screenplay, mode: body.mode || "audiobook" };
         await prisma.studioProject.update({
           where: { id: projectId },
           data: {
             basisStoryboard: JSON.parse(JSON.stringify(basisStoryboard)),
-            screenplay: JSON.parse(JSON.stringify(screenplay)),
+            screenplay: JSON.parse(JSON.stringify(screenplayWithMeta)),
             status: "screenplay",
             directingStyle: body.directingStyle || project.directingStyle,
           },

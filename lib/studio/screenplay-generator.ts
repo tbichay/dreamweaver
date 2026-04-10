@@ -25,7 +25,7 @@ interface ScreenplayOptions {
   atmospherePreset?: string;
   stylePrompt?: string; // Visual style (Disney 2D, Pixar 3D, etc.)
   targetFormat?: "portrait" | "wide";
-  mode?: "film" | "audiobook"; // film = dialog scenes with lip-sync, audiobook = narrator only
+  mode?: "film" | "hoerspiel" | "audiobook"; // film = lip-sync dialog, hoerspiel = multi-voice no lip-sync, audiobook = narrator only
 }
 
 const SCREENPLAY_SYSTEM = `Du bist ein preisgekroenter Animations-Regisseur und Drehbuch-Autor.
@@ -167,8 +167,33 @@ Erstelle das Drehbuch als JSON. Beachte:
 - Die erste Szene einer Sequenz ist IMMER landscape (Establishing Shot)`;
 
   // Build mode section
-  const modeSection = `\n\n## MODUS: ${mode === "film" ? "FILM mit Dialog" : "HOERBUCH mit Erzaehler"}
-${mode === "film" ? "Jede Szene mit sprechendem Charakter ist dialog-Typ. Der Charakter hat LIP-SYNC. Schreibe echte gesprochene Dialoge." : "Die Geschichte wird von einem Erzaehler vorgelesen. Die meisten Szenen sind landscape oder transition. dialog-Szenen zeigen den Charakter aber ohne Lip-Sync — der Erzaehler spricht."}`;
+  const modeDescriptions: Record<string, { title: string; instructions: string }> = {
+    film: {
+      title: "FILM mit Dialog & Lip-Sync",
+      instructions: `Jede Szene mit sprechendem Charakter ist dialog-Typ. Der Charakter hat LIP-SYNC — seine Lippen bewegen sich zum gesprochenen Text.
+Schreibe echte gesprochene Dialoge in spokenText. Jeder Charakter spricht DIREKT (keine Erzaehlerstimme).
+Dialog-Szenen MUESSEN einen characterId haben. Landscape-Szenen haben KEINEN characterId.
+Wechsle zwischen dialog und landscape fuer visuelles Storytelling.`,
+    },
+    hoerspiel: {
+      title: "HOERSPIEL mit mehreren Stimmen & SFX",
+      instructions: `Mehrere Charaktere sprechen mit eigenen Stimmen. Es gibt einen Erzaehler UND direkte Dialoge.
+Aber: KEIN Lip-Sync. Die Szenen zeigen die Charaktere visuell, aber die Muender bewegen sich nicht.
+Setze characterId bei dialog-Szenen damit die richtige Stimme zugewiesen wird.
+Nutze viele SFX-Beschreibungen in den Szenen (Schritte, Tuergeraeusche, Naturklaenge).
+Mische landscape, dialog und transition Szenen fuer Abwechslung.`,
+    },
+    audiobook: {
+      title: "HOERBUCH mit einem Erzaehler",
+      instructions: `Die Geschichte wird von EINEM Erzaehler vorgelesen. Keine direkten Dialoge.
+Die meisten Szenen sind landscape oder transition — sie zeigen die Umgebung und Stimmung.
+dialog-Szenen zeigen den Charakter visuell aber ohne Lip-Sync — der Erzaehler spricht.
+Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erzaehlung.`,
+    },
+  };
+
+  const modeInfo = modeDescriptions[mode] || modeDescriptions.audiobook;
+  const modeSection = `\n\n## MODUS: ${modeInfo.title}\n${modeInfo.instructions}`;
 
   // Build system prompt with directing style
   const systemPrompt = SCREENPLAY_SYSTEM + modeSection + "\n\n" + styleSection + `\n\n## LICHT & ATMOSPHAERE (IDENTISCH in JEDER Szene)\n${atmosphereText}\nWiederhole diese Beschreibung in jeder sceneDescription.`;

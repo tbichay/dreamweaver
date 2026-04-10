@@ -639,7 +639,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [directingStyle, setDirectingStyle] = useState(project.directingStyle || DEFAULT_DIRECTING_STYLE);
   const [atmosphere, setAtmosphere] = useState(project.atmosphere || DEFAULT_ATMOSPHERE);
   const [customAtmo, setCustomAtmo] = useState("");
-  const [screenplayMode, setScreenplayMode] = useState<"film" | "audiobook">("film");
+  const [screenplayMode, setScreenplayMode] = useState<"film" | "hoerspiel" | "audiobook">("film");
   const abortRef = useRef<AbortController | null>(null);
 
   const generate = async (force: boolean) => {
@@ -729,28 +729,25 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           Modus
         </label>
         <div className="flex gap-1.5">
-          <button
-            onClick={() => setScreenplayMode("film")}
-            disabled={generating}
-            className={`flex-1 py-2 rounded-lg text-[11px] transition-all ${
-              screenplayMode === "film"
-                ? "bg-[#C8A97E]/20 text-[#C8A97E] font-medium border border-[#C8A97E]/30"
-                : "bg-white/5 text-white/30 border border-transparent hover:text-white/50"
-            }`}
-          >
-            🎬 Film — Dialog mit Lip-Sync
-          </button>
-          <button
-            onClick={() => setScreenplayMode("audiobook")}
-            disabled={generating}
-            className={`flex-1 py-2 rounded-lg text-[11px] transition-all ${
-              screenplayMode === "audiobook"
-                ? "bg-[#C8A97E]/20 text-[#C8A97E] font-medium border border-[#C8A97E]/30"
-                : "bg-white/5 text-white/30 border border-transparent hover:text-white/50"
-            }`}
-          >
-            📖 Hoerbuch — Erzaehler
-          </button>
+          {([
+            { id: "film" as const, icon: "🎬", label: "Film", desc: "Dialog, Lip-Sync, SFX" },
+            { id: "hoerspiel" as const, icon: "🎧", label: "Hoerspiel", desc: "Multi-Voice, SFX, kein Lip-Sync" },
+            { id: "audiobook" as const, icon: "📖", label: "Hoerbuch", desc: "1 Erzaehler, vorgelesen" },
+          ]).map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setScreenplayMode(m.id)}
+              disabled={generating}
+              className={`flex-1 py-2 px-2 rounded-lg text-center transition-all ${
+                screenplayMode === m.id
+                  ? "bg-[#C8A97E]/20 text-[#C8A97E] font-medium border border-[#C8A97E]/30"
+                  : "bg-white/5 text-white/30 border border-transparent hover:text-white/50"
+              }`}
+            >
+              <span className="text-[12px] block">{m.icon} {m.label}</span>
+              <span className="text-[8px] block mt-0.5 opacity-60">{m.desc}</span>
+            </button>
+          ))}
         </div>
       </div>
 
