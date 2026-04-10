@@ -18,6 +18,37 @@ Stand: 11. April 2026
 12. ✅ AI Model Registry (13 Modelle mit Pricing)
 13. ✅ Domain Routing (koalatree.io = Engine, koalatree.ai = Kids App)
 14. ✅ Engine Dark Theme
+15. ✅ Actor/Library Redesign (Casting, Snapshots, Versionen, Character Sheet)
+16. ✅ Format-Auswahl (Portrait 9:16, Wide 16:9, Cinema 2.39:1)
+17. ✅ Actor Traits + Outfit (persistente Eigenschaften in jedem Prompt)
+18. ✅ Voice Settings (Stability, Similarity, Expression, Speed Regler)
+19. ✅ Character ID Mapping (Screenplay char-N → echte DB-IDs)
+20. ✅ Dialog Audio Preview pro Szene
+
+## Actor/Library System (NEU — 11. April 2026)
+
+### Konzept
+- Actors = primaere Charakter-Einheit (Portrait + Stimme + Style + Outfit + Traits)
+- Casting: Actor → Character mit Snapshot-Versionierung
+- Re-Sync: Actor aendern → neuen Snapshot erstellen → alte Version erhalten
+- Versionen-Switch im Engine (Dropdown mit Zeitstempeln)
+
+### Datenmodell
+- `DigitalActor`: name, description, voiceId, voiceSettings, portraitAssetId, style, outfit, traits, characterSheet
+- `StudioCharacter.actorId` FK mit onDelete: SetNull
+- `castSnapshot` + `castHistory` fuer Versionen
+- Character Sheet: { front, profile, fullBody } als JSON
+
+### Casting-Flow
+1. Actor casten → Description, Voice, Portrait werden als Snapshot kopiert
+2. Audio generieren → Actor-Stimmen werden verwendet
+3. Clips generieren → Actor-Description + Outfit + Traits im Prompt
+4. Re-Sync: alter Snapshot → History, neuer wird aktiv
+
+### Bekannte Limitationen
+- Character Sheet Generation nacheinander (nicht parallel, wegen Race Condition)
+- Casting ueberschreibt Character-Description (gewollt)
+- Drehbuch-Szenen-Beschreibungen bleiben beim Original, nur Clip-Prompts nutzen Actor-Daten
 
 ## Architektur-Entscheidungen
 
@@ -29,15 +60,16 @@ Stand: 11. April 2026
 - Google AI fuer Video (Veo 3.1) + Landscape
 - OpenAI fuer Bild-Generierung (GPT Image 1)
 - Anthropic Claude fuer Text (Story, Drehbuch, Charakter-Extraktion)
+- maxDuration: 800s fuer alle API-Routes (Vercel Pro)
 
 ## Kritische Bugs
 
-- [ ] Actor Voice + Portrait generieren — `access: "public"` gefixt aber noch nicht getestet
-- [ ] Actor editieren/loeschen fehlt in der UI
-- [ ] Actor Style-Auswahl fehlt (realistisch/animiert)
+- [x] Actor Voice + Portrait generieren — gefixt (ElevenLabs min 100 chars, blob URL statt asset ID)
+- [x] Actor editieren/loeschen — gefixt (Delete mit Confirmation, Style/Outfit/Traits Edit)
+- [x] Character IDs im Drehbuch — gefixt (char-N → echte DB-IDs gemappt)
+- [x] Actor-Stimmen im Audio — gefixt (Character-ID Mapping war broken)
 - [ ] Session Timeout waehrend langer Generierungen (30 Tage gesetzt aber evtl. Cookie-Problem)
-- [ ] AI Story-Generation auf koalatree.io funktioniert nicht (SSE/Auth Problem?)
-- [ ] Portrait Upload im Charakter-Tab funktioniert nicht zuverlässig
+- [ ] Portrait Upload im Charakter-Tab funktioniert nicht zuverlaessig
 - [ ] Spinner Animation manchmal kaputt im Engine Theme
 
 ## Grosse Architektur-Todos
@@ -50,29 +82,19 @@ app/(shared)/  ← Auth, Legal, etc.
 ```
 Aktuell: Domain-Detection in Providers.tsx + CSS Overrides. Fragil.
 
-### 2. Actor/Library Redesign (NAECHSTER SCHRITT)
-Konzept fehlt noch — soll sauber durchdacht werden:
-- Actors ERSETZEN Portraits als primaere Charakter-Einheit
-- Actor = Portrait(s) + Stimme + Style + Tags
-- Multi-Angle Character Sheet (Front, Profil, Ganzkoerper)
-- Library als zentraler Hub: Generieren, Sortieren, Filtern, Verknuepfen
-- Globale Library (pro Account) mit Tag-basierter Projekt-Verknuepfung
-- Actor editieren, loeschen, Style waehlen
-- "Aus Library casten" ueberall wo Charaktere gebraucht werden
-
-### 3. Audio-Qualitaet verbessern
+### 2. Audio-Qualitaet verbessern
 - ElevenLabs Video-to-Sound fuer automatische SFX
 - Bessere Ambience (laengere Loops, mehrere Schichten)
 - Musik-Integration (Hintergrundmusik pro Sequenz)
 - Audio-Preview vor Film-Rendering
 
-### 4. Video-Qualitaet verbessern
+### 3. Video-Qualitaet verbessern
 - Prompt Engineering: Noch detailliertere Szenen-Beschreibungen
 - Character Consistency: Multi-Reference Images an Seedance 2.0
 - Uebergaenge: Start+End Frame Anchoring konsequent nutzen
 - LoRA Character Training (Zukunft)
 
-### 5. Background Generation Queue
+### 4. Background Generation Queue
 - Serverseitig, Seite verlassen moeglich
 - Jederzeit stoppbar
 - Fuer ALLE AI-Operationen (Clips, Audio, Story, Landscape, Portraits)
@@ -84,10 +106,10 @@ Konzept fehlt noch — soll sauber durchdacht werden:
 - [ ] Engine Landing Page: Film-Teaser Videos
 - [ ] Logo + Favicon fuer koalatree.io
 - [ ] GLOBAL: Besseres AI-Feedback (Progress-Bar, geschaetzte Dauer)
-- [ ] Neues Projekt: Name als Placeholder ✅ (gefixt)
+- [x] Neues Projekt: Name als Placeholder (gefixt)
 - [ ] Preview-Player: Clips nacheinander abspielen (Uebergangs-Check)
-- [ ] Charakter-Tab: Portraits groesser ✅ (gefixt)
-- [ ] Visual Style schon beim Drehbuch ✅ (eingebaut)
+- [x] Charakter-Tab: Portraits groesser (gefixt)
+- [x] Visual Style schon beim Drehbuch (eingebaut)
 - [ ] Modi erweitern: Hoerbuch+Cover, Musikvideo, Trailer
 - [ ] Landscape: Vollbild-Ansicht + Library-Auswahl
 
