@@ -97,6 +97,23 @@ export async function POST(
           throw new Error("Keine fertigen Clips gefunden");
         }
 
+        // Resolve private Blob URLs to public download URLs for Remotion Lambda
+        send({ progress: "Bereite Clips fuer Rendering vor..." });
+        const { head } = await import("@vercel/blob");
+        for (let i = 0; i < allScenes.length; i++) {
+          const url = allScenes[i].videoUrl;
+          if (url.includes(".private.blob.vercel-storage.com")) {
+            try {
+              const blobInfo = await head(url);
+              if (blobInfo.downloadUrl) {
+                allScenes[i].videoUrl = blobInfo.downloadUrl;
+              }
+            } catch (err) {
+              console.warn(`[Assemble] Could not resolve download URL for clip ${i}:`, err);
+            }
+          }
+        }
+
         // Concatenate audio from all sequences into one file
         let storyAudioUrl: string | undefined;
         if (audioUrls.length === 1) {
@@ -132,6 +149,14 @@ export async function POST(
             );
             storyAudioUrl = combinedBlob.url;
           }
+        }
+
+        // Also resolve audio URL for Remotion
+        if (storyAudioUrl?.includes(".private.blob.vercel-storage.com")) {
+          try {
+            const audioInfo = await head(storyAudioUrl);
+            if (audioInfo.downloadUrl) storyAudioUrl = audioInfo.downloadUrl;
+          } catch { /* keep original */ }
         }
 
         send({ progress: `${allScenes.length} Clips, starte Remotion Lambda...` });
