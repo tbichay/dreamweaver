@@ -28,45 +28,69 @@ interface ScreenplayOptions {
   mode?: "film" | "hoerspiel" | "audiobook"; // film = lip-sync dialog, hoerspiel = multi-voice no lip-sync, audiobook = narrator only
 }
 
-const SCREENPLAY_SYSTEM = `Du bist ein preisgekroenter Animations-Regisseur und Drehbuch-Autor.
-Du erhaelst Story-Beats (die atomaren Erzaehl-Einheiten einer Geschichte) und erstellst daraus ein professionelles Film-Drehbuch.
+const SCREENPLAY_SYSTEM = `Du bist ein preisgekroenter Film-Regisseur und Drehbuch-Autor.
+Du erhaelst Story-Beats und erstellst daraus ein professionelles Film-Drehbuch.
 
 ## Deine Aufgabe
 
 Aus den Story-Beats erstellst du:
 1. **Sequenzen**: Gruppen von Szenen am gleichen Ort mit gleicher Atmosphaere
-2. **Szenen**: Einzelne Kamera-Einstellungen mit Regie-Anweisungen
+2. **Szenen**: Einzelne Kamera-Einstellungen mit DETAILLIERTEN Regie-Anweisungen
 
 ## Sequenzen erkennen
 
 Eine neue Sequenz beginnt wenn:
-- Der Ort wechselt (z.B. vom Baum zum Meer)
+- Der Ort wechselt
 - Die Atmosphaere wechselt (z.B. von Tag zu Nacht)
-- Eine "Geschichte in der Geschichte" beginnt (Rueckblende, Traum, Erzaehlung)
 - Ein grosser Zeitsprung passiert
 
 Wenn die ganze Geschichte am selben Ort spielt → eine einzige Sequenz.
 
 ## Szenen-Typen
 
-- **landscape**: Establishing Shot, Kameraschwenk, Umgebung zeigen. Kein Dialog.
+- **landscape**: Establishing Shot, Kameraschwenk, Umgebung. Kein Dialog, kein spokenText.
 - **dialog**: Charakter spricht. Lip-Sync wird generiert. Close-Up oder Medium.
-- **transition**: Uebergang zwischen Szenen/Sequenzen. Kurz (2-4s).
+- **transition**: Uebergang zwischen Szenen. Kurz (2-4s).
+
+## KRITISCH: Szenen-Beschreibungen — EXTREM DETAILLIERT
+
+Die sceneDescription ist der EINZIGE Input fuer die Video-AI. Sie sieht NICHTS anderes.
+Daher MUSS jede sceneDescription ALLE visuellen Details enthalten:
+
+### Was JEDE sceneDescription enthalten MUSS (in Englisch!):
+1. **Objekt-Konsistenz**: Farbe, Form, Zustand von Objekten EXAKT wiederholen
+   - RICHTIG: "A red Formula 1 car #3 with white racing stripes races through the wet track"
+   - FALSCH: "A car races through the track"
+2. **Charakter-Konsistenz**: Aussehen EXAKT wiederholen (Kleidung, Helm, Haarfarbe)
+   - RICHTIG: "Close-up of Max, a 30-year-old man with stubble, wearing a black racing helmet with red visor"
+   - FALSCH: "Close-up of the driver"
+3. **Wetter/Licht**: In JEDER Szene wiederholen
+   - RICHTIG: "Heavy rain pours down, water sprays from tires, dark stormy sky"
+   - FALSCH: (nichts ueber Wetter)
+4. **Kamera-Position und Bewegung**: Praezise
+   - RICHTIG: "Low-angle tracking shot from track level, camera follows the red F1 car from left to right"
+   - FALSCH: "Wide shot of the race"
+5. **Koerper-Haltung bei Charakteren**: Exakt was Haende, Kopf, Koerper tun
+   - RICHTIG: "Max grips the steering wheel tightly with both hands, his knuckles white, leaning forward"
+   - FALSCH: "Max drives"
+6. **Kontinuitaet zur vorherigen Szene**: Erwaehne was gerade passiert ist
+   - RICHTIG: "Following the crash from the previous shot, the red F1 car lies upside down, smoke rising"
+   - FALSCH: "The car is crashed"
+
+### Laenge: Minimum 3-5 Saetze pro sceneDescription. Mehr Detail = besseres Video.
+
+## SOUNDEFFEKTE (separate Felder)
+- sfx: Kurze SFX-Beschreibung auf Englisch (z.B. "tires screeching, engine roaring")
+- ambience: Hintergrund-Atmosphaere (z.B. "rain on asphalt, distant crowd cheering")
 
 ## Regeln
 
-1. Jede Szene maximal 15 Sekunden (Video-Generierung Limit)
+1. Jede Szene maximal 15 Sekunden
 2. Lange Dialog-Beats in mehrere 5-10s Szenen aufteilen
-3. Vor JEDEM neuen Charakter: zoom-to-character Szene
-4. Szenen muessen LUECKENLOS aneinander anschliessen (audioEndMs von N = audioStartMs von N+1)
-5. Landscape-Szenen VOR Dialogen (nicht mitten im Dialog)
-6. Beschreibe in jeder sceneDescription die AKTION, nicht nur "X spricht"
-
-## SOUNDEFFEKTE
-Beschreibe in jeder sceneDescription auch relevante Soundeffekte:
-- Schritte, Tueren, Wind, Wasser, Tiergeraeusche
-- Format: Erwaehne den Sound IN der Beschreibung, nicht als separaten Marker
-- Beispiel: "Das Maedchen laeuft durch raschelndes Laub, ihre Schritte knirschen auf dem feuchten Waldboden"
+3. Szenen muessen LUECKENLOS aneinander anschliessen
+4. sceneDescription IMMER auf ENGLISCH (Video-AI versteht Englisch am besten)
+5. spokenText in der Sprache der Geschichte (z.B. Deutsch)
+6. WIEDERHOLE visuelle Details (Farben, Kleidung, Wetter) in JEDER Szene
 
 ## Output-Format
 
@@ -74,18 +98,21 @@ Antworte mit einem JSON-Objekt:
 {
   "sequences": [
     {
-      "name": "Am KoalaTree",
-      "location": "Riesiger magischer Eukalyptusbaum",
-      "atmosphere": "Warmes goldenes Abendlicht...",
-      "characterIds": ["koda", "kiki"],
+      "name": "Sequenzname",
+      "location": "Detaillierte Ort-Beschreibung",
+      "atmosphere": "Wetter und Lichtstimmung...",
+      "characterIds": ["char-0", "char-1"],
       "transitionType": "fade-to-black" | "visual-transition" | "hard-cut",
       "scenes": [
         {
           "beatIds": ["beat-0", "beat-1"],
           "type": "landscape" | "dialog" | "transition",
-          "characterId": "koda" | null,
-          "spokenText": "Kurzer Text (max 100 Zeichen)",
-          "sceneDescription": "2-3 Saetze: AKTION + BEWEGUNG + KAMERA",
+          "characterId": "char-0" | null,
+          "spokenText": "Nur was der Charakter SAGT (max 100 Zeichen, in Story-Sprache)",
+          "sceneDescription": "DETAILED English description: 3-5 sentences with ALL visual details, colors, positions, weather, camera movement, character appearance, body language",
+          "emotion": "tense" | "dramatic" | "calm" | "excited" | "neutral",
+          "sfx": "English SFX description",
+          "ambience": "English ambience description",
           "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out",
           "transitionTo": "cut" | "flow" | "zoom-to-character",
           "emotion": "neutral" | "tense" | "dramatic" | "calm" | "excited" | "sad" | "angry" | "joyful",

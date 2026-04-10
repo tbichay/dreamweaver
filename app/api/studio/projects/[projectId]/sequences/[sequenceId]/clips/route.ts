@@ -154,7 +154,7 @@ export async function POST(
 
         if (isDialog && portraitBuffer) {
           // ── DIALOG with LIP-SYNC ──
-          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText);
+          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription);
           const segDur = Math.min(15, Math.max(1, (scene.audioEndMs - scene.audioStartMs) / 1000));
 
           if (quality === "premium") {
@@ -282,7 +282,7 @@ export async function POST(
             return;
           }
 
-          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText);
+          const prompt = buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription);
           // Audio timing is master — use actual audio duration for ALL scene types
           const audioDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
           const durSec = audioDurSec > 0
@@ -405,7 +405,7 @@ export async function POST(
             durationSec: clipDurSec,
             generatedBy: {
               model: provider,
-              prompt: buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText),
+              prompt: buildScenePrompt(scene, character?.description, body.stylePrompt || sequence.project.stylePrompt, defaultStyle, sequence.atmosphereText, scenes[body.sceneIndex - 1]?.sceneDescription),
             },
             modelId: provider,
             costCents: Math.round(estimatedCost * 100),
@@ -563,19 +563,35 @@ async function getDefaultVisualStyle(): Promise<string> {
   return "2D Disney/Pixar animation, vibrant colors, hand-drawn feel, warm lighting.";
 }
 
-function buildScenePrompt(scene: StudioScene, charDescription?: string | null, stylePrompt?: string | null, defaultStyle?: string, atmosphereText?: string | null): string {
+function buildScenePrompt(
+  scene: StudioScene,
+  charDescription?: string | null,
+  stylePrompt?: string | null,
+  defaultStyle?: string,
+  atmosphereText?: string | null,
+  prevSceneDescription?: string | null,
+): string {
   const parts: string[] = [];
-  parts.push(`Style: ${stylePrompt || defaultStyle || "2D Disney/Pixar animation, vibrant colors, hand-drawn feel, warm lighting."}`);
+  // Visual style
+  parts.push(`Style: ${stylePrompt || defaultStyle || "Photorealistic, cinematic lighting, professional cinematography."}`);
+  // Character consistency
   if (charDescription) {
-    parts.push(`Character: ${charDescription}.`);
-    parts.push("Maintain exact visual consistency with the reference character image.");
+    parts.push(`Character: ${charDescription}. Maintain EXACT visual consistency with the reference character image — same face, same clothing, same colors.`);
   }
+  // Continuity from previous scene
+  if (prevSceneDescription) {
+    parts.push(`CONTINUITY: This shot follows directly from: "${prevSceneDescription.slice(0, 120)}". Maintain visual consistency.`);
+  }
+  // Main scene description (the detailed part from the screenplay AI)
   parts.push(scene.sceneDescription);
+  // Environment
   if (scene.location) parts.push(`Setting: ${scene.location}.`);
-  if (scene.mood) parts.push(`Mood: ${scene.mood}.`);
   if (atmosphereText) parts.push(`Atmosphere & Weather: ${atmosphereText}.`);
-  if (scene.sfx) parts.push(`Sound effects in scene: ${scene.sfx}.`);
+  if (scene.mood) parts.push(`Mood: ${scene.mood}.`);
+  if (scene.sfx) parts.push(`Sound effects: ${scene.sfx}.`);
+  // Camera
   if (scene.camera) parts.push(`Camera: ${scene.camera}.`);
-  parts.push("NO text, NO subtitles, NO watermarks.");
+  // Quality
+  parts.push("Cinematic quality. NO text, NO subtitles, NO watermarks, NO UI elements.");
   return parts.join(" ");
 }
