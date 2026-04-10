@@ -22,6 +22,7 @@ export async function POST(
 
   const sequence = await prisma.studioSequence.findFirst({
     where: { id: sequenceId, project: { id: projectId, userId: session.user.id } },
+    include: { project: { select: { stylePrompt: true } } },
   });
   if (!sequence) return Response.json({ error: "Nicht gefunden" }, { status: 404 });
 
@@ -61,8 +62,11 @@ export async function POST(
   const location = sequence.location || "Magischer Wald";
   const atmosphere = sequence.atmosphereText || "Warmes goldenes Abendlicht";
 
+  // Use project's visual style for landscape generation
+  const visualStyle = sequence.project.stylePrompt || "Photorealistic, cinematic lighting, professional cinematography";
+
   const imagePrompt = body.prompt
-    || `Beautiful animated landscape scene: ${location}. ${atmosphere}. Lush, detailed environment. Pixar/Disney animation style. No characters, no text, no watermarks. Wide establishing shot. Cinematic composition.`;
+    || `Beautiful landscape scene: ${location}. ${atmosphere}. ${visualStyle}. Detailed environment. No characters, no text, no watermarks. Wide establishing shot. Cinematic composition.`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response = await (openai.images.generate as any)({
