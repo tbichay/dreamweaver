@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   const blob = await put(
     `studio/actors/${body.actorId}/portrait-${timestamp}.png`,
     imgBuffer,
-    { access: "public", contentType: "image/png" },
+    { access: "private", contentType: "image/png" },
   );
 
   // Save as Asset and link to actor

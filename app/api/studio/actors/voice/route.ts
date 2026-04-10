@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       const blob = await put(
         `studio/actors/voice-preview-${Date.now()}.mp3`,
         audioBuffer,
-        { access: "public", contentType: "audio/mpeg" },
+        { access: "private", contentType: "audio/mpeg" },
       );
       previewUrl = blob.url;
     }
