@@ -31,7 +31,8 @@ export async function POST(request: Request) {
   }
 
   const ext = file.name.split(".").pop() || "png";
-  const path = `studio/${projectId}/portraits/${characterId}.${ext}`;
+  const timestamp = Date.now();
+  const path = `studio/${projectId}/portraits/${characterId}-${timestamp}.${ext}`;
 
   const blob = await put(path, file, {
     access: "private",

@@ -276,10 +276,25 @@ export async function POST(
             // Standard: Seedance 1.5 (cheapest landscape)
             send({ progress: "Landscape: Seedance 1.5..." });
             try {
+              // Load next scene's portrait as end-frame anchor for smooth transition
+              const nextScene = scenes[body.sceneIndex + 1];
+              const nextChar = nextScene?.characterId
+                ? sequence.project.characters.find((c) => c.id === nextScene.characterId)
+                : null;
+              let endFrameBuffer: Buffer | undefined;
+              if (nextChar?.portraitUrl) {
+                try {
+                  const endUrl = resolveUrl(nextChar.portraitUrl);
+                  const endRes = await fetch(endUrl);
+                  if (endRes.ok) endFrameBuffer = Buffer.from(await endRes.arrayBuffer());
+                } catch { /* no end frame */ }
+              }
+
               videoUrl = await seedanceI2V({
                 imageBuffer: imageSource,
                 prompt,
                 durationSeconds: Math.ceil(durSec),
+                endImageBuffer: endFrameBuffer,
               });
             } catch {
               send({ progress: "Seedance fehlgeschlagen, nutze Kling..." });
