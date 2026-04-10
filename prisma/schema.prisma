@@ -367,3 +367,106 @@ model StudioSequence {
   @@index([projectId])
   @@index([orderIndex])
 }
+
+// ── Prompt Library ───────────────────────────────────────────────
+
+model PromptBlock {
+  id            String   @id @default(cuid())
+  slug          String   // "character:koda", "style:pixar-classic", "camera:close-up"
+  type          String   // character | style | camera | mood | format | rules | atmosphere | visual
+  name          String   // "Koda - Der Weise"
+  description   String?
+
+  // Content
+  content       String   // Prompt text with {{variable}} placeholders
+  variables     Json     @default("{}") // JSON Schema for required variables
+
+  // Versioning
+  version       Int      @default(1)
+  isProduction  Boolean  @default(false) // Only one version per slug+scope can be production
+  parentId      String?  // Previous version's ID
+
+  // Ownership & Scope
+  scope         String   @default("system") // system | project:{id} | user:{id}
+  createdBy     String   // userId
+
+  // Metadata
+  modelHint     String?  // claude | gpt-image | kling | any
+  tags          String[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([slug, version, scope])
+  @@index([type, scope, isProduction])
+  @@index([slug, isProduction])
+}
+
+// ── Asset Library ────────────────────────────────────────────────
+
+model Asset {
+  id            String   @id @default(cuid())
+
+  // Classification
+  type          String   // portrait | landscape | clip | sound | reference
+  category      String?  // "character:koda" | "location:koalatree" | "sfx:nature"
+  tags          String[]
+
+  // Storage
+  blobUrl       String   // Vercel Blob URL
+  blobPath      String   // Blob storage path
+  mimeType      String   // "image/png" | "video/mp4" | "audio/mp3"
+  sizeBytes     Int      @default(0)
+
+  // Dimensions / Duration
+  width         Int?
+  height        Int?
+  durationSec   Float?
+
+  // Provenance (which prompt + model produced this)
+  generatedBy   Json?    // { blocks: {slug: version}, model: "gpt-image-1", prompt: "..." }
+  modelId       String?  // Reference to AIModel.id
+  costCents     Int?     // Generation cost in cents
+
+  // Versioning
+  parentId      String?  // Previous version of this asset
+  version       Int      @default(1)
+  isPrimary     Boolean  @default(false) // Active version?
+
+  // Ownership
+  projectId     String?
+  userId        String
+
+  createdAt     DateTime @default(now())
+
+  @@index([type, category, userId])
+  @@index([projectId])
+  @@index([modelId])
+}
+
+// ── AI Model Registry ────────────────────────────────────────────
+
+model AIModel {
+  id            String   @id // "kling-avatar-v2-standard", "claude-sonnet-4"
+  provider      String   // fal.ai | google | openai | anthropic | elevenlabs | hedra
+  category      String   // video-lipsync | video-i2v | image-gen | text-gen | audio-tts | audio-sfx
+  name          String   // "Kling Avatar v2 Standard"
+
+  // Pricing
+  costUnit      String   // per-second | per-image | per-1k-tokens | per-character
+  costAmount    Float    // 0.014
+
+  // Capabilities
+  capabilities  Json     @default("{}") // { maxDuration: 15, lipsync: true, aspectRatios: [...] }
+
+  // Status
+  isActive      Boolean  @default(true)
+  isDefault     Boolean  @default(false) // Default for its category
+
+  // Metadata
+  apiEndpoint   String?
+  notes         String?
+  lastChecked   DateTime?
+
+  updatedAt     DateTime @updatedAt
+}
