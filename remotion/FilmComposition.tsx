@@ -3,9 +3,11 @@
  *
  * Remotion composition that assembles individual scene clips into
  * a complete film with:
- * - Crossfade transitions between scenes
+ * - Per-scene dialog audio (TTS)
+ * - Per-scene SFX audio
+ * - Continuous ambience layer (looped)
  * - Background music layer
- * - Ambient audio continuity
+ * - Crossfade transitions between scenes
  * - Intro/outro cards
  */
 
@@ -19,13 +21,14 @@ import {
   interpolate,
   useCurrentFrame,
   useVideoConfig,
-  Img,
 } from "remotion";
 
 // ── Input Props ────────────────────────────────────────────────────
 
 export interface FilmScene {
   videoUrl: string;
+  dialogAudioUrl?: string;   // Per-scene TTS dialog audio
+  sfxAudioUrl?: string;      // Per-scene sound effects
   durationFrames: number;
   characterId?: string;
   type: "dialog" | "landscape" | "transition" | "intro" | "outro";
@@ -34,7 +37,8 @@ export interface FilmScene {
 export interface FilmProps {
   [key: string]: unknown;
   scenes: FilmScene[];
-  storyAudioUrl?: string;
+  ambienceUrl?: string;          // Looped background ambience (replaces storyAudioUrl)
+  storyAudioUrl?: string;        // V1 fallback: single story audio track
   backgroundMusicUrl?: string;
   musicVolume?: number;
   crossfadeDurationFrames?: number;
@@ -130,6 +134,7 @@ const TitleCard: React.FC<{ title: string; subtitle?: string }> = ({
 
 const Film: React.FC<FilmProps> = ({
   scenes,
+  ambienceUrl,
   storyAudioUrl,
   backgroundMusicUrl,
   musicVolume = 0.08,
@@ -138,6 +143,9 @@ const Film: React.FC<FilmProps> = ({
   subtitle,
 }) => {
   const { fps } = useVideoConfig();
+
+  // Determine if we have per-scene audio (V2) or single story audio (V1)
+  const hasPerSceneAudio = scenes.some((s) => s.dialogAudioUrl || s.sfxAudioUrl);
 
   // Calculate scene start frames (accounting for crossfade overlap)
   let currentFrame = 0;
@@ -163,7 +171,7 @@ const Film: React.FC<FilmProps> = ({
         </Sequence>
       )}
 
-      {/* Scene clips with crossfade transitions */}
+      {/* Scene clips with crossfade transitions + per-scene audio */}
       {scenes.map((scene, i) => (
         <Sequence
           key={i}
@@ -176,6 +184,7 @@ const Film: React.FC<FilmProps> = ({
             isFirst={i === 0 && !title}
             isLast={i === scenes.length - 1}
           >
+            {/* Video — mute dialog scenes (we overlay our own TTS), keep landscape native audio */}
             <Video
               src={scene.videoUrl}
               muted={scene.type === "dialog"}
@@ -183,11 +192,28 @@ const Film: React.FC<FilmProps> = ({
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           </CrossfadeTransition>
+
+          {/* Per-scene dialog audio (V2) */}
+          {hasPerSceneAudio && scene.dialogAudioUrl && (
+            <Audio src={scene.dialogAudioUrl} volume={1.0} />
+          )}
+
+          {/* Per-scene SFX audio (V2) */}
+          {hasPerSceneAudio && scene.sfxAudioUrl && (
+            <Audio src={scene.sfxAudioUrl} volume={0.7} />
+          )}
         </Sequence>
       ))}
 
-      {/* Story audio (full, continuous) */}
-      {storyAudioUrl && (
+      {/* V2: Ambience as continuous background loop */}
+      {ambienceUrl && (
+        <Sequence from={titleDurationFrames} durationInFrames={currentFrame - titleDurationFrames}>
+          <Audio src={ambienceUrl} volume={0.12} loop />
+        </Sequence>
+      )}
+
+      {/* V1 fallback: Story audio (full, continuous) */}
+      {!hasPerSceneAudio && storyAudioUrl && (
         <Sequence from={titleDurationFrames} durationInFrames={currentFrame - titleDurationFrames}>
           <Audio src={storyAudioUrl} volume={1} />
         </Sequence>

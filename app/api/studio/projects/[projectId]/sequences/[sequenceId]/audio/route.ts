@@ -1,21 +1,27 @@
 /**
- * Studio Sequence Audio API — Generate audio for a single sequence
+ * Studio Sequence Audio API — Per-Scene Audio Generation
  *
- * POST: Generate audio from sequence scenes (SSE streaming)
+ * POST: Generate audio per scene (dialog TTS + SFX + ambience) via SSE
  * GET: Get audio status/URL
+ *
+ * V2 Audio Architecture:
+ * - Each dialog scene gets its own TTS audio (dialogAudioUrl)
+ * - Each scene with SFX gets its own sound effect (sfxAudioUrl)
+ * - One ambience track per sequence (stored as sequence audioUrl)
+ * - Remotion mixes all layers in the final film
  */
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { put } from "@vercel/blob";
 import {
-  scenesToSegments,
-  calculateSceneTiming,
   validateVoiceConfig,
   estimateAudioDuration,
   type SequenceCharacter,
 } from "@/lib/studio/sequence-audio";
 import type { StudioScene } from "@/lib/studio/types";
+import type { CharacterVoiceSettings } from "@/lib/types";
+import { CHARACTERS } from "@/lib/types";
 
 export const maxDuration = 120;
 
@@ -107,73 +113,147 @@ export async function POST(
       const keepAlive = setInterval(() => send({ progress: "generating..." }), 5000);
 
       try {
-        // Estimate duration
         const estDuration = estimateAudioDuration(scenes);
-        send({ progress: `Generiere Audio (~${Math.ceil(estDuration)}s)...`, estimatedDuration: estDuration });
+        send({ progress: `Per-Scene Audio (~${Math.ceil(estDuration)}s)...`, estimatedDuration: estDuration });
 
-        // Convert scenes to segments
-        const segments = scenesToSegments(scenes, characters);
-        if (segments.length === 0) {
-          send({ done: true, error: "Keine Sprache in den Szenen gefunden" });
-          clearInterval(keepAlive);
-          try { controller.close(); } catch { /* */ }
-          return;
-        }
+        const { generateSingleTTS, generateSfx } = await import("@/lib/elevenlabs");
 
-        send({ progress: `${segments.length} Sprach-Segmente, starte TTS...` });
+        // Build character lookup
+        const charMap = new Map(characters.map((c) => [c.id, c]));
 
-        // Register custom voice overrides for characters with voiceId in DB
-        const { generateMultiVoiceAudio, setVoiceOverrides, clearVoiceOverrides } = await import("@/lib/elevenlabs");
-        const overrides = new Map<string, { voiceId: string; settings: import("@/lib/types").CharacterVoiceSettings }>();
-        for (const c of characters) {
-          if (c.voiceId && c.voiceSettings) {
-            overrides.set(c.id, {
-              voiceId: c.voiceId,
-              settings: c.voiceSettings as unknown as import("@/lib/types").CharacterVoiceSettings,
-            });
+        const updatedScenes = [...scenes];
+        const timeline: { characterId: string; startMs: number; endMs: number }[] = [];
+        let totalDurationMs = 0;
+        let dialogCount = 0;
+        let sfxCount = 0;
+
+        // ── Phase 1: Per-scene dialog + SFX ──
+        for (let i = 0; i < scenes.length; i++) {
+          const scene = scenes[i];
+
+          // Dialog TTS (only for scenes with spokenText)
+          if (scene.spokenText && scene.characterId) {
+            dialogCount++;
+            send({ progress: `Dialog ${dialogCount}: Szene ${i + 1}/${scenes.length}...` });
+
+            const char = charMap.get(scene.characterId);
+
+            // Resolve voice ID and settings
+            let voiceId: string;
+            let voiceSettings: CharacterVoiceSettings;
+
+            if (char?.voiceId && char?.voiceSettings) {
+              // Custom character voice from DB
+              voiceId = char.voiceId;
+              voiceSettings = char.voiceSettings as unknown as CharacterVoiceSettings;
+            } else {
+              // Fall back to known KoalaTree characters
+              const knownId = char?.name.toLowerCase() || "koda";
+              const knownChar = CHARACTERS[knownId] || CHARACTERS.koda;
+              voiceId = knownChar.voiceId;
+              voiceSettings = { ...knownChar.voiceSettings };
+            }
+
+            // Apply emotional modifiers
+            const emotion = scene.emotion || "neutral";
+            const settings = { ...voiceSettings };
+            if (emotion === "dramatic" || emotion === "tense" || emotion === "angry") {
+              settings.stability = Math.max(0.2, settings.stability - 0.1);
+              settings.style = Math.min(1.0, (settings.style || 0.5) + 0.15);
+              settings.speed = (settings.speed || 1.0) * 1.05;
+            }
+            if (emotion === "calm" || emotion === "sad") {
+              settings.stability = Math.min(0.8, settings.stability + 0.1);
+              settings.speed = (settings.speed || 1.0) * 0.9;
+            }
+            if (emotion === "excited" || emotion === "joyful") {
+              settings.stability = Math.max(0.2, settings.stability - 0.05);
+              settings.speed = (settings.speed || 1.0) * 1.1;
+            }
+
+            try {
+              const { mp3, durationMs } = await generateSingleTTS(scene.spokenText, voiceId, settings);
+              const audioBuffer = Buffer.from(mp3);
+
+              // Upload to blob
+              const blobPath = `studio/${projectId}/sequences/${sequenceId}/dialog-${String(i).padStart(3, "0")}.mp3`;
+              const blob = await put(blobPath, audioBuffer, { access: "private", contentType: "audio/mpeg" });
+
+              updatedScenes[i] = {
+                ...updatedScenes[i],
+                dialogAudioUrl: blob.url,
+                dialogDurationMs: Math.round(durationMs),
+                audioStartMs: Math.round(totalDurationMs),
+                audioEndMs: Math.round(totalDurationMs + durationMs),
+              };
+
+              timeline.push({
+                characterId: scene.characterId,
+                startMs: Math.round(totalDurationMs),
+                endMs: Math.round(totalDurationMs + durationMs),
+              });
+
+              totalDurationMs += durationMs;
+            } catch (err) {
+              console.error(`[PerSceneAudio] Dialog TTS failed for scene ${i}:`, err);
+              send({ progress: `Dialog ${dialogCount} fehlgeschlagen, weiter...` });
+            }
+          }
+
+          // SFX (for scenes with sfx field)
+          if (scene.sfx) {
+            sfxCount++;
+            send({ progress: `SFX ${sfxCount}: "${scene.sfx.slice(0, 30)}..."` });
+
+            try {
+              const sfxDuration = scene.durationHint || 5;
+              const sfxMp3 = await generateSfx(scene.sfx, sfxDuration);
+              if (sfxMp3) {
+                const sfxBuffer = Buffer.from(sfxMp3);
+                const sfxBlobPath = `studio/${projectId}/sequences/${sequenceId}/sfx-${String(i).padStart(3, "0")}.mp3`;
+                const sfxBlob = await put(sfxBlobPath, sfxBuffer, { access: "private", contentType: "audio/mpeg" });
+
+                updatedScenes[i] = {
+                  ...updatedScenes[i],
+                  sfxAudioUrl: sfxBlob.url,
+                };
+              }
+            } catch (err) {
+              console.error(`[PerSceneAudio] SFX failed for scene ${i}:`, err);
+            }
           }
         }
-        if (overrides.size > 0) setVoiceOverrides(overrides);
 
-        let result: Awaited<ReturnType<typeof generateMultiVoiceAudio>>;
-        try {
-          result = await generateMultiVoiceAudio(segments);
-        } finally {
-          clearVoiceOverrides();
+        // ── Phase 2: Ambience (once per sequence) ──
+        let ambienceUrl: string | undefined;
+        const ambiencePrompt = sequence.atmosphereText
+          || scenes.find((s) => s.ambience)?.ambience
+          || null;
+
+        if (ambiencePrompt) {
+          send({ progress: "Generiere Ambience..." });
+          try {
+            const ambienceMp3 = await generateSfx(ambiencePrompt, 30);
+            if (ambienceMp3) {
+              const ambienceBuffer = Buffer.from(ambienceMp3);
+              const ambienceBlobPath = `studio/${projectId}/sequences/${sequenceId}/ambience.mp3`;
+              const ambienceBlob = await put(ambienceBlobPath, ambienceBuffer, { access: "private", contentType: "audio/mpeg" });
+              ambienceUrl = ambienceBlob.url;
+            }
+          } catch (err) {
+            console.error("[PerSceneAudio] Ambience generation failed:", err);
+          }
         }
 
-        send({ progress: "Audio generiert, speichere..." });
+        send({ progress: "Speichere..." });
 
-        // Upload to Vercel Blob
-        const audioBuffer = Buffer.from(result.wav);
-        const blob = await put(
-          `studio/${projectId}/sequences/${sequenceId}/audio.mp3`,
-          audioBuffer,
-          { access: "private", contentType: "audio/mpeg" },
-        );
-
-        // Calculate scene timing from timeline
-        const sceneTiming = calculateSceneTiming(scenes, result.timeline);
-        const durationMs = result.timeline.length > 0
-          ? Math.max(...result.timeline.map((t) => t.endMs))
-          : 0;
-
-        // Update scenes with audio timing
-        const updatedScenes = scenes.map((scene) => {
-          const timing = sceneTiming.find((t) => t.sceneId === scene.id);
-          if (timing) {
-            return { ...scene, audioStartMs: timing.startMs, audioEndMs: timing.endMs };
-          }
-          return scene;
-        });
-
-        // Save to DB
+        // Save to DB — audioUrl now stores ambience (continuous background)
         await prisma.studioSequence.update({
           where: { id: sequenceId },
           data: {
-            audioUrl: blob.url,
-            audioDauerSek: durationMs / 1000,
-            timeline: JSON.parse(JSON.stringify(result.timeline)),
+            audioUrl: ambienceUrl || null,
+            audioDauerSek: totalDurationMs / 1000,
+            timeline: JSON.parse(JSON.stringify(timeline)),
             scenes: JSON.parse(JSON.stringify(updatedScenes)),
             status: "audio",
           },
@@ -182,15 +262,16 @@ export async function POST(
         clearInterval(keepAlive);
         send({
           done: true,
-          audioUrl: blob.url,
-          duration: durationMs / 1000,
-          timeline: result.timeline,
-          sceneTiming,
-          segments: segments.length,
+          audioUrl: ambienceUrl,
+          duration: totalDurationMs / 1000,
+          timeline,
+          dialogCount,
+          sfxCount,
+          hasAmbience: !!ambienceUrl,
         });
       } catch (err) {
         clearInterval(keepAlive);
-        console.error("[SequenceAudio] Error:", err);
+        console.error("[PerSceneAudio] Error:", err);
         send({ done: true, error: err instanceof Error ? err.message : "Fehler bei Audio-Generierung" });
       }
       try { controller.close(); } catch { /* */ }

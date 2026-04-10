@@ -52,7 +52,10 @@ export async function POST(
   });
 
   if (!sequence) return Response.json({ error: "Nicht gefunden" }, { status: 404 });
-  if (!sequence.audioUrl) return Response.json({ error: "Zuerst Audio generieren" }, { status: 400 });
+  // Per-scene audio: check if any scene has dialogAudioUrl (V2) or sequence has audioUrl (V1 fallback)
+  const scenesCheck = (sequence.scenes as unknown as StudioScene[]) || [];
+  const hasPerSceneAudio = scenesCheck.some((s) => s.dialogAudioUrl);
+  if (!hasPerSceneAudio && !sequence.audioUrl) return Response.json({ error: "Zuerst Audio generieren" }, { status: 400 });
 
   const scenes = (sequence.scenes as unknown as StudioScene[]) || [];
   const scene = scenes[body.sceneIndex];
@@ -80,16 +83,33 @@ export async function POST(
       const keepAlive = setInterval(() => send({ progress: "generating..." }), 5000);
 
       try {
-        // Load audio segment for this scene
-        const hasAudio = scene.audioStartMs !== scene.audioEndMs && scene.audioEndMs > 0;
+        // Load audio for this scene — V2: per-scene dialogAudioUrl, V1 fallback: segment from sequence audio
+        let hasAudio = false;
         let audioSegment: Buffer = Buffer.alloc(0);
 
-        if (hasAudio) {
+        if (scene.dialogAudioUrl) {
+          // V2: Per-scene audio — load directly
+          send({ progress: "Lade Dialog-Audio..." });
+          hasAudio = true;
+          if (scene.dialogAudioUrl.includes(".blob.vercel-storage.com")) {
+            const audioBlob = await get(scene.dialogAudioUrl, { access: "private" });
+            if (!audioBlob?.stream) throw new Error("Dialog-Audio nicht ladbar");
+            const reader = audioBlob.stream.getReader();
+            const chunks: Uint8Array[] = [];
+            let chunk;
+            while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+            audioSegment = Buffer.concat(chunks);
+          } else {
+            const audioRes = await fetch(scene.dialogAudioUrl);
+            audioSegment = Buffer.from(new Uint8Array(await audioRes.arrayBuffer()));
+          }
+        } else if (sequence.audioUrl && scene.audioStartMs !== scene.audioEndMs && scene.audioEndMs > 0) {
+          // V1 fallback: segment from full sequence audio
+          hasAudio = true;
           send({ progress: "Lade Audio-Segment..." });
-          // Private Blob URLs need the SDK, not fetch
           let fullAudio: Buffer;
-          if (sequence.audioUrl!.includes(".blob.vercel-storage.com")) {
-            const audioBlob = await get(sequence.audioUrl!, { access: "private" });
+          if (sequence.audioUrl.includes(".blob.vercel-storage.com")) {
+            const audioBlob = await get(sequence.audioUrl, { access: "private" });
             if (!audioBlob?.stream) throw new Error("Audio nicht ladbar");
             const reader = audioBlob.stream.getReader();
             const chunks: Uint8Array[] = [];
@@ -97,7 +117,7 @@ export async function POST(
             while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
             fullAudio = Buffer.concat(chunks);
           } else {
-            const audioRes = await fetch(sequence.audioUrl!);
+            const audioRes = await fetch(sequence.audioUrl);
             fullAudio = Buffer.from(new Uint8Array(await audioRes.arrayBuffer()));
           }
 
@@ -301,7 +321,7 @@ export async function POST(
                 durationSeconds: Math.ceil(Math.min(8, durSec)),
                 aspectRatio: "9:16",
                 quality: "fast",
-                generateAudio: false,
+                generateAudio: true, // Landscape: keep native foley/ambient audio
               });
               videoUrl = veoUrl;
             } catch (veoErr) {

@@ -69,6 +69,11 @@ export interface StudioScene {
   durationHint: number;
   actualDurationMs?: number;
 
+  // Per-scene audio (NEW: replaces single storyAudioUrl)
+  dialogAudioUrl?: string;     // TTS audio for this scene
+  sfxAudioUrl?: string;        // SFX audio for this scene
+  dialogDurationMs?: number;   // Actual dialog duration in ms
+
   // Production state
   videoUrl?: string;
   clipName?: string;

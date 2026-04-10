@@ -921,10 +921,24 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
 // ── Character Card (with portrait upload) ──────────────────────────
 
+interface DigitalActor {
+  id: string;
+  name: string;
+  description?: string;
+  voiceId?: string;
+  voiceSettings?: Record<string, unknown>;
+  voicePreviewUrl?: string;
+  portraitAssetId?: string;
+  tags: string[];
+}
+
 function CharacterCard({ character, projectId, onUpdate, visualStyle }: { character: Character; projectId: string; onUpdate: () => void; visualStyle?: string }) {
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [fullscreenPortrait, setFullscreenPortrait] = useState(false);
+  const [showCastMenu, setShowCastMenu] = useState(false);
+  const [actors, setActors] = useState<DigitalActor[]>([]);
+  const [loadingActors, setLoadingActors] = useState(false);
 
   const generatePortrait = async () => {
     setGenerating(true);
@@ -973,6 +987,32 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
       console.error("Portrait upload failed:", err);
     }
     setUploading(false);
+  };
+
+  const loadActors = async () => {
+    setLoadingActors(true);
+    try {
+      const res = await fetch("/api/studio/actors");
+      const data = await res.json();
+      setActors(data.actors || []);
+    } catch { /* */ }
+    setLoadingActors(false);
+  };
+
+  const castActor = async (actor: DigitalActor) => {
+    try {
+      const updates: Record<string, unknown> = {};
+      if (actor.voiceId) updates.voiceId = actor.voiceId;
+      if (actor.voiceSettings) updates.voiceSettings = actor.voiceSettings;
+
+      await fetch(`/api/studio/projects/${projectId}/characters`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterId: character.id, updates }),
+      });
+      setShowCastMenu(false);
+      onUpdate();
+    } catch { /* */ }
   };
 
   const inputId = `portrait-${character.id}`;
@@ -1031,6 +1071,47 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
           <label htmlFor={inputId} className="text-[7px] text-white/30 hover:text-white/50 cursor-pointer">Upload</label>
           <button onClick={generatePortrait} disabled={generating} className="text-[7px] text-[#d4a853]/60 hover:text-[#d4a853]">
             {generating ? "..." : "AI generieren"}
+          </button>
+        </div>
+      )}
+      {/* Cast Actor button */}
+      <button
+        onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }}
+        className="mt-1.5 text-[7px] text-purple-300/60 hover:text-purple-300 transition-colors"
+      >
+        {character.voiceId ? "Stimme aendern" : "Schauspieler casten"}
+      </button>
+      {character.voiceId && (
+        <p className="text-[7px] text-green-400/40 mt-0.5">Stimme zugewiesen</p>
+      )}
+      {/* Cast Actor dropdown */}
+      {showCastMenu && (
+        <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-[#1a2e1a] border border-white/10 rounded-lg shadow-xl p-2 text-left">
+          <p className="text-[8px] text-white/30 mb-1.5 px-1">Schauspieler waehlen:</p>
+          {loadingActors ? (
+            <p className="text-[8px] text-white/20 px-1">Laden...</p>
+          ) : actors.length === 0 ? (
+            <p className="text-[8px] text-white/20 px-1">Keine Schauspieler. Erstelle welche in der Library.</p>
+          ) : (
+            <div className="space-y-0.5 max-h-32 overflow-y-auto">
+              {actors.map((actor) => (
+                <button
+                  key={actor.id}
+                  onClick={() => castActor(actor)}
+                  className="w-full text-left px-2 py-1 rounded text-[9px] text-white/50 hover:bg-white/5 hover:text-white/80 flex items-center gap-1.5"
+                >
+                  <span className="text-[10px]">{actor.voiceId ? "🎙" : "🎭"}</span>
+                  <span>{actor.name}</span>
+                  {actor.description && <span className="text-white/20 truncate flex-1">{actor.description}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => setShowCastMenu(false)}
+            className="mt-1 w-full text-[7px] text-white/20 hover:text-white/40"
+          >
+            Abbrechen
           </button>
         </div>
       )}

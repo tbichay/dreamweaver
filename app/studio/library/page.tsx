@@ -2,7 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference";
+type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor";
+
+interface DigitalActor {
+  id: string;
+  name: string;
+  description?: string;
+  voiceId?: string;
+  voicePreviewUrl?: string;
+  portraitAssetId?: string;
+  tags: string[];
+  createdAt: string;
+}
 
 interface Asset {
   id: string;
@@ -34,15 +45,26 @@ const TYPE_FILTERS: { id: AssetType | "all"; label: string; icon: string }[] = [
   { id: "landscape", label: "Landscapes", icon: "🏞️" },
   { id: "clip", label: "Clips", icon: "🎬" },
   { id: "sound", label: "Sounds", icon: "🔊" },
+  { id: "actor", label: "Actors", icon: "🎙" },
 ];
 
 export default function LibraryPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [actors, setActors] = useState<DigitalActor[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<AssetType | "all">("all");
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
 
   const loadAssets = useCallback(() => {
+    if (filter === "actor") {
+      // Load actors instead of assets
+      fetch("/api/studio/actors")
+        .then((r) => r.json())
+        .then((d) => { setActors(d.actors || []); setLoading(false); })
+        .catch(() => setLoading(false));
+      return;
+    }
     const params = filter !== "all" ? `?type=${filter}` : "";
     fetch(`/api/studio/assets${params}`)
       .then((r) => r.json())
@@ -85,8 +107,61 @@ export default function LibraryPage() {
         ))}
       </div>
 
+      {/* Actors Grid (when "Actors" filter is active) */}
+      {filter === "actor" && (
+        <>
+          {actors.length === 0 ? (
+            <div className="card p-8 text-center text-white/30 text-sm">
+              <p>Noch keine Schauspieler. Erstelle deinen ersten digitalen Schauspieler mit KI-Stimme.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {actors.map((actor) => (
+                <div key={actor.id} className="card p-3 text-center">
+                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                    <span className="text-2xl">🎙</span>
+                  </div>
+                  <p className="text-xs font-medium text-[#f5eed6] mt-2">{actor.name}</p>
+                  {actor.description && (
+                    <p className="text-[9px] text-white/30 mt-0.5 truncate">{actor.description}</p>
+                  )}
+                  <div className="flex flex-wrap gap-0.5 justify-center mt-1">
+                    {actor.tags.slice(0, 3).map((tag) => (
+                      <span key={tag} className="text-[7px] px-1 py-0.5 bg-white/5 rounded text-white/25">{tag}</span>
+                    ))}
+                  </div>
+                  {actor.voiceId && (
+                    <p className="text-[7px] text-green-400/40 mt-1">Stimme gespeichert</p>
+                  )}
+                  {actor.voicePreviewUrl && (
+                    <button
+                      onClick={() => {
+                        if (playingVoice === actor.id) {
+                          setPlayingVoice(null);
+                        } else {
+                          setPlayingVoice(actor.id);
+                          const audio = new Audio(actor.voicePreviewUrl);
+                          audio.onended = () => setPlayingVoice(null);
+                          audio.play();
+                        }
+                      }}
+                      className="mt-1 text-[8px] text-purple-300/60 hover:text-purple-300"
+                    >
+                      {playingVoice === actor.id ? "..." : "Stimme anhoeren"}
+                    </button>
+                  )}
+                  <p className="text-[7px] text-white/15 mt-1">
+                    {new Date(actor.createdAt).toLocaleDateString("de")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Asset Grid */}
-      {assets.length === 0 ? (
+      {filter !== "actor" && (assets.length === 0 ? (
         <div className="card p-8 text-center text-white/30 text-sm">
           <p>Noch keine Assets. Generiere Portraits, Landscapes oder Clips in der Engine.</p>
         </div>
@@ -128,7 +203,7 @@ export default function LibraryPage() {
             </div>
           ))}
         </div>
-      )}
+      ))}
 
       {/* Selected Asset Detail */}
       {selectedAsset && (

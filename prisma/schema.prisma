@@ -444,6 +444,32 @@ model Asset {
   @@index([modelId])
 }
 
+// ── Digital Actors (Custom Voices + Persistent Characters) ──────
+
+model DigitalActor {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String          // "Max Brenner"
+  description     String?         // "35, rough voice, F1 driver"
+
+  // Voice
+  voiceId         String?         // ElevenLabs permanent voice ID
+  voiceSettings   Json?           // stability, style, speed etc.
+  voicePreviewUrl String?         // Audio preview of the voice
+
+  // Appearance
+  portraitAssetId String?         // Primary portrait from Asset library
+  style           String?         // "realistic" | "animated" etc.
+
+  // Metadata
+  tags            String[]        // ["actor", "male", "german", "action"]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
 // ── AI Model Registry ────────────────────────────────────────────
 
 model AIModel {

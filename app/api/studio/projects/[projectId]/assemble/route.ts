@@ -2,6 +2,9 @@
  * Studio Film Assembly API — Combine all sequence clips into final film
  *
  * POST: Assemble film via Remotion Lambda (SSE streaming)
+ *
+ * V2: Per-scene audio (dialog + SFX per scene, ambience per sequence)
+ * V1 fallback: single storyAudioUrl
  */
 
 import { auth } from "@/lib/auth";
@@ -43,7 +46,7 @@ export async function POST(
 
   // Validate: all sequences must have audio + clips
   const incomplete = project.sequences.filter(
-    (s) => !s.audioUrl || !["clips", "mastered"].includes(s.status),
+    (s) => !["clips", "mastered"].includes(s.status),
   );
   if (incomplete.length > 0) {
     return Response.json({
@@ -66,26 +69,39 @@ export async function POST(
         // Collect all scenes from all sequences in order
         const allScenes: Array<{
           videoUrl: string;
+          dialogAudioUrl?: string;
+          sfxAudioUrl?: string;
           durationMs: number;
           type: string;
           characterId?: string;
         }> = [];
 
-        // First audio URL serves as the continuous story audio
-        // For V2, we concatenate per-sequence — but Remotion needs a single audio track
-        // Use the first sequence's audio for now; full concat comes later
+        // Collect ambience URLs from sequences (V2)
+        const ambienceUrls: string[] = [];
+        // V1 fallback: collect sequence audio URLs
         const audioUrls: string[] = [];
 
         for (const seq of project.sequences) {
           const scenes = (seq.scenes as unknown as StudioScene[]) || [];
 
-          if (seq.audioUrl) audioUrls.push(seq.audioUrl);
+          // Check if this sequence uses per-scene audio (V2) by looking for dialogAudioUrl
+          const hasPerSceneAudio = scenes.some((s) => s.dialogAudioUrl);
+
+          if (hasPerSceneAudio && seq.audioUrl) {
+            // V2: sequence audioUrl is the ambience track
+            ambienceUrls.push(seq.audioUrl);
+          } else if (seq.audioUrl) {
+            // V1 fallback: sequence audioUrl is the full story audio
+            audioUrls.push(seq.audioUrl);
+          }
 
           for (const scene of scenes) {
             if (scene.videoUrl && scene.status === "done") {
               allScenes.push({
                 videoUrl: scene.videoUrl,
-                durationMs: scene.actualDurationMs || scene.audioEndMs - scene.audioStartMs || (scene.durationHint || 5) * 1000,
+                dialogAudioUrl: scene.dialogAudioUrl,
+                sfxAudioUrl: scene.sfxAudioUrl,
+                durationMs: scene.actualDurationMs || scene.dialogDurationMs || scene.audioEndMs - scene.audioStartMs || (scene.durationHint || 5) * 1000,
                 type: scene.type,
                 characterId: scene.characterId,
               });
@@ -97,7 +113,7 @@ export async function POST(
           throw new Error("Keine fertigen Clips gefunden");
         }
 
-        // Upload private Blob clips to S3 for Remotion Lambda access
+        // Upload private Blob URLs to S3 for Remotion Lambda access
         send({ progress: `Lade ${allScenes.length} Clips auf S3...` });
         const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
         const s3 = new S3Client({
@@ -108,101 +124,138 @@ export async function POST(
           },
         });
 
-        const s3Bucket = (process.env.REMOTION_SERVE_URL || "").match(/s3\..*\.amazonaws\.com\/(.+?)\/sites/)?.[0]
-          ? "remotionlambda-eucentral1-hn67lohl74"
-          : "remotionlambda-eucentral1-hn67lohl74"; // Fallback bucket name
+        const s3Bucket = "remotionlambda-eucentral1-hn67lohl74";
 
+        /** Helper: download from private blob and upload to S3 */
+        async function uploadToS3(url: string, s3Key: string, contentType: string): Promise<string> {
+          if (!url.includes(".blob.vercel-storage.com")) return url; // Already public
+          const blobData = await get(url, { access: "private" });
+          if (!blobData?.stream) throw new Error(`Blob not loadable: ${url}`);
+          const reader = blobData.stream.getReader();
+          const chunks: Uint8Array[] = [];
+          let chunk;
+          while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+          const buffer = Buffer.concat(chunks);
+
+          await s3.send(new PutObjectCommand({
+            Bucket: s3Bucket,
+            Key: s3Key,
+            Body: buffer,
+            ContentType: contentType,
+            ACL: "public-read",
+          }));
+
+          return `https://${s3Bucket}.s3.eu-central-1.amazonaws.com/${s3Key}`;
+        }
+
+        // Upload video clips + per-scene audio to S3
         for (let i = 0; i < allScenes.length; i++) {
-          const url = allScenes[i].videoUrl;
-          if (url.includes(".blob.vercel-storage.com")) {
-            try {
-              send({ progress: `Clip ${i + 1}/${allScenes.length} auf S3...` });
-              // Download from private Blob
-              const blobData = await get(url, { access: "private" });
-              if (!blobData?.stream) continue;
-              const reader = blobData.stream.getReader();
-              const chunks: Uint8Array[] = [];
-              let chunk;
-              while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-              const buffer = Buffer.concat(chunks);
+          send({ progress: `Clip ${i + 1}/${allScenes.length} auf S3...` });
 
-              // Upload to S3 with public-read
-              const s3Key = `temp-render/${projectId}/clip-${String(i).padStart(3, "0")}.mp4`;
-              await s3.send(new PutObjectCommand({
-                Bucket: s3Bucket,
-                Key: s3Key,
-                Body: buffer,
-                ContentType: "video/mp4",
-                ACL: "public-read",
-              }));
-
-              allScenes[i].videoUrl = `https://${s3Bucket}.s3.eu-central-1.amazonaws.com/${s3Key}`;
-            } catch (err) {
-              console.warn(`[Assemble] S3 upload failed for clip ${i}:`, err);
-            }
-          }
-        }
-
-        // Concatenate audio from all sequences into one file
-        let storyAudioUrl: string | undefined;
-        if (audioUrls.length === 1) {
-          storyAudioUrl = audioUrls[0];
-        } else if (audioUrls.length > 1) {
-          send({ progress: "Kombiniere Audio aus allen Sequenzen..." });
-          const audioChunks: Buffer[] = [];
-          for (const url of audioUrls) {
-            try {
-              if (url.includes(".blob.vercel-storage.com")) {
-                const blob = await get(url, { access: "private" });
-                if (blob?.stream) {
-                  const reader = blob.stream.getReader();
-                  const chunks: Uint8Array[] = [];
-                  let chunk;
-                  while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-                  audioChunks.push(Buffer.concat(chunks));
-                }
-              } else {
-                const res = await fetch(url);
-                audioChunks.push(Buffer.from(await res.arrayBuffer()));
-              }
-            } catch (err) {
-              console.warn("[Assemble] Failed to load audio:", url, err);
-            }
-          }
-          if (audioChunks.length > 0) {
-            const combined = Buffer.concat(audioChunks);
-            const combinedBlob = await put(
-              `studio/${projectId}/combined-audio.mp3`,
-              combined,
-              { access: "private", contentType: "audio/mpeg" },
-            );
-            storyAudioUrl = combinedBlob.url;
-          }
-        }
-
-        // Also upload audio to S3 for Remotion
-        if (storyAudioUrl?.includes(".blob.vercel-storage.com")) {
           try {
-            send({ progress: "Audio auf S3..." });
-            const audioBlobData = await get(storyAudioUrl, { access: "private" });
-            if (audioBlobData?.stream) {
-              const reader = audioBlobData.stream.getReader();
-              const chunks: Uint8Array[] = [];
-              let chunk;
-              while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-              const buffer = Buffer.concat(chunks);
-              const s3Key = `temp-render/${projectId}/audio.mp3`;
-              await s3.send(new PutObjectCommand({
-                Bucket: s3Bucket,
-                Key: s3Key,
-                Body: buffer,
-                ContentType: "audio/mpeg",
-                ACL: "public-read",
-              }));
-              storyAudioUrl = `https://${s3Bucket}.s3.eu-central-1.amazonaws.com/${s3Key}`;
-            }
+            allScenes[i].videoUrl = await uploadToS3(
+              allScenes[i].videoUrl,
+              `temp-render/${projectId}/clip-${String(i).padStart(3, "0")}.mp4`,
+              "video/mp4",
+            );
           } catch (err) {
-            console.warn("[Assemble] Audio S3 upload failed:", err);
+            console.warn(`[Assemble] S3 upload failed for clip ${i}:`, err);
+          }
+
+          // Upload per-scene dialog audio
+          if (allScenes[i].dialogAudioUrl) {
+            try {
+              allScenes[i].dialogAudioUrl = await uploadToS3(
+                allScenes[i].dialogAudioUrl!,
+                `temp-render/${projectId}/dialog-${String(i).padStart(3, "0")}.mp3`,
+                "audio/mpeg",
+              );
+            } catch (err) {
+              console.warn(`[Assemble] Dialog audio S3 upload failed for scene ${i}:`, err);
+            }
+          }
+
+          // Upload per-scene SFX audio
+          if (allScenes[i].sfxAudioUrl) {
+            try {
+              allScenes[i].sfxAudioUrl = await uploadToS3(
+                allScenes[i].sfxAudioUrl!,
+                `temp-render/${projectId}/sfx-${String(i).padStart(3, "0")}.mp3`,
+                "audio/mpeg",
+              );
+            } catch (err) {
+              console.warn(`[Assemble] SFX audio S3 upload failed for scene ${i}:`, err);
+            }
+          }
+        }
+
+        // Upload ambience to S3 (V2: use first ambience URL)
+        let ambienceUrl: string | undefined;
+        if (ambienceUrls.length > 0) {
+          try {
+            send({ progress: "Ambience auf S3..." });
+            ambienceUrl = await uploadToS3(
+              ambienceUrls[0],
+              `temp-render/${projectId}/ambience.mp3`,
+              "audio/mpeg",
+            );
+          } catch (err) {
+            console.warn("[Assemble] Ambience S3 upload failed:", err);
+          }
+        }
+
+        // V1 fallback: concatenate sequence audio into one file
+        let storyAudioUrl: string | undefined;
+        const hasPerSceneAudio = allScenes.some((s) => s.dialogAudioUrl);
+
+        if (!hasPerSceneAudio && audioUrls.length > 0) {
+          if (audioUrls.length === 1) {
+            storyAudioUrl = audioUrls[0];
+          } else {
+            send({ progress: "Kombiniere Audio aus allen Sequenzen..." });
+            const audioChunks: Buffer[] = [];
+            for (const url of audioUrls) {
+              try {
+                if (url.includes(".blob.vercel-storage.com")) {
+                  const blob = await get(url, { access: "private" });
+                  if (blob?.stream) {
+                    const reader = blob.stream.getReader();
+                    const chunks: Uint8Array[] = [];
+                    let chunk;
+                    while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+                    audioChunks.push(Buffer.concat(chunks));
+                  }
+                } else {
+                  const res = await fetch(url);
+                  audioChunks.push(Buffer.from(await res.arrayBuffer()));
+                }
+              } catch (err) {
+                console.warn("[Assemble] Failed to load audio:", url, err);
+              }
+            }
+            if (audioChunks.length > 0) {
+              const combined = Buffer.concat(audioChunks);
+              const combinedBlob = await put(
+                `studio/${projectId}/combined-audio.mp3`,
+                combined,
+                { access: "private", contentType: "audio/mpeg" },
+              );
+              storyAudioUrl = combinedBlob.url;
+            }
+          }
+
+          // Upload V1 audio to S3
+          if (storyAudioUrl?.includes(".blob.vercel-storage.com")) {
+            try {
+              send({ progress: "Audio auf S3..." });
+              storyAudioUrl = await uploadToS3(
+                storyAudioUrl,
+                `temp-render/${projectId}/audio.mp3`,
+                "audio/mpeg",
+              );
+            } catch (err) {
+              console.warn("[Assemble] Audio S3 upload failed:", err);
+            }
           }
         }
 
@@ -213,7 +266,8 @@ export async function POST(
         const videoUrl = await renderFilmOnLambda({
           geschichteId: projectId,
           scenes: allScenes,
-          storyAudioUrl,
+          ambienceUrl,
+          storyAudioUrl,       // V1 fallback
           backgroundMusicUrl: body.musicUrl,
           musicVolume: body.musicVolume ?? 0.08,
           title: project.name,

@@ -2,9 +2,10 @@
  * KoalaTree Film Renderer — Remotion Lambda
  *
  * Renders films on AWS Lambda via Remotion:
- * - Crossfade transitions between scenes
- * - Continuous story audio
+ * - Per-scene dialog + SFX audio tracks
+ * - Continuous ambience layer
  * - Background music layer
+ * - Crossfade transitions between scenes
  * - Title/outro cards
  *
  * Requires: REMOTION_AWS_ACCESS_KEY_ID, REMOTION_AWS_SECRET_ACCESS_KEY
@@ -19,11 +20,14 @@ export interface RenderFilmOptions {
   geschichteId: string;
   scenes: Array<{
     videoUrl: string;
+    dialogAudioUrl?: string;   // Per-scene TTS dialog
+    sfxAudioUrl?: string;      // Per-scene SFX
     durationMs: number;
     type: string;
     characterId?: string;
   }>;
-  storyAudioUrl?: string;
+  ambienceUrl?: string;          // V2: looped ambience per sequence
+  storyAudioUrl?: string;        // V1 fallback: single story audio
   backgroundMusicUrl?: string;
   title?: string;
   subtitle?: string;
@@ -39,6 +43,7 @@ export interface RenderFilmOptions {
 export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<string> {
   const {
     scenes,
+    ambienceUrl,
     storyAudioUrl,
     backgroundMusicUrl,
     title = "KoalaTree",
@@ -75,6 +80,8 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
   const crossfadeDurationFrames = 60; // 2 seconds crossfade for smoother transitions
   const filmScenes: FilmScene[] = scenes.map((s) => ({
     videoUrl: s.videoUrl,
+    dialogAudioUrl: s.dialogAudioUrl,
+    sfxAudioUrl: s.sfxAudioUrl,
     durationFrames: Math.max(FPS, Math.ceil((s.durationMs / 1000) * FPS)),
     type: s.type as FilmScene["type"],
     characterId: s.characterId,
@@ -91,7 +98,8 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
 
   const inputProps = {
     scenes: filmScenes,
-    storyAudioUrl,
+    ambienceUrl,
+    storyAudioUrl,       // V1 fallback
     backgroundMusicUrl,
     musicVolume,
     crossfadeDurationFrames,

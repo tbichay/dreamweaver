@@ -814,3 +814,108 @@ function pcmToMp3(
 
   return mp3.buffer;
 }
+
+// ── Per-Scene TTS (V2 Film Pipeline) ────────────────────────────────
+
+/**
+ * Generate TTS for a single scene's dialog text.
+ * Returns an MP3 buffer ready for upload to blob storage.
+ */
+export async function generateSingleTTS(
+  text: string,
+  voiceId: string,
+  settings: CharacterVoiceSettings,
+): Promise<{ mp3: ArrayBuffer; durationMs: number }> {
+  const pcm = await generateTTS(text, voiceId, settings);
+  const mp3Data = pcmToMp3(pcm);
+  const durationMs = (pcm.byteLength / 2 / 24000) * 1000;
+  return { mp3: mp3Data, durationMs };
+}
+
+/**
+ * Generate a sound effect via ElevenLabs Sound Effects API.
+ * Public wrapper around the internal generateSoundEffect for V2 pipeline.
+ */
+export async function generateSfx(
+  prompt: string,
+  durationSeconds = 5,
+): Promise<ArrayBuffer | null> {
+  const pcm = await generateSoundEffect(prompt, durationSeconds);
+  if (!pcm) return null;
+  return pcmToMp3(pcm);
+}
+
+// ── ElevenLabs Voice Design API (Digital Actors) ────────────────────
+
+/**
+ * Design a new voice from a text description.
+ * Returns a temporary generated_voice_id and an audio preview.
+ */
+export async function designVoice(
+  description: string,
+  sampleText?: string,
+): Promise<{
+  generatedVoiceId: string;
+  previewAudioBase64: string;
+}> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) throw new Error("ELEVENLABS_API_KEY not set");
+
+  const res = await fetchWithRetry(
+    "https://api.elevenlabs.io/v1/text-to-voice/create-previews",
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        voice_description: description,
+        text: sampleText || "Hallo, ich bin bereit fuer meinen Auftritt. Lass uns anfangen!",
+      }),
+    },
+    "Voice Design",
+  );
+
+  const data = await res.json();
+  const preview = data.previews?.[0];
+  if (!preview) throw new Error("Voice design returned no previews");
+
+  return {
+    generatedVoiceId: preview.generated_voice_id,
+    previewAudioBase64: preview.audio_base_64,
+  };
+}
+
+/**
+ * Save a designed voice permanently to your ElevenLabs account.
+ * Returns the permanent voice_id that can be used for TTS.
+ */
+export async function saveDesignedVoice(
+  name: string,
+  description: string,
+  generatedVoiceId: string,
+): Promise<string> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) throw new Error("ELEVENLABS_API_KEY not set");
+
+  const res = await fetchWithRetry(
+    "https://api.elevenlabs.io/v1/text-to-voice/create-voice-from-preview",
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        voice_name: name,
+        voice_description: description,
+        generated_voice_id: generatedVoiceId,
+      }),
+    },
+    "Save Voice",
+  );
+
+  const data = await res.json();
+  return data.voice_id;
+}
