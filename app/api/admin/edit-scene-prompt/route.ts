@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { createAnthropicClient } from "@/lib/ai-clients";
 
-const anthropic = new Anthropic();
+const anthropic = createAnthropicClient();
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "tom@bichay.de";
 
 export async function POST(request: Request) {

@@ -7,7 +7,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { put } from "@vercel/blob";
-import OpenAI from "openai";
 
 export const maxDuration = 800;
 
@@ -57,7 +56,8 @@ export async function POST(
     style?: string; // "pixar", "watercolor", "realistic"
   };
 
-  const openai = new OpenAI();
+  const { createOpenAIClient } = await import("@/lib/ai-clients");
+  const openai = createOpenAIClient();
 
   const location = sequence.location || "Magischer Wald";
   const atmosphere = sequence.atmosphereText || "Warmes goldenes Abendlicht";

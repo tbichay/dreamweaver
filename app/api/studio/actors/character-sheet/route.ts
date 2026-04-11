@@ -7,7 +7,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { put } from "@vercel/blob";
-import OpenAI from "openai";
 
 export const maxDuration = 800;
 
@@ -62,7 +61,8 @@ export async function POST(request: Request) {
   });
   if (!actor) return Response.json({ error: "Actor nicht gefunden" }, { status: 404 });
 
-  const openai = new OpenAI();
+  const { createOpenAIClient } = await import("@/lib/ai-clients");
+  const openai = createOpenAIClient();
   const style = body.style || actor.style || "realistic";
   const styleHint = getStyleHint(style);
   const angleConfig = ANGLE_PROMPTS[body.angle];

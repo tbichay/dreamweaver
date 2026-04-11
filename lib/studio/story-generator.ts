@@ -206,10 +206,8 @@ export async function generateStory(
   brief: StoryBrief,
   onProgress?: (chunk: string) => void,
 ): Promise<StoryResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY nicht gesetzt");
-
-  const client = new Anthropic({ apiKey });
+  const { createAnthropicClient } = await import("@/lib/ai-clients");
+  const client = createAnthropicClient();
 
   const system = buildSystemPrompt(brief);
   const user = buildUserPrompt(brief);

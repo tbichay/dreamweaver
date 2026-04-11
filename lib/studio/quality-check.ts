@@ -62,7 +62,8 @@ export async function checkVisualQuality(
       return { score: 50, notes: "Keine Bilder zum Pruefen", passed: true };
     }
 
-    const anthropic = new Anthropic({ apiKey });
+    const { createAnthropicClient } = await import("@/lib/ai-clients");
+    const anthropic = createAnthropicClient();
 
     // Build content array with images
     const content: Anthropic.MessageCreateParams["messages"][0]["content"] = [];

@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { put } from "@vercel/blob";
-import OpenAI from "openai";
 
 export const maxDuration = 800;
 
@@ -18,7 +17,8 @@ export async function POST(request: Request) {
   });
   if (!character) return Response.json({ error: "Charakter nicht gefunden" }, { status: 404 });
 
-  const openai = new OpenAI();
+  const { createOpenAIClient } = await import("@/lib/ai-clients");
+  const openai = createOpenAIClient();
 
   // Build portrait prompt from character description + style
   const styleHint = style === "realistic"
