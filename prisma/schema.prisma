@@ -480,6 +480,31 @@ model DigitalActor {
 
   // Relations
   characters      StudioCharacter[]
+  libraryVoiceId  String?         // FK to Voice library (shared voices)
+  libraryVoice    Voice?          @relation(fields: [libraryVoiceId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ── Voice Library (Shareable Voices) ─────────────────────────────
+
+model Voice {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String          // "Weiser Erzaehler", "Freche Goere"
+  description     String?         // "Tiefe warme Stimme, ruhig, 65 Jahre"
+
+  voiceId         String          // ElevenLabs permanent voice ID
+  voiceSettings   Json?           // { stability, similarity_boost, style, speed }
+  previewUrl      String?         // Audio preview blob URL
+  category        String?         // "narrator" | "character" | "child" | "custom"
+  tags            String[]        // ["maennlich", "warm", "deutsch", "alt"]
+
+  // Relations
+  actors          DigitalActor[]  // Actors using this voice
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

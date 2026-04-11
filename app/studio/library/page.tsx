@@ -2,7 +2,21 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
-type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor";
+type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor" | "music";
+type LibraryCategory = "actors" | "voices" | "landscapes" | "music" | "clips";
+
+interface Voice {
+  id: string;
+  name: string;
+  description?: string;
+  voiceId: string;
+  voiceSettings?: VoiceSettings | null;
+  previewUrl?: string;
+  category?: string;
+  tags: string[];
+  createdAt: string;
+  _count?: { actors: number };
+}
 
 interface CharacterSheet {
   front?: string;
@@ -60,13 +74,12 @@ interface Asset {
   createdAt: string;
 }
 
-const TYPE_FILTERS: { id: AssetType | "all"; label: string; icon: string }[] = [
-  { id: "all", label: "Alle", icon: "📁" },
-  { id: "portrait", label: "Portraits", icon: "🎭" },
-  { id: "landscape", label: "Landscapes", icon: "🏞️" },
-  { id: "clip", label: "Clips", icon: "🎬" },
-  { id: "sound", label: "Sounds", icon: "🔊" },
-  { id: "actor", label: "Actors", icon: "🎙" },
+const CATEGORIES: { id: LibraryCategory; label: string; icon: string }[] = [
+  { id: "actors", label: "Actors", icon: "\uD83C\uDFAD" },
+  { id: "voices", label: "Voices", icon: "\uD83C\uDFA4" },
+  { id: "landscapes", label: "Landscapes", icon: "\uD83C\uDFDE\uFE0F" },
+  { id: "music", label: "Music", icon: "\uD83C\uDFB5" },
+  { id: "clips", label: "Clips", icon: "\uD83C\uDFAC" },
 ];
 
 // ── Actor Creation Form ─────────────────────────────────────────
@@ -936,8 +949,10 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
 export default function LibraryPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [actors, setActors] = useState<DigitalActor[]>([]);
+  const [voices, setVoices] = useState<Voice[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<AssetType | "all">("all");
+  const [category, setCategory] = useState<LibraryCategory>("actors");
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
 
@@ -963,25 +978,44 @@ export default function LibraryPage() {
 
   const loadAssets = useCallback(() => {
     setLoading(true);
-    if (filter === "actor") {
+    // Map category to the right API
+    if (category === "actors") {
+      setFilter("actor");
       fetch("/api/studio/actors")
         .then((r) => r.json())
         .then((d) => { setActors(d.actors || []); setLoading(false); })
         .catch(() => setLoading(false));
-      return;
+    } else if (category === "voices") {
+      fetch("/api/studio/voices")
+        .then((r) => r.json())
+        .then((d) => { setVoices(d.voices || []); setLoading(false); })
+        .catch(() => setLoading(false));
+    } else if (category === "landscapes") {
+      setFilter("landscape");
+      fetch("/api/studio/assets?type=landscape")
+        .then((r) => r.json())
+        .then((d) => { setAssets(d.assets || []); setLoading(false); })
+        .catch(() => setLoading(false));
+    } else if (category === "music") {
+      setFilter("sound");
+      fetch("/api/studio/assets?type=sound")
+        .then((r) => r.json())
+        .then((d) => { setAssets(d.assets || []); setLoading(false); })
+        .catch(() => setLoading(false));
+    } else if (category === "clips") {
+      setFilter("clip");
+      fetch("/api/studio/assets?type=clip")
+        .then((r) => r.json())
+        .then((d) => { setAssets(d.assets || []); setLoading(false); })
+        .catch(() => setLoading(false));
     }
-    const params = filter !== "all" ? `?type=${filter}` : "";
-    fetch(`/api/studio/assets${params}`)
-      .then((r) => r.json())
-      .then((d) => { setAssets(d.assets || []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [filter]);
+  }, [category]);
 
   useEffect(() => { loadAssets(); }, [loadAssets]);
 
   // Load portrait URLs for actors that have portraitAssetId
   useEffect(() => {
-    if (filter !== "actor" || actors.length === 0) return;
+    if (category !== "actors" || actors.length === 0) return;
     const actorsWithPortrait = actors.filter((a) => a.portraitAssetId && !portraitMap[a.id]);
     if (actorsWithPortrait.length === 0) return;
 
@@ -997,7 +1031,7 @@ export default function LibraryPage() {
       setPortraitMap((prev) => ({ ...prev, ...newMap }));
     }
     // Could also fetch asset URLs from API for non-http IDs, but skip for now
-  }, [filter, actors, portraitMap]);
+  }, [category, actors, portraitMap]);
 
   const blobProxy = (url: string) =>
     url.includes(".blob.vercel-storage.com")
@@ -1006,13 +1040,13 @@ export default function LibraryPage() {
 
   // ── Derived filter data ──────────────────────────────────────
 
-  const allItems = filter === "actor" ? actors : assets;
+  const allItems = category === "actors" ? actors : assets;
 
   // Extract unique project/style tags from current items
   const { projectTags, styleTags } = useMemo(() => {
     const projects = new Set<string>();
     const styles = new Set<string>();
-    const items = filter === "actor" ? actors : assets;
+    const items = category === "actors" ? actors : assets;
     for (const item of items) {
       const tags = "tags" in item ? (item as { tags: string[] }).tags : [];
       for (const t of tags) {
@@ -1063,10 +1097,10 @@ export default function LibraryPage() {
     return items;
   }, [actors, projectFilter, genderFilter, searchText]);
 
-  const displayItems = filter === "actor" ? filteredActors : filteredAssets;
+  const displayItems = category === "actors" ? filteredActors : filteredAssets;
   const selectedActor = selectedActorId ? actors.find((a) => a.id === selectedActorId) || null : null;
 
-  const hasSubFilters = projectTags.length > 0 || styleTags.length > 0 || filter === "actor";
+  const hasSubFilters = projectTags.length > 0 || styleTags.length > 0 || category === "actors";
 
   // Dynamic image height per asset type
   const imageHeight = filter === "portrait" ? "h-48" : filter === "landscape" ? "h-32" : "h-24";
@@ -1109,7 +1143,7 @@ export default function LibraryPage() {
         <div>
           <h1 className="text-xl font-bold text-[#f5eed6]">Asset Library</h1>
           <p className="text-sm text-white/40">
-            {filter === "actor"
+            {category === "actors"
               ? `${filteredActors.length} Schauspieler`
               : `${filteredAssets.length} Assets`}
           </p>
@@ -1134,19 +1168,19 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* Type Filters */}
-      <div className="flex gap-1.5 mb-3">
-        {TYPE_FILTERS.map((f) => (
+      {/* Category Navigation */}
+      <div className="flex gap-1 bg-white/5 rounded-xl p-1 mb-4">
+        {CATEGORIES.map((c) => (
           <button
-            key={f.id}
-            onClick={() => { setFilter(f.id as AssetType | "all"); setSelectedActorId(null); setShowNewActorForm(false); setShowGenerateForm(false); }}
-            className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
-              filter === f.id
-                ? "bg-[#3d6b4a]/40 text-[#a8d5b8] font-medium"
-                : "text-white/30 hover:text-white/50 bg-white/5"
+            key={c.id}
+            onClick={() => { setCategory(c.id); setSelectedActorId(null); setShowNewActorForm(false); setShowGenerateForm(false); }}
+            className={`flex-1 px-3 py-2 rounded-lg text-[11px] transition-all ${
+              category === c.id
+                ? "bg-[#d4a853]/20 text-[#d4a853] font-medium"
+                : "text-white/30 hover:text-white/50"
             }`}
           >
-            {f.icon} {f.label}
+            {c.icon} {c.label}
           </button>
         ))}
       </div>
@@ -1202,7 +1236,7 @@ export default function LibraryPage() {
         )}
 
         {/* Gender filter (for actors) */}
-        {filter === "actor" && (
+        {category === "actors" && (
           <div className="flex gap-1">
             {([["all", "Alle"], ["male", "Maennlich"], ["female", "Weiblich"]] as const).map(([val, label]) => (
               <button
@@ -1220,7 +1254,7 @@ export default function LibraryPage() {
       </div>
 
       {/* ── Actors View ────────────────────────────────────────── */}
-      {filter === "actor" && (
+      {category === "actors" && (
         <>
           {/* New Actor Button */}
           {!showNewActorForm && (
