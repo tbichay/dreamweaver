@@ -1461,12 +1461,38 @@ export default function LibraryPage() {
       {category === "voices" && (
         <>
           {!showNewActorForm && (
-            <button
-              onClick={() => setShowNewActorForm(true)}
-              className="mb-4 px-4 py-2.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all"
-            >
-              + Neue Stimme
-            </button>
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setShowNewActorForm(true)}
+                className="px-4 py-2.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all"
+              >
+                + Neue Stimme designen
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/studio/voices/import");
+                    const data = await res.json();
+                    const toImport = (data.voices || [])
+                      .filter((v: { recommended: boolean; alreadyImported: boolean }) => v.recommended && !v.alreadyImported)
+                      .map((v: { voiceId: string; name: string; libraryCategory: string; libraryTags: string[] }) => ({
+                        voiceId: v.voiceId, name: v.name, category: v.libraryCategory, tags: v.libraryTags,
+                      }));
+                    if (toImport.length === 0) { alert("Alle empfohlenen Stimmen sind bereits importiert."); return; }
+                    const importRes = await fetch("/api/studio/voices/import", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ voices: toImport }),
+                    });
+                    const importData = await importRes.json();
+                    if (importData.count > 0) loadAssets();
+                  } catch { /* */ }
+                }}
+                className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/40 text-xs hover:text-white/60 transition-all"
+              >
+                Empfohlene Stimmen importieren
+              </button>
+            </div>
           )}
 
           {showNewActorForm && (
