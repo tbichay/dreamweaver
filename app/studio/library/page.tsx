@@ -1230,6 +1230,10 @@ export default function LibraryPage() {
               onClose={() => setSelectedActorId(null)}
               onUpdate={(updated) => {
                 setActors((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+                // Update portrait map immediately
+                if (updated.portraitAssetId?.startsWith("http")) {
+                  setPortraitMap((prev) => ({ ...prev, [updated.id]: updated.portraitAssetId! }));
+                }
               }}
               onDelete={(id) => {
                 setActors((prev) => prev.filter((a) => a.id !== id));

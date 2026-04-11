@@ -67,15 +67,14 @@ export async function POST(request: Request) {
   const styleHint = getStyleHint(style);
   const angleConfig = ANGLE_PROMPTS[body.angle];
 
-  const outfitHint = actor.outfit ? ` Outfit: ${actor.outfit}.` : "";
-  const traitsHint = actor.traits ? ` Traits: ${actor.traits}.` : "";
+  const outfitHint = actor.outfit ? ` WEARING: ${actor.outfit}.` : "";
+  const traitsHint = actor.traits ? ` DISTINCTIVE FEATURES: ${actor.traits}.` : "";
   const prompt = `${styleHint}. Character: ${body.description}.${outfitHint}${traitsHint} ${angleConfig.suffix} No text, no watermarks, no logos.`;
 
   // Use front portrait as reference for profile/fullBody consistency
   const imageInputs: Array<{ image: string; detail: string }> = [];
   if (body.angle !== "front" && actor.portraitAssetId) {
     try {
-      // portraitAssetId is a blob URL
       const blobUrl = actor.portraitAssetId;
       if (blobUrl.startsWith("http")) {
         const { getDownloadUrl } = await import("@vercel/blob");
@@ -83,20 +82,30 @@ export async function POST(request: Request) {
         const imgRes = await fetch(downloadUrl);
         if (imgRes.ok) {
           const buf = Buffer.from(await imgRes.arrayBuffer());
-          imageInputs.push({ image: buf.toString("base64"), detail: "low" });
+          imageInputs.push({ image: buf.toString("base64"), detail: "high" });
         }
       }
     } catch { /* reference is optional */ }
   }
 
+  // Build consistency-focused prompt when reference image exists
+  const consistencyPrompt = imageInputs.length > 0
+    ? `CRITICAL: This is the SAME character as in the reference image. You MUST maintain EXACT visual consistency:
+- SAME face shape, SAME nose, SAME eyes, SAME mouth
+- SAME hair color, SAME hair style, SAME facial hair (beard/mustache)
+- SAME skin tone, SAME age appearance
+- SAME clothing and accessories
+- SAME art style and rendering quality
+
+${prompt}`
+    : prompt;
+
   const generateParams: Record<string, unknown> = {
     model: "gpt-image-1",
-    prompt: imageInputs.length > 0
-      ? `Reference character (keep the same person/character): ${prompt}`
-      : prompt,
+    prompt: consistencyPrompt,
     n: 1,
     size: angleConfig.size,
-    quality: "medium",
+    quality: "high", // Higher quality for better consistency
   };
   if (imageInputs.length > 0) {
     generateParams.image = imageInputs;
