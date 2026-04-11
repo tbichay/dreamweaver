@@ -26,6 +26,8 @@ Stand: 11. April 2026
 21. ✅ Background Task Queue (StudioTask Model, Cron Worker, Tasks-Seite)
 22. ✅ AI Quality Check (Claude Vision fuer Clips/Portraits, auto-retry)
 23. ✅ Background Generation UI (Audio + Clips im Hintergrund)
+24. ✅ Prompt Auto-Tuning (Quality Feedback → verbesserte Prompts → auto-retry)
+25. ✅ Sequence Preview Player (alle Clips nacheinander abspielen)
 20. ✅ Dialog Audio Preview pro Szene
 
 ## Actor/Library System (NEU — 11. April 2026)
@@ -110,7 +112,7 @@ Aktuell: Domain-Detection in Providers.tsx + CSS Overrides. Fragil.
 - [ ] Logo + Favicon fuer koalatree.io
 - [ ] GLOBAL: Besseres AI-Feedback (Progress-Bar, geschaetzte Dauer)
 - [x] Neues Projekt: Name als Placeholder (gefixt)
-- [ ] Preview-Player: Clips nacheinander abspielen (Uebergangs-Check)
+- [x] Preview-Player: Clips nacheinander abspielen (Uebergangs-Check)
 - [x] Charakter-Tab: Portraits groesser (gefixt)
 - [x] Visual Style schon beim Drehbuch (eingebaut)
 - [ ] Modi erweitern: Hoerbuch+Cover, Musikvideo, Trailer
