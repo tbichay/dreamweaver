@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import ActorSheetComponent from "@/app/components/ActorSheet";
+import VoiceSheetComponent from "@/app/components/VoiceSheet";
+import { Card, Badge, EmptyState, ActionButton, AudioPreview } from "@/app/components/ui";
 
 type AssetType = "portrait" | "landscape" | "clip" | "sound" | "reference" | "actor" | "music";
 type LibraryCategory = "actors" | "voices" | "landscapes" | "music" | "clips";
@@ -1266,36 +1269,38 @@ export default function LibraryPage() {
             </button>
           )}
 
-          {/* New Actor Form */}
-          {showNewActorForm && (
-            <NewActorForm
-              blobProxy={blobProxy}
-              onCreated={(actor) => {
-                setActors((prev) => [actor, ...prev]);
-                setShowNewActorForm(false);
-              }}
-              onCancel={() => setShowNewActorForm(false)}
-            />
-          )}
-
-          {/* Actor Detail View */}
-          {selectedActor && !showNewActorForm && (
-            <ActorDetailView
-              actor={selectedActor}
-              portraitMap={portraitMap}
-              blobProxy={blobProxy}
-              onClose={() => setSelectedActorId(null)}
-              onUpdate={(updated) => {
-                setActors((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-                // Update portrait map immediately
-                if (updated.portraitAssetId?.startsWith("http")) {
-                  setPortraitMap((prev) => ({ ...prev, [updated.id]: updated.portraitAssetId! }));
+          {/* Actor Sheet (unified create/edit) */}
+          {(showNewActorForm || selectedActor) && (
+            <ActorSheetComponent
+              initial={selectedActor ? {
+                id: selectedActor.id,
+                name: selectedActor.name,
+                description: selectedActor.description || "",
+                voiceDescription: selectedActor.voiceDescription || "",
+                style: selectedActor.style || "realistic",
+                outfit: selectedActor.outfit || "",
+                traits: selectedActor.traits || "",
+                voiceId: selectedActor.voiceId || undefined,
+                voiceSettings: selectedActor.voiceSettings,
+                voicePreviewUrl: selectedActor.voicePreviewUrl || undefined,
+                portraitAssetId: selectedActor.portraitAssetId || undefined,
+                characterSheet: selectedActor.characterSheet,
+                _count: selectedActor._count,
+              } : undefined}
+              onSave={(actor) => {
+                if (selectedActor) {
+                  setActors((prev) => prev.map((a) => (a.id === actor.id ? { ...a, ...actor } as DigitalActor : a)));
+                  if (actor.portraitAssetId?.startsWith("http")) {
+                    setPortraitMap((prev) => ({ ...prev, [actor.id!]: actor.portraitAssetId! }));
+                  }
+                } else {
+                  setActors((prev) => [actor as unknown as DigitalActor, ...prev]);
                 }
-              }}
-              onDelete={(id) => {
-                setActors((prev) => prev.filter((a) => a.id !== id));
+                setShowNewActorForm(false);
                 setSelectedActorId(null);
               }}
+              onClose={() => { setShowNewActorForm(false); setSelectedActorId(null); }}
+              blobProxy={blobProxy}
             />
           )}
 
@@ -1452,10 +1457,74 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* ── Asset Grid ─────────────────────────────────────────── */}
-      {filter !== "actor" && (filteredAssets.length === 0 ? (
-        <div className="card p-8 text-center text-white/30 text-sm">
-          <p>Noch keine Assets. Generiere Portraits, Landscapes oder Clips in der Engine.</p>
+      {/* ── Voices View ────────────────────────────────────────── */}
+      {category === "voices" && (
+        <>
+          {!showNewActorForm && (
+            <button
+              onClick={() => setShowNewActorForm(true)}
+              className="mb-4 px-4 py-2.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all"
+            >
+              + Neue Stimme
+            </button>
+          )}
+
+          {showNewActorForm && (
+            <VoiceSheetComponent
+              onSave={(voice) => {
+                setVoices((prev) => [voice as unknown as Voice, ...prev]);
+                setShowNewActorForm(false);
+              }}
+              onClose={() => setShowNewActorForm(false)}
+              blobProxy={blobProxy}
+            />
+          )}
+
+          {voices.length === 0 && !showNewActorForm ? (
+            <div className="text-center py-12 text-white/20 text-sm">
+              <span className="text-4xl block mb-3">{"\uD83C\uDFA4"}</span>
+              <p>Noch keine Stimmen in der Library.</p>
+              <p className="text-[10px] mt-1">Erstelle Stimmen die du bei verschiedenen Actors verwenden kannst.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {voices.map((voice) => (
+                <div
+                  key={voice.id}
+                  className="bg-white/[0.03] border border-white/5 rounded-xl p-4 hover:border-white/15 transition-all"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg">{"\uD83C\uDFA4"}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#f5eed6]">{voice.name}</p>
+                      {voice.description && <p className="text-[10px] text-white/30 mt-0.5 truncate">{voice.description}</p>}
+                      <div className="flex items-center gap-2 mt-1">
+                        {voice.category && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/60">{voice.category}</span>}
+                        {voice._count && voice._count.actors > 0 && (
+                          <span className="text-[8px] text-white/20">{voice._count.actors} Actor(s)</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {voice.previewUrl && (
+                    <div className="mt-2">
+                      <audio controls src={blobProxy(voice.previewUrl)} className="w-full h-7 opacity-60" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Asset Grid (Landscapes, Music, Clips) ────────────────── */}
+      {category !== "actors" && category !== "voices" && (filteredAssets.length === 0 ? (
+        <div className="text-center py-12 text-white/20 text-sm">
+          <span className="text-4xl block mb-3">{category === "landscapes" ? "\uD83C\uDFDE\uFE0F" : category === "music" ? "\uD83C\uDFB5" : "\uD83C\uDFAC"}</span>
+          <p>Noch keine {category === "landscapes" ? "Landscapes" : category === "music" ? "Musik" : "Clips"}.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
