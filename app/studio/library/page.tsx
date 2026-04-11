@@ -1059,6 +1059,44 @@ const VOICE_FILTERS = [
 
 function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProxy: (u: string) => string; onImport: () => void }) {
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+  const [showSharedVoices, setShowSharedVoices] = useState(false);
+  const [sharedVoices, setSharedVoices] = useState<Array<{ voiceId: string; name: string; previewUrl?: string; age?: string; gender?: string; descriptive?: string; useCase?: string }>>([]);
+  const [sharedLoading, setSharedLoading] = useState(false);
+  const [sharedGender, setSharedGender] = useState<string>("");
+  const [sharedAge, setSharedAge] = useState<string>("");
+  const [sharedLang, setSharedLang] = useState("de");
+
+  const searchShared = async () => {
+    setSharedLoading(true);
+    const params = new URLSearchParams({ source: "shared", language: sharedLang });
+    if (sharedGender) params.set("gender", sharedGender);
+    if (sharedAge) params.set("age", sharedAge);
+    try {
+      const res = await fetch(`/api/studio/voices/import?${params}`);
+      const data = await res.json();
+      setSharedVoices(data.voices || []);
+    } catch { /* */ }
+    setSharedLoading(false);
+  };
+
+  const importSharedVoice = async (v: { voiceId: string; name: string; previewUrl?: string; age?: string; gender?: string; descriptive?: string }) => {
+    try {
+      await fetch("/api/studio/voices/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          voices: [{
+            voiceId: v.voiceId,
+            name: v.name,
+            previewUrl: v.previewUrl,
+            category: v.age === "young" ? "child" : v.descriptive === "wise" || v.descriptive === "calm" ? "narrator" : "character",
+            tags: [sharedLang === "de" ? "deutsch" : "englisch", v.gender || "", v.age || "", v.descriptive || ""].filter(Boolean),
+          }],
+        }),
+      });
+      onImport();
+    } catch { /* */ }
+  };
 
   const toggleFilter = (id: string) => {
     setActiveFilters((prev) => {
@@ -1106,7 +1144,13 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
           }}
           className="px-4 py-2.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all"
         >
-          Stimmen importieren ({voices.length} vorhanden)
+          Eigene Stimmen importieren
+        </button>
+        <button
+          onClick={() => setShowSharedVoices(true)}
+          className="px-4 py-2.5 rounded-xl bg-[#d4a853]/20 border border-[#d4a853]/30 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 transition-all"
+        >
+          Weitere Stimmen entdecken (1000+)
         </button>
       </div>
 
@@ -1143,6 +1187,76 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
           <span className="text-[10px] text-white/20 self-center ml-1">{filtered.length} Ergebnisse</span>
         )}
       </div>
+
+      {/* Shared Voice Browser Modal */}
+      {showSharedVoices && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowSharedVoices(false)}>
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[#f5eed6]">{"\uD83C\uDF0D"} Stimmen-Bibliothek (1000+)</h3>
+              <button onClick={() => setShowSharedVoices(false)} className="text-white/30 hover:text-white/60 text-lg">&times;</button>
+            </div>
+            {/* Filters */}
+            <div className="px-5 py-3 border-b border-white/5 flex flex-wrap gap-2 items-center">
+              <select value={sharedLang} onChange={(e) => setSharedLang(e.target.value)} className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/70">
+                <option value="de">Deutsch</option>
+                <option value="en">English</option>
+                <option value="fr">Francais</option>
+                <option value="es">Espanol</option>
+                <option value="it">Italiano</option>
+                <option value="ja">Japanese</option>
+              </select>
+              <select value={sharedGender} onChange={(e) => setSharedGender(e.target.value)} className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/70">
+                <option value="">Alle Geschlechter</option>
+                <option value="female">Weiblich</option>
+                <option value="male">Maennlich</option>
+                <option value="neutral">Neutral</option>
+              </select>
+              <select value={sharedAge} onChange={(e) => setSharedAge(e.target.value)} className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/70">
+                <option value="">Alle Alter</option>
+                <option value="young">Jung</option>
+                <option value="middle_aged">Mittleres Alter</option>
+                <option value="old">Alt</option>
+              </select>
+              <button onClick={searchShared} disabled={sharedLoading} className="px-3 py-1.5 bg-[#d4a853]/20 text-[#d4a853] rounded-lg text-xs font-medium hover:bg-[#d4a853]/30 disabled:opacity-30">
+                {sharedLoading ? "Suche..." : "Suchen"}
+              </button>
+            </div>
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {sharedVoices.length === 0 ? (
+                <p className="text-center text-white/30 text-sm py-8">
+                  {sharedLoading ? "Suche..." : "Waehle Filter und klicke Suchen"}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {sharedVoices.map((v) => (
+                    <div key={v.voiceId} className="bg-white/[0.03] border border-white/5 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-medium text-[#f5eed6] truncate flex-1">{v.name}</p>
+                        <button
+                          onClick={() => importSharedVoice(v)}
+                          className="text-[9px] px-2.5 py-1 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium flex-shrink-0 ml-2"
+                        >
+                          Importieren
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {v.age && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/30">{v.age}</span>}
+                        {v.descriptive && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/30">{v.descriptive}</span>}
+                        {v.useCase && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/40">{v.useCase}</span>}
+                      </div>
+                      {v.previewUrl && (
+                        <audio controls src={v.previewUrl} className="w-full h-7" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Voice Grid */}
       {filtered.length === 0 ? (

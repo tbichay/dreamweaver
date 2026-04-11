@@ -8,7 +8,50 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export async function GET() {
+/**
+ * GET with ?source=shared — Browse ElevenLabs shared voice library
+ * GET without source — List own voices
+ */
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const source = searchParams.get("source");
+  const language = searchParams.get("language") || "de";
+  const gender = searchParams.get("gender");
+  const age = searchParams.get("age");
+
+  if (source === "shared") {
+    const session = await auth();
+    if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) return Response.json({ error: "ELEVENLABS_API_KEY not set" }, { status: 500 });
+
+    const params = new URLSearchParams({ page_size: "30", language });
+    if (gender) params.set("gender", gender);
+    if (age) params.set("age", age);
+
+    const res = await fetch(`https://api.elevenlabs.io/v1/shared-voices?${params}`, {
+      headers: { "xi-api-key": apiKey },
+    });
+    const data = await res.json();
+
+    const voices = (data.voices || []).map((v: Record<string, unknown>) => ({
+      voiceId: v.voice_id,
+      name: v.name,
+      previewUrl: v.preview_url,
+      age: v.age,
+      gender: v.gender,
+      accent: v.accent,
+      descriptive: v.descriptive,
+      useCase: v.use_case,
+      category: v.category,
+      language: (v.language as string) || language,
+    }));
+
+    return Response.json({ voices, source: "shared" });
+  }
+
+  // Original: list own voices
   const session = await auth();
   if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
