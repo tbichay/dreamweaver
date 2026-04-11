@@ -411,7 +411,7 @@ function CharacterSheetSection({ actor, blobProxy, onUpdate }: { actor: DigitalA
   const [sheetError, setSheetError] = useState<string | null>(null);
   const sheet = actor.characterSheet || {};
 
-  const generateAngle = async (angle: "front" | "profile" | "fullBody"): Promise<CharacterSheet | null> => {
+  const generateAngle = async (angle: "front" | "profile" | "fullBody"): Promise<{ characterSheet: CharacterSheet; portraitUrl?: string } | null> => {
     const res = await fetch("/api/studio/actors/character-sheet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
