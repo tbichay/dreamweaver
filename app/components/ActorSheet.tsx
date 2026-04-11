@@ -286,7 +286,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
   );
 }
 
-// ── Voice Picker Grid (embedded in ActorSheet) ──────────────────
+// ── Voice Picker Grid with Multi-Filter ──────────────────────────
 
 interface VoiceItem {
   id: string;
@@ -297,9 +297,27 @@ interface VoiceItem {
   tags: string[];
 }
 
+const PICKER_FILTERS = [
+  { id: "all", label: "Alle" },
+  { id: "de", label: "Deutsch" },
+  { id: "en", label: "English" },
+  { id: "narrator", label: "Erzaehler" },
+  { id: "character", label: "Charakter" },
+  { id: "child", label: "Kind" },
+  { id: "maennlich", label: "Maennlich" },
+  { id: "weiblich", label: "Weiblich" },
+];
+
+function matchesVoiceFilter(v: VoiceItem, filterId: string): boolean {
+  if (filterId === "de") return v.tags.some((t) => ["de", "deutsch"].includes(t.toLowerCase()));
+  if (filterId === "en") return v.tags.some((t) => ["en", "englisch"].includes(t.toLowerCase()));
+  return v.category === filterId || v.tags.some((t) => t.toLowerCase() === filterId.toLowerCase());
+}
+
 function VoicePickerGrid({ onSelect, blobProxy }: { onSelect: (voiceId: string, previewUrl?: string) => void; blobProxy: (u: string) => string }) {
   const [voices, setVoices] = useState<VoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [testingVoice, setTestingVoice] = useState<string | null>(null);
   const [testAudio, setTestAudio] = useState<Record<string, string>>({});
 
@@ -311,8 +329,21 @@ function VoicePickerGrid({ onSelect, blobProxy }: { onSelect: (voiceId: string, 
       .finally(() => setLoading(false));
   }, []);
 
+  const toggleFilter = (id: string) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (id === "all") return new Set();
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const filtered = activeFilters.size === 0
+    ? voices
+    : voices.filter((v) => Array.from(activeFilters).every((f) => matchesVoiceFilter(v, f)));
+
   const testVoice = async (voice: VoiceItem) => {
-    if (testAudio[voice.voiceId]) return; // Already have it
+    if (testAudio[voice.voiceId]) return;
     setTestingVoice(voice.voiceId);
     try {
       const res = await fetch("/api/studio/voices/test", {
@@ -334,38 +365,66 @@ function VoicePickerGrid({ onSelect, blobProxy }: { onSelect: (voiceId: string, 
   if (voices.length === 0) return <p className="text-center text-white/30 text-sm py-8">Keine Stimmen. Importiere zuerst Stimmen in der Library.</p>;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-      {voices.map((voice) => {
-        const audioUrl = testAudio[voice.voiceId] || voice.previewUrl;
-        return (
-          <div key={voice.id} className="bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-[#d4a853]/30 transition-all">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs font-medium text-[#f5eed6]">{voice.name}</p>
-              <button
-                onClick={() => onSelect(voice.voiceId, voice.previewUrl)}
-                className="text-[9px] px-2.5 py-1 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium"
-              >
-                Waehlen
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {voice.category && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/50">{voice.category}</span>}
-              {voice.tags.slice(0, 4).map((t) => <span key={t} className="text-[8px] text-white/20">{t}</span>)}
-            </div>
-            {audioUrl ? (
-              <audio controls src={resolveUrl(audioUrl)} className="w-full h-7 opacity-60" />
-            ) : (
-              <button
-                onClick={() => testVoice(voice)}
-                disabled={testingVoice !== null}
-                className="w-full text-[10px] py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300 disabled:opacity-30"
-              >
-                {testingVoice === voice.voiceId ? (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <span className="w-2.5 h-2.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-                    Generiert...
-                  </span>
-                ) : "Anhoeren"}
+    <div>
+      {/* Multi-Filter */}
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {PICKER_FILTERS.map((f) => {
+          const isActive = f.id === "all" ? activeFilters.size === 0 : activeFilters.has(f.id);
+          const count = f.id === "all" ? voices.length : voices.filter((v) => matchesVoiceFilter(v, f.id)).length;
+          return (
+            <button
+              key={f.id}
+              onClick={() => toggleFilter(f.id)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] transition-all ${
+                isActive
+                  ? "bg-[#d4a853]/20 text-[#d4a853] font-medium ring-1 ring-[#d4a853]/30"
+                  : "bg-white/5 text-white/30 hover:text-white/50"
+              }`}
+            >
+              {f.label} ({count})
+            </button>
+          );
+        })}
+        {activeFilters.size > 0 && (
+          <span className="text-[9px] text-white/20 self-center">{filtered.length} Ergebnisse</span>
+        )}
+      </div>
+
+      {/* Voice Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto">
+        {filtered.map((voice) => {
+          const audioUrl = testAudio[voice.voiceId] || voice.previewUrl;
+          return (
+            <div key={voice.id} className="bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-[#d4a853]/30 transition-all">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium text-[#f5eed6]">{voice.name}</p>
+                <button
+                  onClick={() => onSelect(voice.voiceId, voice.previewUrl)}
+                  className="text-[9px] px-2.5 py-1 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium flex-shrink-0"
+                >
+                  Waehlen
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {voice.category && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/50">{voice.category}</span>}
+                {voice.tags.map((t) => (
+                  <span key={t} className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/25">{t}</span>
+                ))}
+              </div>
+              {audioUrl ? (
+                <audio controls src={resolveUrl(audioUrl)} className="w-full h-7" />
+              ) : (
+                <button
+                  onClick={() => testVoice(voice)}
+                  disabled={testingVoice !== null}
+                  className="w-full text-[10px] py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300 disabled:opacity-30"
+                >
+                  {testingVoice === voice.voiceId ? (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <span className="w-2.5 h-2.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                      Generiert...
+                    </span>
+                  ) : "Anhoeren"}
               </button>
             )}
           </div>
