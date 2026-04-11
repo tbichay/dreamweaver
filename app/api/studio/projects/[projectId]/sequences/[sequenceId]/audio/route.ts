@@ -199,8 +199,10 @@ export async function POST(
 
               totalDurationMs += durationMs;
             } catch (err) {
-              console.error(`[PerSceneAudio] Dialog TTS failed for scene ${i}:`, err);
-              send({ progress: `Dialog ${dialogCount} fehlgeschlagen, weiter...` });
+              const errMsg = err instanceof Error ? err.message : String(err);
+              console.error(`[PerSceneAudio] Dialog TTS failed for scene ${i}:`, errMsg);
+              send({ progress: `Dialog ${dialogCount} fehlgeschlagen: ${errMsg.slice(0, 100)}` });
+              send({ dialogError: errMsg, sceneIndex: i });
             }
           }
 
@@ -251,6 +253,12 @@ export async function POST(
 
         send({ progress: "Speichere..." });
 
+        // Check if any dialogs were actually generated
+        const actualDialogs = updatedScenes.filter((s) => s.dialogAudioUrl).length;
+        if (dialogCount > 0 && actualDialogs === 0) {
+          send({ progress: "WARNUNG: Alle Dialog-TTS fehlgeschlagen!" });
+        }
+
         // Save to DB — audioUrl now stores ambience (continuous background)
         await prisma.studioSequence.update({
           where: { id: sequenceId },
@@ -259,7 +267,7 @@ export async function POST(
             audioDauerSek: totalDurationMs / 1000,
             timeline: JSON.parse(JSON.stringify(timeline)),
             scenes: JSON.parse(JSON.stringify(updatedScenes)),
-            status: "audio",
+            status: actualDialogs > 0 || ambienceUrl ? "audio" : "storyboard", // Don't advance if nothing generated
           },
         });
 
