@@ -122,10 +122,10 @@ export default function StudioV2Page() {
   };
 
   const TABS = [
-    { id: "story" as const, label: "Geschichte", emoji: "📖" },
-    { id: "screenplay" as const, label: "Drehbuch", emoji: "🎬" },
-    { id: "characters" as const, label: "Charaktere", emoji: "🎭" },
-    { id: "production" as const, label: "Produktion", emoji: "🎥" },
+    { id: "story" as const, label: "Geschichte", emoji: "\uD83D\uDCD6" },
+    { id: "characters" as const, label: "Charaktere", emoji: "\uD83C\uDFAD" },
+    { id: "screenplay" as const, label: "Drehbuch", emoji: "\uD83C\uDFAC" },
+    { id: "production" as const, label: "Produktion", emoji: "\uD83C\uDFA5" },
   ];
 
   if (loading) return <div className="text-white/30 text-sm p-8">Lade Studio...</div>;
@@ -779,8 +779,31 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     );
   }
 
+  const uncastCharacters = project.characters.filter((c) => !c.actorId);
+  const hasCharacters = project.characters.length > 0;
+
   return (
     <div className="space-y-5">
+      {/* Workflow hint: cast actors before generating screenplay */}
+      {hasCharacters && uncastCharacters.length > 0 && (
+        <div className="px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/15">
+          <p className="text-[10px] text-amber-400/80">
+            <strong>{uncastCharacters.length} {uncastCharacters.length === 1 ? "Charakter" : "Charaktere"} ohne Actor:</strong>{" "}
+            {uncastCharacters.map((c) => c.name).join(", ")}
+          </p>
+          <p className="text-[9px] text-amber-400/50 mt-0.5">
+            Tipp: Actors zuerst im Tab &quot;Charaktere&quot; casten — dann fliessen Outfit, Traits und Aussehen ins Drehbuch ein.
+          </p>
+        </div>
+      )}
+      {!hasCharacters && (
+        <div className="px-3 py-2.5 rounded-xl bg-blue-500/10 border border-blue-500/15">
+          <p className="text-[10px] text-blue-300/70">
+            Noch keine Charaktere extrahiert. Gehe zum Tab &quot;Charaktere&quot; und extrahiere sie zuerst aus der Geschichte.
+          </p>
+        </div>
+      )}
+
       {/* Mode Selector */}
       <div>
         <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
@@ -1441,6 +1464,23 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
           {project.characters.map((c) => (
             <CharacterCard key={c.id} character={c} projectId={project.id} onUpdate={() => onUpdate(project.id)} visualStyle={project.stylePrompt ? (VISUAL_STYLES.find((s) => s.prompt === project.stylePrompt)?.id || "realistic") : "realistic"} />
           ))}
+        </div>
+      )}
+
+      {/* Workflow hint */}
+      {project.characters.length > 0 && project.characters.some((c) => !c.actorId) && (
+        <div className="mt-3 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/15">
+          <p className="text-[10px] text-purple-300/70">
+            Naechster Schritt: Actors aus der Library casten, dann Drehbuch generieren.
+            Actor-Outfit und Traits fliessen automatisch in die Szenen-Beschreibungen ein.
+          </p>
+        </div>
+      )}
+      {project.characters.length > 0 && project.characters.every((c) => c.actorId) && (
+        <div className="mt-3 px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/15">
+          <p className="text-[10px] text-green-400/70">
+            Alle Charaktere gecastet. Weiter zum Tab &quot;Drehbuch&quot; um das Drehbuch zu generieren.
+          </p>
         </div>
       )}
 

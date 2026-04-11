@@ -21,7 +21,7 @@ export async function POST(
 
   const project = await prisma.studioProject.findFirst({
     where: { id: projectId, userId: session.user.id },
-    include: { characters: true },
+    include: { characters: { include: { actor: true }, orderBy: { orderIndex: "asc" } } },
   });
 
   if (!project) return Response.json({ error: "Projekt nicht gefunden" }, { status: 404 });
@@ -63,20 +63,28 @@ export async function POST(
 
         const { extractCharacters: extractChars } = await import("@/lib/studio/character-extractor");
         // Step 2: Extract/use characters
-        let characters: import("@/lib/studio/types").StudioCharacterDef[] = project.characters.map((c) => ({
-          id: c.id,
-          name: c.name,
-          markerId: c.markerId,
-          description: c.description || "",
-          personality: c.personality || undefined,
-          species: c.species || undefined,
-          role: (c.role || "supporting") as "lead" | "supporting" | "narrator" | "minor",
-          portraitUrl: c.portraitUrl || undefined,
-          voiceId: c.voiceId || undefined,
-          voiceSettings: c.voiceSettings as import("@/lib/studio/types").StudioCharacterDef["voiceSettings"],
-          emoji: c.emoji || undefined,
-          color: c.color || undefined,
-        }));
+        let characters: import("@/lib/studio/types").StudioCharacterDef[] = project.characters.map((c) => {
+          // Build rich description from character + actor data
+          const actor = (c as unknown as { actor?: { description?: string; outfit?: string; traits?: string } }).actor;
+          let description = c.description || "";
+          if (actor?.outfit) description += ` Outfit: ${actor.outfit}.`;
+          if (actor?.traits) description += ` Traits: ${actor.traits}.`;
+
+          return {
+            id: c.id,
+            name: c.name,
+            markerId: c.markerId,
+            description,
+            personality: c.personality || undefined,
+            species: c.species || undefined,
+            role: (c.role || "supporting") as "lead" | "supporting" | "narrator" | "minor",
+            portraitUrl: c.portraitUrl || undefined,
+            voiceId: c.voiceId || undefined,
+            voiceSettings: c.voiceSettings as import("@/lib/studio/types").StudioCharacterDef["voiceSettings"],
+            emoji: c.emoji || undefined,
+            color: c.color || undefined,
+          };
+        });
 
         // Auto-extract characters if none exist
         if (characters.length === 0) {
