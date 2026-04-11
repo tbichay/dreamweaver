@@ -67,6 +67,10 @@ export async function POST(
   const scene = scenes[body.sceneIndex];
   if (!scene) return Response.json({ error: `Szene ${body.sceneIndex} nicht gefunden` }, { status: 404 });
 
+  // Create task for tracking
+  const { createTask } = await import("@/lib/studio/task-tracker");
+  const task = await createTask(userId, "clip", projectId, { sequenceId, sceneIndex: body.sceneIndex, quality: body.quality }, body.quality === "premium" ? 150 : 30);
+
   // Skip if already done (unless forcing)
   if (!body.force && scene.videoUrl && scene.status === "done") {
     return Response.json({ videoUrl: scene.videoUrl, cached: true });
@@ -82,7 +86,8 @@ export async function POST(
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch { /* */ }
       };
 
-      send({ progress: "Starting..." });
+      send({ progress: "Starting...", taskId: task.id });
+      await task.progress(`Clip Szene ${body.sceneIndex + 1}...`, 5);
 
         // Load default visual style from DB (cached per request)
         const defaultStyle = await getDefaultVisualStyle();
@@ -490,6 +495,7 @@ export async function POST(
         });
 
         clearInterval(keepAlive);
+        await task.complete({ videoUrl: clipBlob.url, sceneIndex: body.sceneIndex });
         send({
           done: true,
           videoUrl: clipBlob.url,
@@ -500,8 +506,10 @@ export async function POST(
         });
       } catch (err) {
         clearInterval(keepAlive);
+        const errorMsg = err instanceof Error ? err.message : "Fehler";
         console.error("[Clip] Error:", err);
-        send({ done: true, error: err instanceof Error ? err.message : "Fehler" });
+        await task.fail(errorMsg);
+        send({ done: true, error: errorMsg });
       }
       try { controller.close(); } catch { /* */ }
     },

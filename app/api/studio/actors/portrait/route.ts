@@ -30,6 +30,9 @@ export async function POST(request: Request) {
   });
   if (!actor) return Response.json({ error: "Actor nicht gefunden" }, { status: 404 });
 
+  const { createTask } = await import("@/lib/studio/task-tracker");
+  const task = await createTask(session.user!.id!, "portrait", null, { actorId: body.actorId, style: body.style }, 8);
+
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI();
 
@@ -94,5 +97,6 @@ export async function POST(request: Request) {
     data: { portraitAssetId: blob.url },
   });
 
+  await task.complete({ portraitUrl: blob.url });
   return Response.json({ portraitUrl: blob.url, assetId });
 }

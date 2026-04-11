@@ -62,7 +62,10 @@ export async function POST(
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch { /* */ }
       };
 
-      send({ progress: "Bereite Film-Assembly vor..." });
+      const { createTask } = await import("@/lib/studio/task-tracker");
+      const task = await createTask(session.user!.id!, "assemble", projectId, { format: body.format });
+
+      send({ progress: "Bereite Film-Assembly vor...", taskId: task.id });
       const keepAlive = setInterval(() => send({ progress: "rendering..." }), 5000);
 
       try {
@@ -312,6 +315,7 @@ export async function POST(
         }
 
         clearInterval(keepAlive);
+        await task.complete({ videoUrl, scenes: allScenes.length });
         send({
           done: true,
           videoUrl,
@@ -320,8 +324,10 @@ export async function POST(
         });
       } catch (err) {
         clearInterval(keepAlive);
+        const errorMsg = err instanceof Error ? err.message : "Fehler bei Film-Assembly";
         console.error("[Assemble] Error:", err);
-        send({ done: true, error: err instanceof Error ? err.message : "Fehler bei Film-Assembly" });
+        await task.fail(errorMsg);
+        send({ done: true, error: errorMsg });
       }
       try { controller.close(); } catch { /* */ }
     },

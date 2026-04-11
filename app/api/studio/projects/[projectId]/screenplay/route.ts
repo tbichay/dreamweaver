@@ -48,11 +48,15 @@ export async function POST(
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch { /* */ }
       };
 
-      send({ progress: "Analysiere Geschichte..." });
+      const { createTask } = await import("@/lib/studio/task-tracker");
+      const task = await createTask(session.user!.id!, "screenplay", projectId, { directingStyle: body.directingStyle }, 5);
+
+      send({ progress: "Analysiere Geschichte...", taskId: task.id });
       const keepAlive = setInterval(() => send({ progress: "generating..." }), 5000);
 
       try {
         // Step 1: Generate basis storyboard
+        await task.progress("Extrahiere Story-Beats...", 10);
         send({ progress: "Extrahiere Story-Beats..." });
         const { generateBasisStoryboard } = await import("@/lib/studio/storyboard-generator");
         const basisStoryboard = await generateBasisStoryboard(
@@ -161,6 +165,7 @@ export async function POST(
         }
 
         clearInterval(keepAlive);
+        await task.complete({ sequences: screenplay.acts.flatMap((a: { sequences: unknown[] }) => a.sequences).length, scenes: screenplay.totalScenes });
         send({
           done: true,
           screenplay,
@@ -171,7 +176,9 @@ export async function POST(
         });
       } catch (err) {
         clearInterval(keepAlive);
-        send({ done: true, error: err instanceof Error ? err.message : "Fehler" });
+        const errorMsg = err instanceof Error ? err.message : "Fehler";
+        await task.fail(errorMsg);
+        send({ done: true, error: errorMsg });
       }
       try { controller.close(); } catch { /* */ }
     },

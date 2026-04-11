@@ -61,6 +61,11 @@ export async function POST(request: Request) {
   });
   if (!actor) return Response.json({ error: "Actor nicht gefunden" }, { status: 404 });
 
+  const { createTask } = await import("@/lib/studio/task-tracker");
+  const task = await createTask(session.user!.id!, "character-sheet", null, { actorId: body.actorId, angle: body.angle }, 8);
+
+  try {
+
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI();
   const style = body.style || actor.style || "realistic";
@@ -162,10 +167,16 @@ ${prompt}`
     data: updateData,
   });
 
+  await task.complete({ angle: body.angle, portraitUrl: blob.url });
   return Response.json({
     angle: body.angle,
     portraitUrl: blob.url,
     assetId,
     characterSheet: currentSheet,
   });
+
+  } catch (err) {
+    await task.fail(err instanceof Error ? err.message : "Fehler");
+    throw err;
+  }
 }

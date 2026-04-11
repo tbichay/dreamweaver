@@ -30,10 +30,15 @@ export async function POST(request: Request) {
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch { /* */ }
       };
 
-      send({ progress: "Generiere Geschichte..." });
+      // Track task in DB for cross-device visibility
+      const { createTask } = await import("@/lib/studio/task-tracker");
+      const task = await createTask(session.user!.id!, "story", body.projectId, { theme: body.brief.theme }, 2);
+
+      send({ progress: "Generiere Geschichte...", taskId: task.id });
       const keepAlive = setInterval(() => send({ progress: "writing..." }), 5000);
 
       try {
+        await task.progress("Generiere Geschichte...", 10);
         const result = await generateStory(body.brief, (chunk) => {
           send({ chunk });
         });
@@ -53,6 +58,7 @@ export async function POST(request: Request) {
         }
 
         clearInterval(keepAlive);
+        await task.complete({ title: result.title, wordCount: result.wordCount });
         send({
           done: true,
           title: result.title,
@@ -63,8 +69,10 @@ export async function POST(request: Request) {
         });
       } catch (err) {
         clearInterval(keepAlive);
+        const errorMsg = err instanceof Error ? err.message : "Fehler bei Story-Generierung";
         console.error("[GenerateStory] Error:", err);
-        send({ done: true, error: err instanceof Error ? err.message : "Fehler bei Story-Generierung" });
+        await task.fail(errorMsg);
+        send({ done: true, error: errorMsg });
       }
       try { controller.close(); } catch { /* */ }
     },

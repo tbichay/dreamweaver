@@ -114,11 +114,15 @@ export async function POST(
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch { /* */ }
       };
 
+      const { createTask } = await import("@/lib/studio/task-tracker");
+      const task = await createTask(userId, "audio", projectId, { sequenceId, sceneCount: scenes.length });
+
       const keepAlive = setInterval(() => send({ progress: "generating..." }), 5000);
 
       try {
         const estDuration = estimateAudioDuration(scenes);
-        send({ progress: `Per-Scene Audio (~${Math.ceil(estDuration)}s)...`, estimatedDuration: estDuration });
+        await task.progress(`Per-Scene Audio (~${Math.ceil(estDuration)}s)...`, 5);
+        send({ progress: `Per-Scene Audio (~${Math.ceil(estDuration)}s)...`, estimatedDuration: estDuration, taskId: task.id });
 
         const { generateSingleTTS, generateSfx } = await import("@/lib/elevenlabs");
 
@@ -275,6 +279,7 @@ export async function POST(
         });
 
         clearInterval(keepAlive);
+        await task.complete({ dialogCount, sfxCount, hasAmbience: !!ambienceUrl, duration: totalDurationMs / 1000 });
         send({
           done: true,
           audioUrl: ambienceUrl,
@@ -286,8 +291,10 @@ export async function POST(
         });
       } catch (err) {
         clearInterval(keepAlive);
+        const errorMsg = err instanceof Error ? err.message : "Fehler bei Audio-Generierung";
         console.error("[PerSceneAudio] Error:", err);
-        send({ done: true, error: err instanceof Error ? err.message : "Fehler bei Audio-Generierung" });
+        await task.fail(errorMsg);
+        send({ done: true, error: errorMsg });
       }
       try { controller.close(); } catch { /* */ }
     },

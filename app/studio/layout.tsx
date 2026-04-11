@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { TaskBadge } from "@/app/components/TaskStatusBar";
 
 // ── Engine Navigation (koalatree.io) — Dark sidebar ──────────────
 
@@ -106,7 +107,10 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
                   )}
                   <span className="text-sm w-5 text-center shrink-0">{item.icon}</span>
                   {sidebarExpanded && (
-                    <span className="text-[11px] tracking-wide whitespace-nowrap">{item.label}</span>
+                    <>
+                      <span className="text-[11px] tracking-wide whitespace-nowrap">{item.label}</span>
+                      {item.href === "/studio/tasks" && <TaskBadge />}
+                    </>
                   )}
                 </Link>
               );

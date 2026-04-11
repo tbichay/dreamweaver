@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import LibraryPicker from "@/app/components/LibraryPicker";
+import TaskStatusBar from "@/app/components/TaskStatusBar";
 import {
   DIRECTING_STYLES,
   ATMOSPHERE_PRESETS,
@@ -217,6 +218,9 @@ export default function StudioV2Page() {
           </div>
 
           {/* Tab Content */}
+          {/* Active Tasks */}
+          <TaskStatusBar projectId={selectedProject.id} />
+
           <div className="card p-5">
             {activeTab === "story" && (
               <StoryTab project={selectedProject} onUpdate={refreshProject} />
@@ -1939,35 +1943,13 @@ function SequenceCard({
     ? dialogScenes * 1.50 + landscapeScenes * 1.50  // Seedance 2.0 (~$0.30/s × 5s)
     : dialogScenes * 0.32 + landscapeScenes * 0.25; // Veo Lite+LipSync / Seedance 1.5
 
-  // Helper: track foreground generation as a StudioTask
-  const trackTask = async (type: string, input: Record<string, unknown>) => {
-    try {
-      const res = await fetch("/api/studio/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, type, input, priority: 10 }),
-      });
-      const data = await res.json();
-      return data.task?.id as string | undefined;
-    } catch { return undefined; }
-  };
-  const completeTask = async (taskId: string | undefined, success: boolean, errorMsg?: string) => {
-    if (!taskId) return;
-    try {
-      await fetch(`/api/studio/tasks/${taskId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: success ? "complete" : "fail", error: errorMsg }),
-      });
-    } catch { /* */ }
-  };
+  // Task tracking is now server-side (each route creates its own StudioTask)
 
   const generateAudio = async () => {
     setAudioGenerating(true);
     setProgress("Starte Audio...");
     setError("");
 
-    const taskId = await trackTask("audio", { projectId, sequenceId: sequence.id });
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1989,11 +1971,9 @@ function SequenceCard({
         onError: (e) => { setError(e); hadError = true; },
         onDone: () => onUpdate(),
       });
-      await completeTask(taskId, !hadError, hadError ? error : undefined);
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         setError((err as Error).message);
-        await completeTask(taskId, false, (err as Error).message);
       }
     }
 
@@ -2008,7 +1988,6 @@ function SequenceCard({
     setError("");
     setProgress(`Clip ${sceneIndex + 1}...`);
 
-    const taskId = await trackTask("clip", { projectId, sequenceId: sequence.id, sceneIndex, quality: clipQuality });
 
     try {
       const res = await fetch(
@@ -2025,10 +2004,8 @@ function SequenceCard({
         onError: (e) => { setError(e); hadError = true; },
         onDone: () => onUpdate(),
       });
-      await completeTask(taskId, !hadError);
     } catch (err) {
       setError(`Clip ${sceneIndex + 1}: ${(err as Error).message}`);
-      await completeTask(taskId, false, (err as Error).message);
     }
 
     setClipGenerating(false);
@@ -2096,7 +2073,6 @@ function SequenceCard({
       if (scene?.status === "done" && scene?.videoUrl) continue;
 
       setProgress(`Clip ${i + 1}/${total}...`);
-      const taskId = await trackTask("clip", { projectId, sequenceId: sequence.id, sceneIndex: i, quality: clipQuality });
 
       try {
         const res = await fetch(
@@ -2113,11 +2089,9 @@ function SequenceCard({
           onError: (e) => { setError(`Clip ${i + 1}: ${e}`); hadError = true; },
           onDone: () => onUpdate(),
         });
-        await completeTask(taskId, !hadError);
         if (hadError) break;
       } catch (err) {
         setError(`Clip ${i + 1}: ${(err as Error).message}`);
-        await completeTask(taskId, false, (err as Error).message);
         break;
       }
     }
