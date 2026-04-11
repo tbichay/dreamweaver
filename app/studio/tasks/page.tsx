@@ -146,6 +146,22 @@ export default function TasksPage() {
         })}
       </div>
 
+      {/* Actions */}
+      {tasks.length > 0 && (
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={async () => {
+              const stale = tasks.filter((t) => t.status === "pending" || t.status === "failed" || t.status === "cancelled");
+              for (const t of stale) await deleteTask(t.id);
+              loadTasks();
+            }}
+            className="text-[10px] px-3 py-1.5 bg-red-500/10 text-red-400/50 rounded-lg hover:text-red-400"
+          >
+            Alte/fehlgeschlagene Tasks loeschen ({tasks.filter((t) => ["pending", "failed", "cancelled"].includes(t.status)).length})
+          </button>
+        </div>
+      )}
+
       {/* Task List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">

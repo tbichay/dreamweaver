@@ -227,12 +227,12 @@ export async function POST(
               try {
                 const { generateVeoVideo, downloadVeoVideo } = await import("@/lib/veo");
                 const veoUrl = await generateVeoVideo({
-                  prompt: `${prompt} Character speaks with natural lip synchronization. Clear English dialogue.`,
+                  prompt: `${prompt} Character speaks with natural lip synchronization.`,
                   referenceImage: portraitBuffer,
                   durationSeconds: Math.ceil(segDur),
                   aspectRatio,
                   quality: "fast",
-                  generateAudio: true,
+                  generateAudio: false, // Use our own TTS audio, not Veo's
                 });
                 videoUrl = veoUrl;
               } catch (err) {
@@ -600,30 +600,51 @@ function buildScenePrompt(
   actorData?: { outfit?: string | null; traits?: string | null } | null,
 ): string {
   const parts: string[] = [];
-  // Visual style
-  parts.push(`Style: ${stylePrompt || defaultStyle || "Photorealistic, cinematic lighting, professional cinematography."}`);
-  // Character consistency (with actor traits/outfit if cast)
+
+  // Visual style — FIRST so it sets the tone
+  parts.push(`STYLE: ${stylePrompt || defaultStyle || "Photorealistic, cinematic lighting, professional cinematography."}`);
+
+  // Character — detailed with actor traits/outfit
   if (charDescription) {
-    let charLine = `Character: ${charDescription}.`;
-    if (actorData?.outfit) charLine += ` Outfit: ${actorData.outfit}.`;
-    if (actorData?.traits) charLine += ` Traits: ${actorData.traits}.`;
-    charLine += " Maintain EXACT visual consistency with the reference character image — same face, same clothing, same colors.";
+    let charLine = `CHARACTER (must match reference image exactly): ${charDescription}.`;
+    if (actorData?.outfit) charLine += ` WEARING: ${actorData.outfit}.`;
+    if (actorData?.traits) charLine += ` DISTINCTIVE FEATURES: ${actorData.traits}.`;
     parts.push(charLine);
   }
+
+  // What the character is DOING — from spoken text context
+  if (scene.spokenText && scene.type === "dialog") {
+    parts.push(`ACTION: The character is speaking. Their mouth moves naturally as they talk. Body language matches the emotion: ${scene.emotion || "neutral"}.`);
+  }
+
+  // Main scene description — the AI Director's detailed visual description
+  parts.push(`SCENE: ${scene.sceneDescription}`);
+
   // Continuity from previous scene
   if (prevSceneDescription) {
-    parts.push(`CONTINUITY: This shot follows directly from: "${prevSceneDescription.slice(0, 120)}". Maintain visual consistency.`);
+    parts.push(`CONTINUITY from previous shot: "${prevSceneDescription.slice(0, 150)}". Same environment, same lighting, same character position.`);
   }
-  // Main scene description (the detailed part from the screenplay AI)
-  parts.push(scene.sceneDescription);
-  // Environment
-  if (scene.location) parts.push(`Setting: ${scene.location}.`);
-  if (atmosphereText) parts.push(`Atmosphere & Weather: ${atmosphereText}.`);
-  if (scene.mood) parts.push(`Mood: ${scene.mood}.`);
-  if (scene.sfx) parts.push(`Sound effects: ${scene.sfx}.`);
+
+  // Environment details
+  if (scene.location) parts.push(`LOCATION: ${scene.location}.`);
+  if (atmosphereText) parts.push(`ATMOSPHERE: ${atmosphereText}.`);
+  if (scene.mood) parts.push(`MOOD: ${scene.mood}.`);
+
   // Camera
-  if (scene.camera) parts.push(`Camera: ${scene.camera}.`);
-  // Quality
-  parts.push("Cinematic quality. NO text, NO subtitles, NO watermarks, NO UI elements.");
-  return parts.join(" ");
+  if (scene.camera) {
+    const cameraDetail: Record<string, string> = {
+      "close-up": "Close-up shot focused on face and upper body, shallow depth of field.",
+      "medium": "Medium shot showing character from waist up in their environment.",
+      "wide": "Wide establishing shot showing the full scene and environment.",
+      "slow-pan": "Slow horizontal pan across the scene, cinematic movement.",
+      "zoom-in": "Gradual zoom into the subject, building intensity.",
+      "zoom-out": "Slow zoom out revealing more of the environment.",
+    };
+    parts.push(`CAMERA: ${cameraDetail[scene.camera] || scene.camera}.`);
+  }
+
+  // Strict quality rules
+  parts.push("RULES: Cinematic quality. NO text overlays. NO subtitles. NO watermarks. NO UI elements. NO extra characters unless specified.");
+
+  return parts.join("\n");
 }

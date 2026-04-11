@@ -1609,6 +1609,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
               sequence={seq}
               index={i}
               projectId={project.id}
+              projectStyle={project.stylePrompt}
               hasActorsCast={project.characters?.some((c: Character) => c.actorId) || false}
               onUpdate={() => onUpdate(project.id)}
             />
@@ -1914,12 +1915,14 @@ function SequenceCard({
   sequence,
   index,
   projectId,
+  projectStyle,
   hasActorsCast,
   onUpdate,
 }: {
   sequence: Sequence;
   index: number;
   projectId: string;
+  projectStyle?: string;
   hasActorsCast: boolean;
   onUpdate: () => void;
 }) {
@@ -1929,11 +1932,13 @@ function SequenceCard({
   const [generatingSceneIdx, setGeneratingSceneIdx] = useState<number | null>(null);
   const [showCostConfirm, setShowCostConfirm] = useState(false);
   const [clipQuality, setClipQuality] = useState<"standard" | "premium">("standard");
-  const [visualStyle, setVisualStyle] = useState("disney-2d");
-  const [customStylePrompt, setCustomStylePrompt] = useState("");
+  // Use project style as default — no need to ask again
+  const defaultStyleId = projectStyle ? (VISUAL_STYLES.find((s) => s.prompt === projectStyle)?.id || "custom") : "disney-2d";
+  const [visualStyle, setVisualStyle] = useState(defaultStyleId);
+  const [customStylePrompt, setCustomStylePrompt] = useState(projectStyle || "");
   const resolvedStyle = visualStyle === "custom"
     ? customStylePrompt
-    : VISUAL_STYLES.find((s) => s.id === visualStyle)?.prompt || "";
+    : VISUAL_STYLES.find((s) => s.id === visualStyle)?.prompt || projectStyle || "";
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -2230,38 +2235,16 @@ function SequenceCard({
           {/* Landscape Image */}
           <LandscapeSection sequence={sequence} projectId={projectId} onUpdate={onUpdate} />
 
-          {/* Cost Confirmation + Style Selection */}
+          {/* Cost Confirmation */}
           {showCostConfirm && (
             <div className="bg-[#d4a853]/10 border border-[#d4a853]/20 rounded-xl p-3 space-y-3">
-              <p className="text-xs font-medium text-[#d4a853]">Clip-Einstellungen</p>
+              <p className="text-xs font-medium text-[#d4a853]">Clips generieren</p>
 
-              {/* Visual Style */}
-              <div>
-                <p className="text-[9px] text-white/30 mb-1">Visueller Style</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {VISUAL_STYLES.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setVisualStyle(s.id)}
-                      className={`text-[9px] px-2.5 py-1 rounded-lg transition-all ${
-                        visualStyle === s.id
-                          ? "bg-[#d4a853]/30 text-[#d4a853] font-medium"
-                          : "bg-white/5 text-white/35 hover:text-white/60"
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-                {visualStyle === "custom" && (
-                  <input
-                    value={customStylePrompt}
-                    onChange={(e) => setCustomStylePrompt(e.target.value)}
-                    placeholder="Beschreibe den visuellen Style..."
-                    className="w-full mt-1.5 text-[10px] bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-white/60 placeholder-white/20"
-                  />
-                )}
-              </div>
+              {/* Style Info (from project, not editable here) */}
+              <p className="text-[10px] text-white/30">
+                Style: <span className="text-white/50">{VISUAL_STYLES.find((s) => s.id === visualStyle)?.label || visualStyle}</span>
+                {" "}(aus Drehbuch-Einstellungen)
+              </p>
 
               {/* Quality + Cost */}
               <div className="text-[10px] text-white/50 space-y-0.5">
