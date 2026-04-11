@@ -206,8 +206,8 @@ export async function generateStory(
   brief: StoryBrief,
   onProgress?: (chunk: string) => void,
 ): Promise<StoryResult> {
-  const { createAnthropicClient } = await import("@/lib/ai-clients");
-  const client = createAnthropicClient();
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const client = new Anthropic();
 
   const system = buildSystemPrompt(brief);
   const user = buildUserPrompt(brief);

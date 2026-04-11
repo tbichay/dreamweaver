@@ -15,8 +15,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getDirectingStylePrompt, ATMOSPHERE_PRESETS } from "../directing-styles";
 import type { BasisStoryboard, Screenplay, ScreenplaySequence, StudioScene, StudioCharacterDef } from "./types";
 
-import { createAnthropicClient } from "@/lib/ai-clients";
-const anthropic = createAnthropicClient();
+const anthropic = new Anthropic();
 
 interface ScreenplayOptions {
   storyboard: BasisStoryboard;

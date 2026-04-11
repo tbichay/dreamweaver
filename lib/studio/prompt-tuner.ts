@@ -32,8 +32,8 @@ export async function improvePrompt(
     return { improvedPrompt: originalPrompt, changes: "Kein API Key — Prompt unveraendert" };
   }
 
-  const { createAnthropicClient } = await import("@/lib/ai-clients");
-  const anthropic = createAnthropicClient();
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const anthropic = new Anthropic();
 
   const strategies = getStrategiesForType(taskType);
 

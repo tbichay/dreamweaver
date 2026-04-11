@@ -61,8 +61,8 @@ export async function POST(request: Request) {
   });
   if (!actor) return Response.json({ error: "Actor nicht gefunden" }, { status: 404 });
 
-  const { createOpenAIClient } = await import("@/lib/ai-clients");
-  const openai = createOpenAIClient();
+  const OpenAI = (await import("openai")).default;
+  const openai = new OpenAI();
   const style = body.style || actor.style || "realistic";
   const styleHint = getStyleHint(style);
   const angleConfig = ANGLE_PROMPTS[body.angle];

@@ -23,8 +23,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const { createOpenAIClient } = await import("@/lib/ai-clients");
-  const openai = createOpenAIClient();
+  const OpenAI = (await import("openai")).default;
+  const openai = new OpenAI();
 
   const styleHint =
     style === "realistic"

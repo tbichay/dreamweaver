@@ -56,8 +56,8 @@ export async function POST(
     style?: string; // "pixar", "watercolor", "realistic"
   };
 
-  const { createOpenAIClient } = await import("@/lib/ai-clients");
-  const openai = createOpenAIClient();
+  const OpenAI = (await import("openai")).default;
+  const openai = new OpenAI();
 
   const location = sequence.location || "Magischer Wald";
   const atmosphere = sequence.atmosphereText || "Warmes goldenes Abendlicht";

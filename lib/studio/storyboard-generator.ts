@@ -13,10 +13,9 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { createAnthropicClient } from "@/lib/ai-clients";
 import type { BasisStoryboard, StoryBeat } from "./types";
 
-const anthropic = createAnthropicClient();
+const anthropic = new Anthropic();
 
 const BEAT_EXTRACTOR_SYSTEM = `Du bist ein erfahrener Drehbuch-Analyst. Du analysierst Geschichten und zerlegst sie in Story-Beats.
 

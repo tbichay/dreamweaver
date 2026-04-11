@@ -5,8 +5,7 @@ import { buildStoryPrompt } from "@/lib/prompts";
 import { HoererProfil, StoryConfig } from "@/lib/types";
 import { berechneAlter } from "@/lib/utils";
 
-import { createAnthropicClient } from "@/lib/ai-clients";
-const anthropic = createAnthropicClient();
+const anthropic = new Anthropic();
 
 export const maxDuration = 800;
 

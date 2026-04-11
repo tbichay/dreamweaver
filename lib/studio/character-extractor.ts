@@ -15,8 +15,7 @@ import { loadReferences } from "@/lib/references";
 import type { StudioCharacterDef } from "./types";
 import type { CharacterVoiceSettings } from "@/lib/types";
 
-import { createAnthropicClient } from "@/lib/ai-clients";
-const anthropic = createAnthropicClient();
+const anthropic = new Anthropic();
 
 /** Voice presets for auto-assignment based on character type */
 const VOICE_PRESETS: Record<string, { voiceId: string; voiceSettings: CharacterVoiceSettings }> = {
