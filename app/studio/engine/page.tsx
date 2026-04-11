@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import LibraryPicker from "@/app/components/LibraryPicker";
 import {
   DIRECTING_STYLES,
   ATMOSPHERE_PRESETS,
@@ -1277,57 +1278,32 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
         </>
       ) : (
         <button
-          onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }}
+          onClick={() => setShowCastMenu(true)}
           className="mt-2 text-[9px] px-2 py-1 rounded-md bg-purple-500/15 text-purple-300/70 hover:text-purple-300 hover:bg-purple-500/25 transition-colors"
         >
-          🎭 Actor casten
+          {"\uD83C\uDFAD"} Actor casten
         </button>
       )}
       {character.voiceId && !character.actorId && (
         <p className="text-[10px] text-green-400/50 mt-0.5">Stimme zugewiesen</p>
       )}
-      {/* Cast Actor dropdown */}
+      {/* Cast Actor — Library Picker */}
       {showCastMenu && (
-        <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-[#1a2e1a] border border-white/10 rounded-lg shadow-xl p-2 text-left">
-          <p className="text-[8px] text-white/30 mb-1.5 px-1">Schauspieler waehlen:</p>
-          {loadingActors ? (
-            <p className="text-[8px] text-white/20 px-1">Laden...</p>
-          ) : actors.length === 0 ? (
-            <p className="text-[8px] text-white/20 px-1">Keine Schauspieler. Erstelle welche in der Library.</p>
-          ) : (
-            <div className="space-y-0.5 max-h-32 overflow-y-auto">
-              {actors.map((actor) => (
-                <button
-                  key={actor.id}
-                  onClick={() => castActor(actor)}
-                  className={`w-full text-left px-2 py-1 rounded text-[9px] hover:bg-white/5 flex items-center gap-1.5 ${character.actorId === actor.id ? "text-purple-300/80 bg-purple-500/10" : "text-white/50 hover:text-white/80"}`}
-                >
-                  {actor.portraitAssetId ? (
-                    <img src={`/api/blob?path=${encodeURIComponent(actor.portraitAssetId)}`} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
-                  ) : (
-                    <span className="text-[10px]">{actor.voiceId ? "\uD83C\uDFA4" : "\uD83C\uDFAD"}</span>
-                  )}
-                  <span className="truncate">{actor.name}</span>
-                  {actor.style && <span className="text-[7px] text-white/15 flex-shrink-0">{actor.style}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-          {character.actorId && (
-            <button
-              onClick={uncastActor}
-              className="mt-1 w-full text-left px-2 py-0.5 text-[8px] text-red-400/50 hover:text-red-400/80"
-            >
-              Uncast
-            </button>
-          )}
-          <button
-            onClick={() => setShowCastMenu(false)}
-            className="mt-1 w-full text-[7px] text-white/20 hover:text-white/40"
-          >
-            Abbrechen
-          </button>
-        </div>
+        <LibraryPicker
+          type="actor"
+          blobProxy={(url) => url.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(url)}` : url}
+          onSelect={async (item) => {
+            // Cast the selected actor
+            await fetch(`/api/studio/projects/${projectId}/characters`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ characterId: character.id, updates: { actorId: item.id } }),
+            });
+            setShowCastMenu(false);
+            onUpdate();
+          }}
+          onClose={() => setShowCastMenu(false)}
+        />
       )}
       {/* Fullscreen portrait overlay */}
       {fullscreenPortrait && character.portraitUrl && (
@@ -1798,47 +1774,26 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
           )}
         </>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setShowPrompt(!showPrompt)}
-            className="text-[9px] px-2.5 py-1.5 bg-[#d4a853]/15 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/25"
-          >
-            {generating ? "Generiert..." : "🎨 AI Landscape"}
-          </button>
-          <label className="text-[9px] px-2.5 py-1.5 bg-white/5 text-white/30 rounded-lg hover:text-white/50 cursor-pointer">
-            {uploading ? "..." : "📷 Upload"}
-            <input type="file" accept="image/*" onChange={uploadLandscape} className="hidden" />
-          </label>
-          <button
-            onClick={() => setShowLibrary(!showLibrary)}
-            className="text-[9px] px-2.5 py-1.5 bg-white/5 text-white/30 rounded-lg hover:text-white/50"
-          >
-            📁 Aus Library
-          </button>
-        </div>
+        <button
+          onClick={() => setShowLibrary(true)}
+          className="text-[11px] px-4 py-2 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium transition-all"
+        >
+          {"\uD83C\uDFDE\uFE0F"} Landscape waehlen
+        </button>
       )}
-      {/* Library Picker */}
-      {showLibrary && !sequence.landscapeRefUrl && (
-        <div className="mt-2 bg-white/5 rounded-lg p-2">
-          <p className="text-[9px] text-white/30 mb-1.5">Landscape aus Library waehlen:</p>
-          {loadingLibrary ? (
-            <p className="text-[9px] text-white/20">Laden...</p>
-          ) : libraryAssets.length === 0 ? (
-            <p className="text-[9px] text-white/20">Keine Landscapes in der Library. Generiere zuerst welche.</p>
-          ) : (
-            <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto">
-              {libraryAssets.map((asset) => (
-                <img
-                  key={asset.id}
-                  src={portraitSrc(asset.blobUrl)}
-                  alt="Landscape"
-                  className="w-full h-16 object-cover rounded cursor-pointer hover:ring-1 hover:ring-[#d4a853] transition-all"
-                  onClick={() => selectFromLibrary(asset.blobUrl)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Library Picker Modal */}
+      {showLibrary && (
+        <LibraryPicker
+          type="landscape"
+          blobProxy={(url) => url.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(url)}` : url}
+          onSelect={async (item) => {
+            if (item.blobUrl) {
+              await selectFromLibrary(item.blobUrl);
+            }
+            setShowLibrary(false);
+          }}
+          onClose={() => setShowLibrary(false)}
+        />
       )}
 
       {showPrompt && !sequence.landscapeRefUrl && (
