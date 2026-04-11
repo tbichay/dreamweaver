@@ -68,13 +68,23 @@ export async function GET() {
     return {
       voiceId: v.voice_id,
       name: v.name,
+      previewUrl: v.preview_url || null,
       elevenLabsCategory: v.category, // premade | professional | generated
       labels,
       alreadyImported: existingIds.has(v.voice_id as string),
       usedByActor: actorVoiceIds.has(v.voice_id as string),
       recommended: info?.recommended || false,
-      libraryCategory: info?.category || labels.use_case || "custom",
-      libraryTags: info?.tags || [],
+      libraryCategory: info?.category || (
+        labels.use_case === "narrative_story" ? "narrator" :
+        labels.use_case === "characters_animation" ? "character" :
+        labels.age === "young" && labels.use_case !== "social_media" ? "child" : "custom"
+      ),
+      libraryTags: info?.tags || [
+        labels.language === "de" ? "deutsch" : labels.language === "en" ? "englisch" : labels.language,
+        labels.gender === "male" ? "maennlich" : labels.gender === "female" ? "weiblich" : labels.gender,
+        labels.age === "old" ? "alt" : labels.age === "young" ? "jung" : labels.age,
+        labels.descriptive,
+      ].filter(Boolean) as string[],
       language: labels.language || "en",
       gender: labels.gender || "unknown",
     };
@@ -99,6 +109,7 @@ export async function POST(request: Request) {
       voiceId: string;
       name: string;
       description?: string;
+      previewUrl?: string;
       category?: string;
       tags?: string[];
     }>;
@@ -122,6 +133,7 @@ export async function POST(request: Request) {
         name: v.name,
         description: v.description,
         voiceId: v.voiceId,
+        previewUrl: v.previewUrl,
         voiceSettings: {
           stability: 0.35,
           similarity_boost: 0.75,

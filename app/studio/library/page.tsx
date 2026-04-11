@@ -1474,23 +1474,24 @@ export default function LibraryPage() {
                     const res = await fetch("/api/studio/voices/import");
                     const data = await res.json();
                     const toImport = (data.voices || [])
-                      .filter((v: { recommended: boolean; alreadyImported: boolean }) => v.recommended && !v.alreadyImported)
-                      .map((v: { voiceId: string; name: string; libraryCategory: string; libraryTags: string[] }) => ({
-                        voiceId: v.voiceId, name: v.name, category: v.libraryCategory, tags: v.libraryTags,
+                      .filter((v: { alreadyImported: boolean }) => !v.alreadyImported)
+                      .map((v: { voiceId: string; name: string; previewUrl?: string; libraryCategory: string; libraryTags: string[]; language: string }) => ({
+                        voiceId: v.voiceId, name: v.name, previewUrl: v.previewUrl, category: v.libraryCategory, tags: [...v.libraryTags, v.language],
                       }));
-                    if (toImport.length === 0) { alert("Alle empfohlenen Stimmen sind bereits importiert."); return; }
+                    if (toImport.length === 0) { alert("Alle Stimmen sind bereits importiert."); return; }
                     const importRes = await fetch("/api/studio/voices/import", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ voices: toImport }),
                     });
                     const importData = await importRes.json();
+                    alert(`${importData.count} Stimmen importiert!`);
                     if (importData.count > 0) loadAssets();
                   } catch { /* */ }
                 }}
                 className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/40 text-xs hover:text-white/60 transition-all"
               >
-                Empfohlene Stimmen importieren
+                Alle Stimmen importieren ({voices.length > 0 ? `${voices.length} vorhanden` : "35 verfuegbar"})
               </button>
             </div>
           )}
@@ -1510,39 +1511,68 @@ export default function LibraryPage() {
             <div className="text-center py-12 text-white/20 text-sm">
               <span className="text-4xl block mb-3">{"\uD83C\uDFA4"}</span>
               <p>Noch keine Stimmen in der Library.</p>
-              <p className="text-[10px] mt-1">Erstelle Stimmen die du bei verschiedenen Actors verwenden kannst.</p>
+              <p className="text-[10px] mt-1">Klicke &quot;Alle Stimmen importieren&quot; fuer 35 vorgefertigte Stimmen.</p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {voices.map((voice) => (
-                <div
-                  key={voice.id}
-                  className="bg-white/[0.03] border border-white/5 rounded-xl p-4 hover:border-white/15 transition-all"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-lg">{"\uD83C\uDFA4"}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#f5eed6]">{voice.name}</p>
-                      {voice.description && <p className="text-[10px] text-white/30 mt-0.5 truncate">{voice.description}</p>}
-                      <div className="flex items-center gap-2 mt-1">
-                        {voice.category && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/60">{voice.category}</span>}
-                        {voice._count && voice._count.actors > 0 && (
-                          <span className="text-[8px] text-white/20">{voice._count.actors} Actor(s)</span>
-                        )}
-                      </div>
+          ) : (() => {
+            // Group voices by language tag
+            const grouped = new Map<string, Voice[]>();
+            for (const v of voices) {
+              const langTag = v.tags.find((t) => ["de", "en", "deutsch", "englisch"].includes(t.toLowerCase()));
+              const lang = langTag?.toLowerCase() === "de" || langTag?.toLowerCase() === "deutsch" ? "Deutsch" :
+                           langTag?.toLowerCase() === "en" || langTag?.toLowerCase() === "englisch" ? "English" : "Andere";
+              if (!grouped.has(lang)) grouped.set(lang, []);
+              grouped.get(lang)!.push(v);
+            }
+            // Sort: Deutsch first
+            const sortedGroups = Array.from(grouped.entries()).sort(([a], [b]) =>
+              a === "Deutsch" ? -1 : b === "Deutsch" ? 1 : a.localeCompare(b)
+            );
+
+            return (
+              <div className="space-y-6">
+                {sortedGroups.map(([lang, langVoices]) => (
+                  <div key={lang}>
+                    <p className="text-[10px] text-white/25 uppercase tracking-wider mb-2">{lang} ({langVoices.length})</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {langVoices.map((voice) => (
+                        <div
+                          key={voice.id}
+                          className="bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-white/15 transition-all"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm">{
+                                voice.category === "narrator" ? "\uD83D\uDCD6" :
+                                voice.category === "child" ? "\uD83E\uDDD2" :
+                                voice.category === "character" ? "\uD83C\uDFAD" : "\uD83C\uDFA4"
+                              }</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-[#f5eed6] truncate">{voice.name}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                {voice.category && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/50">{voice.category}</span>}
+                                {voice.tags.filter((t) => !["de", "en", "deutsch", "englisch"].includes(t.toLowerCase())).slice(0, 3).map((t) => (
+                                  <span key={t} className="text-[7px] text-white/15">{t}</span>
+                                ))}
+                              </div>
+                              {voice._count && voice._count.actors > 0 && (
+                                <p className="text-[8px] text-purple-300/30 mt-0.5">{voice._count.actors} Actor(s)</p>
+                              )}
+                            </div>
+                          </div>
+                          {voice.previewUrl && (
+                            <div className="mt-2">
+                              <audio controls src={blobProxy(voice.previewUrl)} className="w-full h-6 opacity-50" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  {voice.previewUrl && (
-                    <div className="mt-2">
-                      <audio controls src={blobProxy(voice.previewUrl)} className="w-full h-7 opacity-60" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </>
       )}
 
