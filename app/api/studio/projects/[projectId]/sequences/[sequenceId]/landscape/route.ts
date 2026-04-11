@@ -115,3 +115,33 @@ export async function POST(
 
   return Response.json({ landscapeUrl: blob.url, prompt: imagePrompt });
 }
+
+/**
+ * PUT: Set landscape from library (existing URL)
+ */
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ projectId: string; sequenceId: string }> },
+) {
+  const session = await auth();
+  if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { projectId, sequenceId } = await params;
+  const body = await request.json() as { landscapeRefUrl: string };
+
+  if (!body.landscapeRefUrl) {
+    return Response.json({ error: "landscapeRefUrl erforderlich" }, { status: 400 });
+  }
+
+  const sequence = await prisma.studioSequence.findFirst({
+    where: { id: sequenceId, project: { id: projectId, userId: session.user.id } },
+  });
+  if (!sequence) return Response.json({ error: "Nicht gefunden" }, { status: 404 });
+
+  await prisma.studioSequence.update({
+    where: { id: sequenceId },
+    data: { landscapeRefUrl: body.landscapeRefUrl },
+  });
+
+  return Response.json({ landscapeUrl: body.landscapeRefUrl });
+}

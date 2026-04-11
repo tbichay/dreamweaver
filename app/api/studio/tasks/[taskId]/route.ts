@@ -37,7 +37,7 @@ export async function PUT(
   if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { taskId } = await params;
-  const body = await request.json() as { action: "cancel" | "retry" };
+  const body = await request.json() as { action: "cancel" | "retry" | "complete" | "fail"; error?: string };
 
   const task = await prisma.studioTask.findFirst({
     where: { id: taskId, userId: session.user.id },
@@ -69,6 +69,22 @@ export async function PUT(
         startedAt: null,
         completedAt: null,
       },
+    });
+    return Response.json({ task: updated });
+  }
+
+  if (body.action === "complete") {
+    const updated = await prisma.studioTask.update({
+      where: { id: taskId },
+      data: { status: "completed", progress: "Fertig", progressPct: 100, completedAt: new Date() },
+    });
+    return Response.json({ task: updated });
+  }
+
+  if (body.action === "fail") {
+    const updated = await prisma.studioTask.update({
+      where: { id: taskId },
+      data: { status: "failed", error: body.error || "Fehlgeschlagen", completedAt: new Date() },
     });
     return Response.json({ task: updated });
   }

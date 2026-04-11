@@ -1675,7 +1675,33 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
   const [uploading, setUploading] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
   const [showPrompt, setShowPrompt] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [libraryAssets, setLibraryAssets] = useState<Array<{ id: string; blobUrl: string }>>([]);
+  const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (showLibrary && libraryAssets.length === 0 && !loadingLibrary) {
+      setLoadingLibrary(true);
+      fetch("/api/studio/assets?type=landscape&limit=20")
+        .then((r) => r.json())
+        .then((d) => setLibraryAssets(d.assets || []))
+        .catch(() => {})
+        .finally(() => setLoadingLibrary(false));
+    }
+  }, [showLibrary, libraryAssets.length, loadingLibrary]);
+
+  const selectFromLibrary = async (blobUrl: string) => {
+    try {
+      await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}/landscape`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ landscapeRefUrl: blobUrl }),
+      });
+      setShowLibrary(false);
+      onUpdate();
+    } catch { /* */ }
+  };
 
   const generateLandscape = async () => {
     setGenerating(true);
@@ -1751,8 +1777,38 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
             {uploading ? "..." : "📷 Upload"}
             <input type="file" accept="image/*" onChange={uploadLandscape} className="hidden" />
           </label>
+          <button
+            onClick={() => setShowLibrary(!showLibrary)}
+            className="text-[9px] px-2.5 py-1.5 bg-white/5 text-white/30 rounded-lg hover:text-white/50"
+          >
+            📁 Aus Library
+          </button>
         </div>
       )}
+      {/* Library Picker */}
+      {showLibrary && !sequence.landscapeRefUrl && (
+        <div className="mt-2 bg-white/5 rounded-lg p-2">
+          <p className="text-[9px] text-white/30 mb-1.5">Landscape aus Library waehlen:</p>
+          {loadingLibrary ? (
+            <p className="text-[9px] text-white/20">Laden...</p>
+          ) : libraryAssets.length === 0 ? (
+            <p className="text-[9px] text-white/20">Keine Landscapes in der Library. Generiere zuerst welche.</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto">
+              {libraryAssets.map((asset) => (
+                <img
+                  key={asset.id}
+                  src={portraitSrc(asset.blobUrl)}
+                  alt="Landscape"
+                  className="w-full h-16 object-cover rounded cursor-pointer hover:ring-1 hover:ring-[#d4a853] transition-all"
+                  onClick={() => selectFromLibrary(asset.blobUrl)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {showPrompt && !sequence.landscapeRefUrl && (
         <div className="mt-2 flex gap-2">
           <input
@@ -1892,10 +1948,35 @@ function SequenceCard({
     ? dialogScenes * 1.50 + landscapeScenes * 1.50  // Seedance 2.0 (~$0.30/s × 5s)
     : dialogScenes * 0.32 + landscapeScenes * 0.25; // Veo Lite+LipSync / Seedance 1.5
 
+  // Helper: track foreground generation as a StudioTask
+  const trackTask = async (type: string, input: Record<string, unknown>) => {
+    try {
+      const res = await fetch("/api/studio/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, type, input, priority: 10 }),
+      });
+      const data = await res.json();
+      return data.task?.id as string | undefined;
+    } catch { return undefined; }
+  };
+  const completeTask = async (taskId: string | undefined, success: boolean, errorMsg?: string) => {
+    if (!taskId) return;
+    try {
+      await fetch(`/api/studio/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: success ? "complete" : "fail", error: errorMsg }),
+      });
+    } catch { /* */ }
+  };
+
   const generateAudio = async () => {
     setAudioGenerating(true);
     setProgress("Starte Audio...");
     setError("");
+
+    const taskId = await trackTask("audio", { projectId, sequenceId: sequence.id });
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1911,13 +1992,18 @@ function SequenceCard({
         },
       );
 
+      let hadError = false;
       await consumeSSE(res, {
         onProgress: setProgress,
-        onError: setError,
+        onError: (e) => { setError(e); hadError = true; },
         onDone: () => onUpdate(),
       });
+      await completeTask(taskId, !hadError, hadError ? error : undefined);
     } catch (err) {
-      if ((err as Error).name !== "AbortError") setError((err as Error).message);
+      if ((err as Error).name !== "AbortError") {
+        setError((err as Error).message);
+        await completeTask(taskId, false, (err as Error).message);
+      }
     }
 
     setAudioGenerating(false);
@@ -1931,6 +2017,8 @@ function SequenceCard({
     setError("");
     setProgress(`Clip ${sceneIndex + 1}...`);
 
+    const taskId = await trackTask("clip", { projectId, sequenceId: sequence.id, sceneIndex, quality: clipQuality });
+
     try {
       const res = await fetch(
         `/api/studio/projects/${projectId}/sequences/${sequence.id}/clips`,
@@ -1940,13 +2028,16 @@ function SequenceCard({
           body: JSON.stringify({ sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle }),
         },
       );
+      let hadError = false;
       await consumeSSE(res, {
         onProgress: (p) => setProgress(`Clip ${sceneIndex + 1}: ${p}`),
-        onError: setError,
+        onError: (e) => { setError(e); hadError = true; },
         onDone: () => onUpdate(),
       });
+      await completeTask(taskId, !hadError);
     } catch (err) {
       setError(`Clip ${sceneIndex + 1}: ${(err as Error).message}`);
+      await completeTask(taskId, false, (err as Error).message);
     }
 
     setClipGenerating(false);
@@ -2003,54 +2094,45 @@ function SequenceCard({
 
   const [backgroundQueued, setBackgroundQueued] = useState(false);
 
-  const queueClipsBackground = async () => {
+  // "Alle Clips" generiert sequenziell mit Task-Tracking
+  const generateAllClipsTracked = async () => {
+    setClipGenerating(true);
     setError("");
     const total = sceneCount;
-    let queued = 0;
 
     for (let i = 0; i < total; i++) {
       const scene = sequence.scenes?.[i];
       if (scene?.status === "done" && scene?.videoUrl) continue;
 
-      await fetch("/api/studio/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId,
-          type: "clip",
-          input: {
-            projectId,
-            sequenceId: sequence.id,
-            sceneIndex: i,
-            quality: clipQuality,
-            stylePrompt: resolvedStyle,
+      setProgress(`Clip ${i + 1}/${total}...`);
+      const taskId = await trackTask("clip", { projectId, sequenceId: sequence.id, sceneIndex: i, quality: clipQuality });
+
+      try {
+        const res = await fetch(
+          `/api/studio/projects/${projectId}/sequences/${sequence.id}/clips`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle }),
           },
-          estimatedCostCents: clipQuality === "premium" ? 150 : 30,
-        }),
-      });
-      queued++;
+        );
+        let hadError = false;
+        await consumeSSE(res, {
+          onProgress: (p) => setProgress(`Clip ${i + 1}/${total}: ${p}`),
+          onError: (e) => { setError(`Clip ${i + 1}: ${e}`); hadError = true; },
+          onDone: () => onUpdate(),
+        });
+        await completeTask(taskId, !hadError);
+        if (hadError) break;
+      } catch (err) {
+        setError(`Clip ${i + 1}: ${(err as Error).message}`);
+        await completeTask(taskId, false, (err as Error).message);
+        break;
+      }
     }
 
-    setBackgroundQueued(true);
-    setProgress(`${queued} Clips in die Warteschlange gestellt`);
-    setTimeout(() => { setProgress(""); setBackgroundQueued(false); }, 3000);
-  };
-
-  const queueAudioBackground = async () => {
-    setError("");
-    await fetch("/api/studio/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectId,
-        type: "audio",
-        input: { projectId, sequenceId: sequence.id },
-        priority: 1, // Audio before clips
-      }),
-    });
-    setBackgroundQueued(true);
-    setProgress("Audio in die Warteschlange gestellt");
-    setTimeout(() => { setProgress(""); setBackgroundQueued(false); }, 3000);
+    setClipGenerating(false);
+    setProgress("");
   };
 
   const isGenerating = audioGenerating || clipGenerating;
@@ -2121,22 +2203,13 @@ function SequenceCard({
                 🔄 Audio neu
               </button>
             )}
-            {canGenerateAudio && !isGenerating && (
+            {canGenerateClips && !isGenerating && !showCostConfirm && (
               <button
-                onClick={queueAudioBackground}
+                onClick={generateAllClipsTracked}
                 className="text-[10px] px-3 py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300"
-                title="Audio im Hintergrund generieren — Seite kann verlassen werden"
+                title="Alle ausstehenden Clips nacheinander generieren"
               >
-                ◎ Audio (Hintergrund)
-              </button>
-            )}
-            {canGenerateClips && !isGenerating && (
-              <button
-                onClick={queueClipsBackground}
-                className="text-[10px] px-3 py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300"
-                title="Alle Clips im Hintergrund generieren — Seite kann verlassen werden"
-              >
-                ◎ Clips (Hintergrund)
+                🎬 Alle Clips generieren
               </button>
             )}
             {hasActorsCast && sequence.audioUrl && !isGenerating && (
