@@ -862,6 +862,16 @@ export async function designVoice(
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY not set");
 
+  // Default sample with audio tags for emotional range testing
+  const defaultSample = [
+    "Es war einmal, vor langer... langer Zeit, in einem tiefen, dunklen Wald...",
+    "[fearful] Oh NEIN! Was war das fuer ein Geraeusch?! Wir muessen hier WEG!",
+    "[laughing] Hahaha! Das ist ja das LUSTIGSTE was ich je gehoert habe! Ich kann nicht mehr!",
+    "[whispering] Psst... komm naeher... ich verrate dir ein Geheimnis...",
+    "[excited] UND DANN! Stellt euch vor! Es ist TATSAECHLICH passiert!",
+    "Und so lebten sie gluecklich... bis ans Ende ihrer Tage.",
+  ].join(" ");
+
   const res = await fetchWithRetry(
     `${process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io/v1"}/text-to-voice/create-previews`,
     {
@@ -872,7 +882,9 @@ export async function designVoice(
       },
       body: JSON.stringify({
         voice_description: description,
-        text: sampleText || "Hallo, ich bin bereit fuer meinen grossen Auftritt. Heute ist ein wunderbarer Tag und ich freue mich darauf, euch meine Geschichte zu erzaehlen. Lasst uns gemeinsam anfangen!",
+        text: sampleText || defaultSample,
+        should_enhance: true,     // AI expands simple descriptions into detailed ones
+        guidance_scale: 3,        // Lower = more natural, less robotic (default 5)
       }),
     },
     "Voice Design",

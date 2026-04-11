@@ -24,16 +24,36 @@ export async function POST(request: Request) {
     return Response.json({ error: "Stimm-Beschreibung ist erforderlich" }, { status: 400 });
   }
 
-  // Build a multi-emotion sample text if none provided
-  const defaultSample = [
-    "Es war einmal vor langer, langer Zeit, in einem tiefen, dunklen Wald...",
-    "Oh nein! Das ist ja schrecklich! Wir muessen sofort etwas tun!",
-    "Ha! Das ist ja das Lustigste, was ich je gehoert habe!",
-    "Komm, setz dich zu mir. Ich erzaehle dir eine Geschichte, die dein Herz beruehren wird.",
-  ].join(" ");
-
   try {
-    const result = await designVoice(body.description, body.sampleText || defaultSample);
+    // Enhance the voice description with AI for better results
+    let enhancedDescription = body.description;
+    try {
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const ai = new Anthropic();
+      const enhancement = await ai.messages.create({
+        model: "claude-haiku-3-20240307",
+        max_tokens: 200,
+        messages: [{
+          role: "user",
+          content: `Convert this voice description into an optimal ElevenLabs voice_description prompt.
+Keep it in English (ElevenLabs works best in English). Focus ONLY on vocal qualities, not appearance.
+Include: age, gender, accent, tone, pacing, warmth, energy level, audio quality.
+
+Input: "${body.description}"
+
+Reply with ONLY the optimized English voice description, nothing else. Max 2 sentences.`,
+        }],
+      });
+      const enhanced = enhancement.content[0];
+      if (enhanced && enhanced.type === "text" && enhanced.text.length > 10) {
+        enhancedDescription = enhanced.text.trim();
+        console.log(`[VoiceDesign] Enhanced: "${body.description}" → "${enhancedDescription}"`);
+      }
+    } catch {
+      // AI enhancement is optional, use original if it fails
+    }
+
+    const result = await designVoice(enhancedDescription, body.sampleText);
 
     // Save preview audio to blob for playback
     let previewUrl: string | undefined;
@@ -115,7 +135,7 @@ export async function PUT(request: Request) {
     let expressivePreviewUrl: string | undefined;
     try {
       const { generateSingleTTS } = await import("@/lib/elevenlabs");
-      const emotionalSample = "Es war einmal... ein kleines Wesen, das sich fuerchtete. \"Oh nein!\" rief es erschrocken. Aber dann — ein Lachen! \"Ha! Das war ja gar nicht so schlimm!\" Und mit einem warmen Laecheln fluesterte es: \"Alles wird gut.\"";
+      const emotionalSample = "Es war einmal... vor langer, langer Zeit... [fearful] Oh NEIN! Was war DAS?! [laughing] Hahaha, das war ja nur ein kleines Eichhoernchen! [whispering] Psst, komm naeher... ich erzaehl dir was... [excited] Und DANN ist es wirklich PASSIERT! Es war UNGLAUBLICH! Und so lebten sie gluecklich... bis ans Ende ihrer Tage.";
       const { mp3 } = await generateSingleTTS(emotionalSample, permanentVoiceId, defaultSettings as any);
       const previewBlob = await put(
         `studio/actors/voice-expressive-${Date.now()}.mp3`,
