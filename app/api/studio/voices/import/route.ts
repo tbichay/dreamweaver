@@ -18,6 +18,7 @@ export async function GET(request: Request) {
   const language = searchParams.get("language") || "de";
   const gender = searchParams.get("gender");
   const age = searchParams.get("age");
+  const useCase = searchParams.get("use_case");
 
   if (source === "shared") {
     const session = await auth();
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
     const params = new URLSearchParams({ page_size: "30", language });
     if (gender) params.set("gender", gender);
     if (age) params.set("age", age);
+    if (useCase) params.set("use_cases", useCase);
 
     const res = await fetch(`https://api.elevenlabs.io/v1/shared-voices?${params}`, {
       headers: { "xi-api-key": apiKey },

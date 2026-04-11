@@ -1064,6 +1064,7 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
   const [sharedLoading, setSharedLoading] = useState(false);
   const [sharedGender, setSharedGender] = useState<string>("");
   const [sharedAge, setSharedAge] = useState<string>("");
+  const [sharedUseCase, setSharedUseCase] = useState<string>("");
   const [sharedLang, setSharedLang] = useState("de");
 
   const searchShared = async () => {
@@ -1071,6 +1072,7 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
     const params = new URLSearchParams({ source: "shared", language: sharedLang });
     if (sharedGender) params.set("gender", sharedGender);
     if (sharedAge) params.set("age", sharedAge);
+    if (sharedUseCase) params.set("use_case", sharedUseCase);
     try {
       const res = await fetch(`/api/studio/voices/import?${params}`);
       const data = await res.json();
@@ -1214,9 +1216,17 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
               </select>
               <select value={sharedAge} onChange={(e) => setSharedAge(e.target.value)} className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/70">
                 <option value="">Alle Alter</option>
-                <option value="young">Jung</option>
+                <option value="young">Jung / Kind</option>
                 <option value="middle_aged">Mittleres Alter</option>
-                <option value="old">Alt</option>
+                <option value="old">Alt / Senior</option>
+              </select>
+              <select value={sharedUseCase} onChange={(e) => setSharedUseCase(e.target.value)} className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/70">
+                <option value="">Alle Typen</option>
+                <option value="narrative_story">Erzaehler</option>
+                <option value="characters_animation">Cartoon / Kind</option>
+                <option value="conversational">Konversation</option>
+                <option value="informative_educational">Bildung</option>
+                <option value="social_media">Social Media</option>
               </select>
               <button onClick={searchShared} disabled={sharedLoading} className="px-3 py-1.5 bg-[#d4a853]/20 text-[#d4a853] rounded-lg text-xs font-medium hover:bg-[#d4a853]/30 disabled:opacity-30">
                 {sharedLoading ? "Suche..." : "Suchen"}
