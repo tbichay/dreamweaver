@@ -947,6 +947,83 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
   );
 }
 
+// ── Voice Emotion Tester ────────────────────────────────────────
+
+const EMOTIONS = [
+  { id: "neutral", label: "Normal", icon: "\uD83D\uDE10" },
+  { id: "happy", label: "Freudig", icon: "\uD83D\uDE04" },
+  { id: "sad", label: "Traurig", icon: "\uD83D\uDE22" },
+  { id: "scared", label: "Angst", icon: "\uD83D\uDE28" },
+  { id: "angry", label: "Wuetend", icon: "\uD83D\uDE21" },
+  { id: "excited", label: "Aufgeregt", icon: "\uD83E\uDD29" },
+  { id: "whisper", label: "Fluestern", icon: "\uD83E\uDD2B" },
+];
+
+function VoiceEmotionTester({ voiceId, previewUrl, blobProxy }: { voiceId: string; previewUrl?: string; blobProxy: (u: string) => string }) {
+  const [testingEmotion, setTestingEmotion] = useState<string | null>(null);
+  const [emotionAudios, setEmotionAudios] = useState<Record<string, string>>({});
+  const [activeEmotion, setActiveEmotion] = useState<string | null>(null);
+
+  const testEmotion = async (emotion: string) => {
+    // If already generated, just play it
+    if (emotionAudios[emotion]) {
+      setActiveEmotion(emotion);
+      return;
+    }
+    setTestingEmotion(emotion);
+    try {
+      const res = await fetch("/api/studio/voices/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voiceId, emotion }),
+      });
+      const data = await res.json();
+      if (res.ok && data.audioUrl) {
+        setEmotionAudios((prev) => ({ ...prev, [emotion]: data.audioUrl }));
+        setActiveEmotion(emotion);
+      }
+    } catch { /* */ }
+    setTestingEmotion(null);
+  };
+
+  const activeUrl = activeEmotion ? emotionAudios[activeEmotion] : previewUrl;
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {/* Player */}
+      {activeUrl && (
+        <audio
+          key={activeUrl}
+          controls
+          autoPlay={!!activeEmotion}
+          src={activeUrl.startsWith("http") && !activeUrl.includes("/api/") ? activeUrl : blobProxy(activeUrl)}
+          className="w-full h-6 opacity-60"
+        />
+      )}
+      {/* Emotion Buttons */}
+      <div className="flex flex-wrap gap-1">
+        {EMOTIONS.map((e) => (
+          <button
+            key={e.id}
+            onClick={() => testEmotion(e.id)}
+            disabled={testingEmotion !== null}
+            className={`text-[8px] px-1.5 py-0.5 rounded transition-all ${
+              activeEmotion === e.id
+                ? "bg-[#d4a853]/25 text-[#d4a853]"
+                : emotionAudios[e.id]
+                ? "bg-white/10 text-white/40 hover:text-white/60"
+                : "bg-white/5 text-white/20 hover:text-white/40"
+            } ${testingEmotion === e.id ? "animate-pulse" : ""} disabled:opacity-30`}
+            title={e.label}
+          >
+            {e.icon}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Library Page ───────────────────────────────────────────
 
 export default function LibraryPage() {
@@ -1560,11 +1637,8 @@ export default function LibraryPage() {
                               )}
                             </div>
                           </div>
-                          {voice.previewUrl && (
-                            <div className="mt-2">
-                              <audio controls src={blobProxy(voice.previewUrl)} className="w-full h-6 opacity-50" />
-                            </div>
-                          )}
+                          {/* Preview + Emotion Tester */}
+                          <VoiceEmotionTester voiceId={voice.voiceId} previewUrl={voice.previewUrl} blobProxy={blobProxy} />
                         </div>
                       ))}
                     </div>
