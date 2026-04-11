@@ -46,6 +46,8 @@ export async function POST(request: Request) {
     return Response.json({ message: "Keine wartenden Tasks", processed: false });
   }
 
+  console.log(`[StudioTask] Processing task ${task.id}: type=${task.type}, retry=${task.retryCount}/${task.maxRetries}`);
+
   // Mark as running
   await prisma.studioTask.update({
     where: { id: task.id },
@@ -244,7 +246,7 @@ async function processClipTask(
   await updateProgress(`Clip fuer Szene ${sceneIndex + 1}...`, 20);
 
   // Call the existing clip generation logic via internal fetch
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://koalatree.io";
   const res = await fetch(`${baseUrl}/api/studio/projects/${projectId}/sequences/${sequenceId}/clips`, {
     method: "POST",
     headers: {
@@ -276,7 +278,7 @@ async function processAudioTask(
 
   await updateProgress("Generiere Audio...", 20);
 
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://koalatree.io";
   const res = await fetch(`${baseUrl}/api/studio/projects/${projectId}/sequences/${sequenceId}/audio`, {
     method: "POST",
     headers: {
@@ -334,7 +336,7 @@ async function processPortraitTask(
 
   await updateProgress("Generiere Portrait...", 30);
 
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://koalatree.io";
   const res = await fetch(`${baseUrl}/api/studio/actors/portrait`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-studio-task-user": _userId },
@@ -362,7 +364,7 @@ async function processLandscapeTask(
 
   await updateProgress("Generiere Landscape...", 30);
 
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://koalatree.io";
   const res = await fetch(`${baseUrl}/api/studio/projects/${projectId}/sequences/${sequenceId}/landscape`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-studio-task-user": userId },
@@ -390,7 +392,7 @@ async function processCharacterSheetTask(
 
   await updateProgress(`Character Sheet (${angle})...`, 30);
 
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://koalatree.io";
   const res = await fetch(`${baseUrl}/api/studio/actors/character-sheet`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-studio-task-user": userId },
@@ -413,7 +415,7 @@ async function processStoryTask(
 
   await updateProgress("Generiere Geschichte...", 20);
 
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://koalatree.io";
   const res = await fetch(`${baseUrl}/api/studio/generate-story`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-studio-task-user": userId },
@@ -470,7 +472,7 @@ async function processScreenplayTask(
 
   await updateProgress("Generiere Drehbuch...", 20);
 
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://koalatree.io";
   const res = await fetch(`${baseUrl}/api/studio/projects/${projectId}/screenplay`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-studio-task-user": userId },

@@ -27,15 +27,16 @@ import { CHARACTERS } from "@/lib/types";
 export const maxDuration = 800;
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ projectId: string; sequenceId: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { resolveUserId: resolveUser } = await import("@/lib/studio/task-auth");
+  const userId = await resolveUser(request);
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { projectId, sequenceId } = await params;
   const sequence = await prisma.studioSequence.findFirst({
-    where: { id: sequenceId, project: { id: projectId, userId: session.user.id } },
+    where: { id: sequenceId, project: { id: projectId, userId } },
     select: { audioUrl: true, audioDauerSek: true, timeline: true, status: true },
   });
 
