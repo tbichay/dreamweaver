@@ -70,7 +70,7 @@ export async function POST(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response = await (openai.images.generate as any)({
-    model: "gpt-image-1",
+    model: "gpt-image-1.5",
     prompt: imagePrompt,
     n: 1,
     size: "1536x1024", // Landscape format
@@ -103,8 +103,8 @@ export async function POST(
       mimeType: "image/png",
       width: 1536,
       height: 1024,
-      generatedBy: { model: "gpt-image-1", prompt: imagePrompt },
-      modelId: "gpt-image-1",
+      generatedBy: { model: "gpt-image-1.5", prompt: imagePrompt },
+      modelId: "gpt-image-1.5",
       costCents: 4,
       projectId,
       userId: session.user!.id!,

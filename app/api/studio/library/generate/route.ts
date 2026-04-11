@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   const response = await (openai.images.generate as any)({
-    model: "gpt-image-1",
+    model: "gpt-image-1.5",
     prompt,
     n: 1,
     size,
@@ -79,8 +79,8 @@ export async function POST(request: Request) {
     mimeType: "image/png",
     width: type === "portrait" ? 1024 : 1536,
     height: type === "portrait" ? 1536 : 1024,
-    generatedBy: { model: "gpt-image-1", prompt },
-    modelId: "gpt-image-1",
+    generatedBy: { model: "gpt-image-1.5", prompt },
+    modelId: "gpt-image-1.5",
     costCents: 4,
     userId: session.user.id,
   });

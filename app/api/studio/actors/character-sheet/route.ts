@@ -101,7 +101,7 @@ ${prompt}`
     : prompt;
 
   const generateParams: Record<string, unknown> = {
-    model: "gpt-image-1",
+    model: "gpt-image-1.5",
     prompt: consistencyPrompt,
     n: 1,
     size: angleConfig.size,
@@ -138,8 +138,8 @@ ${prompt}`
       mimeType: "image/png",
       width: w,
       height: h,
-      generatedBy: { model: "gpt-image-1", prompt },
-      modelId: "gpt-image-1",
+      generatedBy: { model: "gpt-image-1.5", prompt },
+      modelId: "gpt-image-1.5",
       costCents: 4,
       userId: session.user.id,
       tags: ["actor", `actor:${body.actorId}`, `angle:${body.angle}`],

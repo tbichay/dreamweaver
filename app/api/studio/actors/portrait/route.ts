@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   const portraitPrompt = `${styleHint}. Character: ${body.description}.${outfitHint}${traitsHint} Head and shoulders portrait, looking slightly to the side, expressive eyes. No text, no watermarks, no logos.`;
 
   const response = await (openai.images.generate as any)({
-    model: "gpt-image-1",
+    model: "gpt-image-1.5",
     prompt: portraitPrompt,
     n: 1,
     size: "1024x1024",
@@ -79,8 +79,8 @@ export async function POST(request: Request) {
       mimeType: "image/png",
       width: 1024,
       height: 1024,
-      generatedBy: { model: "gpt-image-1", prompt: portraitPrompt },
-      modelId: "gpt-image-1",
+      generatedBy: { model: "gpt-image-1.5", prompt: portraitPrompt },
+      modelId: "gpt-image-1.5",
       costCents: 4,
       userId: session.user.id,
       tags: ["actor", `actor:${body.actorId}`],

@@ -562,6 +562,9 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [playingPreview, setPlayingPreview] = useState(false);
 
+  // Voice description for regeneration
+  const [editVoiceDesc, setEditVoiceDesc] = useState(actor.voiceDescription || "");
+
   // Voice settings
   const [editVoiceSettings, setEditVoiceSettings] = useState<VoiceSettings>(
     (actor.voiceSettings as VoiceSettings | null) || { stability: 0.45, similarity_boost: 0.70, style: 0.50, speed: 1.0 }
@@ -584,7 +587,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
       const res = await fetch("/api/studio/actors", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim(), outfit: editOutfit.trim() || null, traits: editTraits.trim() || null, style: editStyle } }),
+        body: JSON.stringify({ id: actor.id, updates: { name: editName.trim(), description: editDesc.trim(), voiceDescription: editVoiceDesc.trim() || null, outfit: editOutfit.trim() || null, traits: editTraits.trim() || null, style: editStyle } }),
       });
       const data = await res.json();
       if (res.ok) { onUpdate(data.actor); setEditing(false); }
@@ -634,7 +637,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
       const res = await fetch("/api/studio/actors/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actorId: actor.id, description: actor.description || actor.name }),
+        body: JSON.stringify({ actorId: actor.id, description: editVoiceDesc || actor.voiceDescription || `${actor.description || actor.name}, spricht Deutsch` }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -778,11 +781,22 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
               )}
               <button
                 onClick={handleDesignNewVoice}
-                disabled={voiceLoading}
+                disabled={voiceLoading || !editVoiceDesc.trim()}
                 className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300/60 text-[10px] hover:text-purple-300 disabled:opacity-30"
               >
-                {voiceLoading ? "..." : "Neue Stimme generieren"}
+                {voiceLoading ? "..." : "Stimme generieren"}
               </button>
+            </div>
+
+            {/* Voice description editor */}
+            <div className="mt-2">
+              <input
+                type="text"
+                value={editVoiceDesc}
+                onChange={(e) => setEditVoiceDesc(e.target.value)}
+                placeholder='Stimm-Beschreibung: z.B. "Tiefe maennliche Stimme, warm, ruhig"'
+                className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] text-white/60 focus:outline-none focus:border-purple-500/40 placeholder:text-white/15"
+              />
             </div>
 
             {/* New voice preview */}
