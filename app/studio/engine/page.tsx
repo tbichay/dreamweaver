@@ -1007,6 +1007,8 @@ interface DigitalActor {
 }
 
 function CharacterCard({ character, projectId, onUpdate, visualStyle }: { character: Character; projectId: string; onUpdate: () => void; visualStyle?: string }) {
+  const [editingName, setEditingName] = useState(false);
+  const [editName, setEditName] = useState(character.name);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [fullscreenPortrait, setFullscreenPortrait] = useState(false);
@@ -1166,7 +1168,38 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
         <input id={inputId} type="file" accept="image/*" onChange={handlePortraitUpload} className="hidden" />
       </div>
 
-      <p className="text-xs font-medium text-[#f5eed6] mt-1.5">{character.name}</p>
+      {/* Editable character name */}
+      {editingName ? (
+        <input
+          autoFocus
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onBlur={async () => {
+            if (editName.trim() && editName.trim() !== character.name) {
+              await fetch(`/api/studio/projects/${projectId}/characters`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ characterId: character.id, updates: { name: editName.trim() } }),
+              });
+              onUpdate();
+            }
+            setEditingName(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") { setEditName(character.name); setEditingName(false); }
+          }}
+          className="w-full text-center text-xs font-medium text-[#f5eed6] mt-1.5 bg-white/10 border border-[#d4a853]/30 rounded px-1 py-0.5 focus:outline-none focus:border-[#d4a853]"
+        />
+      ) : (
+        <p
+          className="text-xs font-medium text-[#f5eed6] mt-1.5 cursor-pointer hover:text-[#d4a853] transition-colors"
+          onClick={() => { setEditName(character.name); setEditingName(true); }}
+          title="Klicke zum Umbenennen"
+        >
+          {character.name}
+        </p>
+      )}
       <p className="text-[8px] text-white/30">
         {character.role === "lead" ? "Hauptrolle" :
          character.role === "narrator" ? "Erzaehler" :
