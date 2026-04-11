@@ -234,46 +234,21 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
         </Field>
       </Section>
 
-      {/* Voice */}
+      {/* Voice — select from library */}
       <Section title="Stimme" action={
-        voiceId ? <Badge color="green">Stimme gespeichert</Badge> : undefined
+        voiceId ? <Badge color="green">Stimme zugewiesen</Badge> : undefined
       }>
-        <Field
-          label="Stimm-Beschreibung"
-          hint="Beschreibe wie die Stimme klingen soll — nicht das Aussehen"
-          cta={
-            <ActionButton onClick={handleDesignVoice} loading={voiceLoading} disabled={!voiceDescription.trim() && !description.trim()}>
-              Stimme generieren
-            </ActionButton>
-          }
-        >
-          <TextInput
-            value={voiceDescription}
-            onChange={setVoiceDescription}
-            placeholder='z.B. "Tiefe maennliche Stimme, warm, ruhig, weiser Erzaehler"'
-          />
-        </Field>
-
         {voicePreviewUrl && (
           <div className="mb-2">
-            <AudioPreview url={voicePreviewUrl} blobProxy={blobProxy} label="Preview" />
+            <AudioPreview url={voicePreviewUrl} blobProxy={blobProxy} label="Aktuelle Stimme" />
           </div>
         )}
-
-        {generatedVoiceId && !voiceId && (
-          <ActionButton onClick={handleSaveVoice} loading={voiceLoading} variant="primary">
-            Stimme speichern
-          </ActionButton>
-        )}
-
-        {voiceId && (
-          <div className="space-y-1.5 mt-2">
-            <Slider label="Stabilitaet" value={voiceSettings.stability} onChange={(v) => setVoiceSettings({ ...voiceSettings, stability: v })} />
-            <Slider label="Aehnlichkeit" value={voiceSettings.similarity_boost} onChange={(v) => setVoiceSettings({ ...voiceSettings, similarity_boost: v })} />
-            <Slider label="Ausdruck" value={voiceSettings.style} onChange={(v) => setVoiceSettings({ ...voiceSettings, style: v })} />
-            <Slider label="Tempo" value={voiceSettings.speed} onChange={(v) => setVoiceSettings({ ...voiceSettings, speed: v })} min={0.5} max={2.0} />
-          </div>
-        )}
+        <ActionButton onClick={() => window.open("/studio/library", "_blank")} variant={voiceId ? "secondary" : "primary"}>
+          {voiceId ? "Andere Stimme waehlen" : "Stimme aus Library waehlen"}
+        </ActionButton>
+        <p className="text-[9px] text-white/20 mt-1">
+          Oeffne die Library → Voices → hoere Emotionen an → waehle eine Stimme
+        </p>
       </Section>
 
       {/* Save */}

@@ -1540,12 +1540,6 @@ export default function LibraryPage() {
           {!showNewActorForm && (
             <div className="flex gap-2 mb-4">
               <button
-                onClick={() => setShowNewActorForm(true)}
-                className="px-4 py-2.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all"
-              >
-                + Neue Stimme designen
-              </button>
-              <button
                 onClick={async () => {
                   try {
                     const res = await fetch("/api/studio/voices/import");
@@ -1573,18 +1567,7 @@ export default function LibraryPage() {
             </div>
           )}
 
-          {showNewActorForm && (
-            <VoiceSheetComponent
-              onSave={(voice) => {
-                setVoices((prev) => [voice as unknown as Voice, ...prev]);
-                setShowNewActorForm(false);
-              }}
-              onClose={() => setShowNewActorForm(false)}
-              blobProxy={blobProxy}
-            />
-          )}
-
-          {voices.length === 0 && !showNewActorForm ? (
+          {voices.length === 0 ? (
             <div className="text-center py-12 text-white/20 text-sm">
               <span className="text-4xl block mb-3">{"\uD83C\uDFA4"}</span>
               <p>Noch keine Stimmen in der Library.</p>
