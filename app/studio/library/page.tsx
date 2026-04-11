@@ -984,38 +984,56 @@ function VoiceEmotionTester({ voiceId, previewUrl, blobProxy }: { voiceId: strin
 
   const activeUrl = activeEmotion ? emotionAudios[activeEmotion] : previewUrl;
 
+  const resolveUrl = (url: string) => {
+    if (url.includes(".blob.vercel-storage.com")) return blobProxy(url);
+    if (url.startsWith("http")) return url;
+    return blobProxy(url);
+  };
+
   return (
     <div className="mt-2 space-y-1.5">
-      {activeUrl && (
+      {/* Loading indicator */}
+      {testingEmotion && (
+        <div className="flex items-center gap-2 py-1.5 px-2 bg-purple-500/10 rounded-lg">
+          <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-[10px] text-purple-300/60">Generiere {EMOTIONS.find((e) => e.id === testingEmotion)?.label}...</span>
+        </div>
+      )}
+
+      {/* Audio player */}
+      {activeUrl && !testingEmotion && (
         <audio
           key={activeUrl}
           controls
           autoPlay={!!activeEmotion}
-          src={activeUrl.startsWith("http") && !activeUrl.includes("/api/") ? activeUrl : blobProxy(activeUrl)}
-          className="w-full h-7 opacity-60"
+          src={resolveUrl(activeUrl)}
+          className="w-full h-8"
         />
       )}
-      {!activeUrl && !activeEmotion && (
+
+      {/* "Anhoeren" button for voices without any preview */}
+      {!activeUrl && !activeEmotion && !testingEmotion && (
         <button
           onClick={() => testEmotion("neutral")}
-          disabled={testingEmotion !== null}
-          className="w-full text-[10px] py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300 disabled:opacity-30"
+          className="w-full text-[10px] py-2 bg-purple-500/15 text-purple-300/60 rounded-lg hover:text-purple-300 hover:bg-purple-500/25 transition-all"
         >
-          {testingEmotion ? "Generiert..." : "Anhoeren"}
+          Anhoeren
         </button>
       )}
+
+      {/* Emotion buttons */}
       <div className="flex flex-wrap gap-1">
         {EMOTIONS.map((e) => (
           <button
             key={e.id}
             onClick={() => testEmotion(e.id)}
             disabled={testingEmotion !== null}
-            className={`text-[9px] px-2 py-1 rounded-md transition-all ${
+            className={`text-[10px] px-2.5 py-1 rounded-lg transition-all ${
               activeEmotion === e.id
-                ? "bg-[#d4a853]/25 text-[#d4a853] font-medium"
+                ? "bg-[#d4a853]/30 text-[#d4a853] font-medium"
                 : emotionAudios[e.id]
-                ? "bg-white/10 text-white/50"
-                : "bg-white/5 text-white/25 hover:text-white/40"
+                ? "bg-white/10 text-white/50 hover:text-white/70"
+                : "bg-white/5 text-white/25 hover:text-white/40 hover:bg-white/10"
             } ${testingEmotion === e.id ? "animate-pulse" : ""} disabled:opacity-30`}
           >
             {e.label}
@@ -1040,16 +1058,26 @@ const VOICE_FILTERS = [
 ];
 
 function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProxy: (u: string) => string; onImport: () => void }) {
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
 
-  const filtered = activeFilter === "all"
+  const toggleFilter = (id: string) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (id === "all") return new Set(); // "Alle" clears all filters
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const matchesFilter = (v: Voice, filterId: string): boolean => {
+    if (filterId === "de") return v.tags.some((t) => ["de", "deutsch"].includes(t.toLowerCase()));
+    if (filterId === "en") return v.tags.some((t) => ["en", "englisch"].includes(t.toLowerCase()));
+    return v.category === filterId || v.tags.some((t) => t.toLowerCase() === filterId.toLowerCase());
+  };
+
+  const filtered = activeFilters.size === 0
     ? voices
-    : voices.filter((v) =>
-        v.category === activeFilter ||
-        v.tags.some((t) => t.toLowerCase() === activeFilter.toLowerCase()) ||
-        (activeFilter === "de" && v.tags.some((t) => ["de", "deutsch"].includes(t.toLowerCase()))) ||
-        (activeFilter === "en" && v.tags.some((t) => ["en", "englisch"].includes(t.toLowerCase())))
-      );
+    : voices.filter((v) => Array.from(activeFilters).every((f) => matchesFilter(v, f)));
 
   return (
     <>
@@ -1082,25 +1110,38 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
         </button>
       </div>
 
-      {/* Filter Buttons */}
+      {/* Filter Buttons (multi-select) */}
       <div className="flex flex-wrap gap-1.5 mb-4">
-        {VOICE_FILTERS.map((f) => {
-          const count = f.id === "all" ? voices.length :
-            voices.filter((v) => v.category === f.id || v.tags.some((t) => t.toLowerCase() === f.id || (f.id === "de" && ["de", "deutsch"].includes(t.toLowerCase())) || (f.id === "en" && ["en", "englisch"].includes(t.toLowerCase())))).length;
+        <button
+          onClick={() => toggleFilter("all")}
+          className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
+            activeFilters.size === 0
+              ? "bg-[#d4a853]/20 text-[#d4a853] font-medium"
+              : "bg-white/5 text-white/30 hover:text-white/50"
+          }`}
+        >
+          Alle ({voices.length})
+        </button>
+        {VOICE_FILTERS.filter((f) => f.id !== "all").map((f) => {
+          const isActive = activeFilters.has(f.id);
+          const count = voices.filter((v) => matchesFilter(v, f.id)).length;
           return (
             <button
               key={f.id}
-              onClick={() => setActiveFilter(f.id)}
+              onClick={() => toggleFilter(f.id)}
               className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
-                activeFilter === f.id
-                  ? "bg-[#d4a853]/20 text-[#d4a853] font-medium"
+                isActive
+                  ? "bg-[#d4a853]/20 text-[#d4a853] font-medium ring-1 ring-[#d4a853]/30"
                   : "bg-white/5 text-white/30 hover:text-white/50"
               }`}
             >
-              {f.label} {count > 0 && <span className="text-white/15">({count})</span>}
+              {f.label} ({count})
             </button>
           );
         })}
+        {activeFilters.size > 0 && (
+          <span className="text-[10px] text-white/20 self-center ml-1">{filtered.length} Ergebnisse</span>
+        )}
       </div>
 
       {/* Voice Grid */}
@@ -1132,7 +1173,7 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
                         key={t}
                         onClick={() => {
                           const matchingFilter = VOICE_FILTERS.find((f) => f.id === t.toLowerCase() || (f.id === "de" && ["de", "deutsch"].includes(t.toLowerCase())) || (f.id === "en" && ["en", "englisch"].includes(t.toLowerCase())));
-                          if (matchingFilter) setActiveFilter(matchingFilter.id);
+                          if (matchingFilter) toggleFilter(matchingFilter.id);
                         }}
                         className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/30 hover:text-white/50 cursor-pointer"
                       >
@@ -1141,7 +1182,7 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
                     ))}
                     {voice.category && (
                       <span
-                        onClick={() => setActiveFilter(voice.category!)}
+                        onClick={() => toggleFilter(voice.category!)}
                         className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/40 hover:text-purple-300/60 cursor-pointer"
                       >
                         {voice.category}

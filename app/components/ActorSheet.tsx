@@ -8,7 +8,7 @@
  * Fields are always editable. CTAs next to the field they affect.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Sheet, Section, Field, TextInput, Select, ActionButton,
   AudioPreview, ImageSlot, Badge, Slider,
@@ -76,6 +76,9 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
 
   // Portrait state
   const [portraitUrl, setPortraitUrl] = useState(initial?.portraitAssetId);
+
+  // Voice picker
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
 
   // Loading states
   const [saving, setSaving] = useState(false);
@@ -243,13 +246,32 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
             <AudioPreview url={voicePreviewUrl} blobProxy={blobProxy} label="Aktuelle Stimme" />
           </div>
         )}
-        <ActionButton onClick={() => window.open("/studio/library", "_blank")} variant={voiceId ? "secondary" : "primary"}>
-          {voiceId ? "Andere Stimme waehlen" : "Stimme aus Library waehlen"}
+        <ActionButton onClick={() => setShowVoicePicker(true)} variant={voiceId ? "secondary" : "primary"}>
+          {voiceId ? "Andere Stimme waehlen" : "Stimme waehlen"}
         </ActionButton>
-        <p className="text-[9px] text-white/20 mt-1">
-          Oeffne die Library → Voices → hoere Emotionen an → waehle eine Stimme
-        </p>
       </Section>
+
+      {/* Voice Picker Modal */}
+      {showVoicePicker && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowVoicePicker(false)}>
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[#f5eed6]">{"\uD83C\uDFA4"} Stimme waehlen</h3>
+              <button onClick={() => setShowVoicePicker(false)} className="text-white/30 hover:text-white/60 text-lg">&times;</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <VoicePickerGrid
+                onSelect={async (selectedVoiceId, selectedPreviewUrl) => {
+                  setVoiceId(selectedVoiceId);
+                  if (selectedPreviewUrl) setVoicePreviewUrl(selectedPreviewUrl);
+                  setShowVoicePicker(false);
+                }}
+                blobProxy={blobProxy}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Save */}
       <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/5">
@@ -261,5 +283,94 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
         </ActionButton>
       </div>
     </Sheet>
+  );
+}
+
+// ── Voice Picker Grid (embedded in ActorSheet) ──────────────────
+
+interface VoiceItem {
+  id: string;
+  name: string;
+  voiceId: string;
+  previewUrl?: string;
+  category?: string;
+  tags: string[];
+}
+
+function VoicePickerGrid({ onSelect, blobProxy }: { onSelect: (voiceId: string, previewUrl?: string) => void; blobProxy: (u: string) => string }) {
+  const [voices, setVoices] = useState<VoiceItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [testingVoice, setTestingVoice] = useState<string | null>(null);
+  const [testAudio, setTestAudio] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/api/studio/voices")
+      .then((r) => r.json())
+      .then((d) => setVoices(d.voices || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const testVoice = async (voice: VoiceItem) => {
+    if (testAudio[voice.voiceId]) return; // Already have it
+    setTestingVoice(voice.voiceId);
+    try {
+      const res = await fetch("/api/studio/voices/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voiceId: voice.voiceId, emotion: "neutral" }),
+      });
+      const data = await res.json();
+      if (data.audioUrl) setTestAudio((prev) => ({ ...prev, [voice.voiceId]: data.audioUrl }));
+    } catch { /* */ }
+    setTestingVoice(null);
+  };
+
+  const resolveUrl = (url: string) =>
+    url.includes(".blob.vercel-storage.com") ? blobProxy(url) : url;
+
+  if (loading) return <div className="flex justify-center py-8"><div className="w-4 h-4 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin" /></div>;
+
+  if (voices.length === 0) return <p className="text-center text-white/30 text-sm py-8">Keine Stimmen. Importiere zuerst Stimmen in der Library.</p>;
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {voices.map((voice) => {
+        const audioUrl = testAudio[voice.voiceId] || voice.previewUrl;
+        return (
+          <div key={voice.id} className="bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:border-[#d4a853]/30 transition-all">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-medium text-[#f5eed6]">{voice.name}</p>
+              <button
+                onClick={() => onSelect(voice.voiceId, voice.previewUrl)}
+                className="text-[9px] px-2.5 py-1 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium"
+              >
+                Waehlen
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {voice.category && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300/50">{voice.category}</span>}
+              {voice.tags.slice(0, 4).map((t) => <span key={t} className="text-[8px] text-white/20">{t}</span>)}
+            </div>
+            {audioUrl ? (
+              <audio controls src={resolveUrl(audioUrl)} className="w-full h-7 opacity-60" />
+            ) : (
+              <button
+                onClick={() => testVoice(voice)}
+                disabled={testingVoice !== null}
+                className="w-full text-[10px] py-1.5 bg-purple-500/10 text-purple-300/50 rounded-lg hover:text-purple-300 disabled:opacity-30"
+              >
+                {testingVoice === voice.voiceId ? (
+                  <span className="flex items-center justify-center gap-1.5">
+                    <span className="w-2.5 h-2.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                    Generiert...
+                  </span>
+                ) : "Anhoeren"}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -5,6 +5,7 @@
  */
 
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { put } from "@vercel/blob";
 
 export const maxDuration = 60;
@@ -58,6 +59,16 @@ export async function POST(request: Request) {
     return Response.json({ error: `Unbekannte Emotion: ${body.emotion}` }, { status: 400 });
   }
 
+  // Check cache first — look for this voice in the DB
+  const cachedVoice = await prisma.voice.findFirst({
+    where: { voiceId: body.voiceId },
+    select: { id: true, emotionSamples: true },
+  });
+  const cached = cachedVoice?.emotionSamples as Record<string, string> | null;
+  if (cached?.[body.emotion]) {
+    return Response.json({ audioUrl: cached[body.emotion], emotion: body.emotion, cached: true });
+  }
+
   try {
     const { generateSingleTTS } = await import("@/lib/elevenlabs");
     const settings = {
@@ -70,10 +81,19 @@ export async function POST(request: Request) {
 
     const { mp3 } = await generateSingleTTS(sample.text, body.voiceId, settings as any);
     const blob = await put(
-      `studio/voices/test-${body.voiceId}-${body.emotion}-${Date.now()}.mp3`,
+      `studio/voices/test-${body.voiceId}-${body.emotion}.mp3`,
       Buffer.from(mp3),
       { access: "private", contentType: "audio/mpeg" },
     );
+
+    // Cache in DB
+    if (cachedVoice) {
+      const updated = { ...(cached || {}), [body.emotion]: blob.url };
+      await prisma.voice.update({
+        where: { id: cachedVoice.id },
+        data: { emotionSamples: updated },
+      });
+    }
 
     return Response.json({ audioUrl: blob.url, emotion: body.emotion });
   } catch (err) {

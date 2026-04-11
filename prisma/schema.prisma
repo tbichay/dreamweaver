@@ -500,6 +500,7 @@ model Voice {
   voiceId         String          // ElevenLabs permanent voice ID
   voiceSettings   Json?           // { stability, similarity_boost, style, speed }
   previewUrl      String?         // Audio preview blob URL
+  emotionSamples  Json?           // { neutral?: url, happy?: url, sad?: url, ... } cached samples
   category        String?         // "narrator" | "character" | "child" | "custom"
   tags            String[]        // ["maennlich", "warm", "deutsch", "alt"]
 
