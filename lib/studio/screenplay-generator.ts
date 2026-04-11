@@ -24,9 +24,10 @@ interface ScreenplayOptions {
   directingStyle?: string;
   atmosphere?: string;
   atmospherePreset?: string;
-  stylePrompt?: string; // Visual style (Disney 2D, Pixar 3D, etc.)
+  stylePrompt?: string;
   targetFormat?: "portrait" | "wide";
-  mode?: "film" | "hoerspiel" | "audiobook"; // film = lip-sync dialog, hoerspiel = multi-voice no lip-sync, audiobook = narrator only
+  targetDurationSec?: number; // Target film duration in seconds (e.g. 20, 60, 300, 1200)
+  mode?: "film" | "hoerspiel" | "audiobook";
 }
 
 const SCREENPLAY_SYSTEM = `Du bist ein preisgekroenter Film-Regisseur und Drehbuch-Autor.
@@ -137,6 +138,7 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
     atmosphere,
     atmospherePreset,
     stylePrompt,
+    targetDurationSec,
     mode = "audiobook",
   } = options;
 
@@ -198,7 +200,13 @@ Erstelle das Drehbuch als JSON. Beachte:
 - Teile lange Beats (>15s) in mehrere Szenen auf
 - Fuege Landscape-Szenen vor dem ersten Dialog einer Sequenz ein
 - Jede Szene hat audioStartMs/audioEndMs basierend auf den Beat-Timings
-- Die erste Szene einer Sequenz ist IMMER landscape (Establishing Shot)`;
+- Die erste Szene einer Sequenz ist IMMER landscape (Establishing Shot)
+${targetDurationSec ? `\n## ZIEL-FILMLAENGE: ${targetDurationSec} Sekunden (~${Math.round(targetDurationSec / 60)} Minuten)
+- Passe die Anzahl der Szenen an die Ziel-Laenge an
+- Bei kurzen Filmen (< 30s): Nur 3-5 Szenen, sehr kompakt, jede Szene ~5s
+- Bei mittleren Filmen (30-120s): 8-15 Szenen, gutes Tempo
+- Bei langen Filmen (> 120s): Viele Szenen, mehr Dialog, mehr Establishing Shots
+- Jede Szene hat durationHint in Sekunden — die Summe aller durationHints sollte ~${targetDurationSec}s ergeben` : ""}`;
 
   // Build mode section
   const modeDescriptions: Record<string, { title: string; instructions: string }> = {

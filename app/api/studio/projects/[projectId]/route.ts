@@ -47,6 +47,7 @@ export async function PUT(
     directingStyle?: string;
     atmosphere?: string;
     format?: string;
+    targetDurationSec?: number;
     status?: string;
   };
 
@@ -67,6 +68,7 @@ export async function PUT(
       ...(body.directingStyle !== undefined && { directingStyle: body.directingStyle }),
       ...(body.atmosphere !== undefined && { atmosphere: body.atmosphere }),
       ...(body.format !== undefined && { format: body.format }),
+      ...(body.targetDurationSec !== undefined && { targetDurationSec: body.targetDurationSec }),
       ...(body.status !== undefined && { status: body.status }),
     },
     include: {

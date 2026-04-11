@@ -121,6 +121,7 @@ export async function POST(
           atmosphere: body.atmosphere,
           atmospherePreset: body.atmospherePreset,
           stylePrompt: project.stylePrompt || undefined,
+          targetDurationSec: (project as { targetDurationSec?: number }).targetDurationSec || undefined,
           mode: body.mode || "audiobook",
         });
 

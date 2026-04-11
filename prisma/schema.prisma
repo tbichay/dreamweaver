@@ -267,6 +267,7 @@ model StudioProject {
   directingStyle  String?           // Directing preset ID
   atmosphere      String?           // Default atmosphere for all sequences
   format          String            @default("portrait") // portrait | wide | cinema
+  targetDurationSec Int?              // Target film duration in seconds (20=reel, 60=short, 300=medium, 1200=long)
 
   // Production state
   status          String            @default("draft") // draft | screenplay | characters | production | completed

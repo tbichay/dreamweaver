@@ -72,6 +72,7 @@ interface Project {
   atmosphere?: string;
   stylePrompt?: string;
   format?: string;
+  targetDurationSec?: number;
   language?: string;
   videoUrl?: string;
   characters: Character[];
@@ -304,6 +305,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
   const [text, setText] = useState(project.storyText || "");
   const [name, setName] = useState(project.name);
   const [format, setFormat] = useState(project.format || "portrait");
+  const [targetDuration, setTargetDuration] = useState(project.targetDurationSec || 60);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -332,7 +334,7 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
     await fetch(`/api/studio/projects/${project.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, storyText: text, storySource: mode === "ai" ? "ai" : "typed", format }),
+      body: JSON.stringify({ name, storyText: text, storySource: mode === "ai" ? "ai" : "typed", format, targetDurationSec: targetDuration }),
     });
     onUpdate(project.id);
     setSaving(false);
@@ -479,6 +481,35 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
               title={f.desc}
             >
               {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Duration Selector */}
+      <div>
+        <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
+          Filmlaenge
+        </label>
+        <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
+          {[
+            { sec: 20, label: "~20s Reel" },
+            { sec: 60, label: "~1min Short" },
+            { sec: 180, label: "~3min" },
+            { sec: 300, label: "~5min" },
+            { sec: 600, label: "~10min" },
+            { sec: 1200, label: "~20min" },
+          ].map((d) => (
+            <button
+              key={d.sec}
+              onClick={() => setTargetDuration(d.sec)}
+              className={`flex-1 text-center py-1.5 rounded-md text-[10px] transition-all ${
+                targetDuration === d.sec
+                  ? "bg-[#d4a853]/20 text-[#d4a853]"
+                  : "text-white/30 hover:text-white/50"
+              }`}
+            >
+              {d.label}
             </button>
           ))}
         </div>
