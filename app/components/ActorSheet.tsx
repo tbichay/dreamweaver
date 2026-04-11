@@ -175,6 +175,8 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
             name: name.trim(),
             description: description.trim(),
             voiceDescription: voiceDescription.trim() || null,
+            voiceId: voiceId || undefined,
+            voicePreviewUrl: voicePreviewUrl || undefined,
             style,
             outfit: outfit.trim() || null,
             traits: traits.trim() || null,
@@ -430,6 +432,7 @@ function VoicePickerGrid({ onSelect, blobProxy }: { onSelect: (voiceId: string, 
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
