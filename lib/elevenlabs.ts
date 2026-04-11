@@ -439,7 +439,7 @@ async function generateTTS(
       };
 
   const response = await fetchWithRetry(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_24000`,
+    `${process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io/v1"}/text-to-speech/${voiceId}?output_format=pcm_24000`,
     {
       method: "POST",
       headers: {
@@ -474,7 +474,7 @@ async function generateSoundEffect(prompt: string, durationSeconds = 3): Promise
 
   try {
     const response = await fetchWithRetry(
-      "https://api.elevenlabs.io/v1/sound-generation?output_format=pcm_24000",
+      `${process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io/v1"}/sound-generation?output_format=pcm_24000`,
       {
         method: "POST",
         headers: {
@@ -825,8 +825,9 @@ export async function generateSingleTTS(
   text: string,
   voiceId: string,
   settings: CharacterVoiceSettings,
+  previousText?: string,
 ): Promise<{ mp3: ArrayBuffer; durationMs: number }> {
-  const pcm = await generateTTS(text, voiceId, settings);
+  const pcm = await generateTTS(text, voiceId, settings, previousText);
   const mp3Data = pcmToMp3(pcm);
   const durationMs = (pcm.byteLength / 2 / 24000) * 1000;
   return { mp3: mp3Data, durationMs };
@@ -862,7 +863,7 @@ export async function designVoice(
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY not set");
 
   const res = await fetchWithRetry(
-    "https://api.elevenlabs.io/v1/text-to-voice/create-previews",
+    `${process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io/v1"}/text-to-voice/create-previews`,
     {
       method: "POST",
       headers: {
@@ -900,7 +901,7 @@ export async function saveDesignedVoice(
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY not set");
 
   const res = await fetchWithRetry(
-    "https://api.elevenlabs.io/v1/text-to-voice/create-voice-from-preview",
+    `${process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io/v1"}/text-to-voice/create-voice-from-preview`,
     {
       method: "POST",
       headers: {

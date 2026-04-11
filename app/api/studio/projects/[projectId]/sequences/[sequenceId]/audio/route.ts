@@ -158,25 +158,28 @@ export async function POST(
               voiceSettings = { ...knownChar.voiceSettings };
             }
 
-            // Apply emotional modifiers
-            const emotion = scene.emotion || "neutral";
-            const settings = { ...voiceSettings };
-            if (emotion === "dramatic" || emotion === "tense" || emotion === "angry") {
-              settings.stability = Math.max(0.2, settings.stability - 0.1);
-              settings.style = Math.min(1.0, (settings.style || 0.5) + 0.15);
-              settings.speed = (settings.speed || 1.0) * 1.05;
-            }
-            if (emotion === "calm" || emotion === "sad") {
-              settings.stability = Math.min(0.8, settings.stability + 0.1);
-              settings.speed = (settings.speed || 1.0) * 0.9;
-            }
-            if (emotion === "excited" || emotion === "joyful") {
-              settings.stability = Math.max(0.2, settings.stability - 0.05);
-              settings.speed = (settings.speed || 1.0) * 1.1;
-            }
+            // Apply emotional modifiers with full context
+            const { buildEmotionContext, applyEmotion } = await import("@/lib/studio/tts-emotion");
+            const emotionResult = buildEmotionContext(
+              {
+                emotion: scene.emotion || "neutral",
+                sceneDescription: scene.sceneDescription,
+                mood: scene.mood,
+                characterName: char?.name,
+                spokenText: scene.spokenText,
+              },
+              sequence.project.stylePrompt || undefined,
+              sequence.directingStyle || undefined,
+            );
+            const settings = applyEmotion({ ...voiceSettings }, emotionResult);
 
             try {
-              const { mp3, durationMs } = await generateSingleTTS(scene.spokenText, voiceId, settings);
+              const { mp3, durationMs } = await generateSingleTTS(
+                scene.spokenText,
+                voiceId,
+                settings,
+                emotionResult.contextText, // previous_text for prosody
+              );
               const audioBuffer = Buffer.from(mp3);
 
               // Upload to blob
