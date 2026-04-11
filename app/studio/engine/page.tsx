@@ -1701,6 +1701,84 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
   );
 }
 
+// ── Sequence Preview Player ────────────────────────────────────────
+
+function SequencePreviewPlayer({ scenes }: { scenes: NonNullable<Sequence["scenes"]> }) {
+  const [playing, setPlaying] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const clips = scenes.filter((s) => s.status === "done" && s.videoUrl);
+  if (clips.length < 2) return null; // Only show if 2+ clips
+
+  const currentClip = clips[currentIdx];
+  const clipUrl = currentClip?.videoUrl
+    ? `/api/studio/blob?url=${encodeURIComponent(currentClip.videoUrl)}`
+    : "";
+
+  const handleEnded = () => {
+    if (currentIdx < clips.length - 1) {
+      setCurrentIdx(currentIdx + 1);
+    } else {
+      setPlaying(false);
+      setCurrentIdx(0);
+    }
+  };
+
+  const handlePlay = () => {
+    setPlaying(true);
+    setCurrentIdx(0);
+  };
+
+  useEffect(() => {
+    if (playing && videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+  }, [currentIdx, playing]);
+
+  if (!playing) {
+    return (
+      <button
+        onClick={handlePlay}
+        className="w-full text-center text-[9px] py-1.5 bg-[#d4a853]/10 text-[#d4a853]/60 rounded-lg hover:text-[#d4a853] hover:bg-[#d4a853]/20 transition-all mb-2"
+      >
+        ▶ Alle {clips.length} Clips abspielen
+      </button>
+    );
+  }
+
+  return (
+    <div className="mb-2 rounded-xl overflow-hidden bg-black relative">
+      <video
+        ref={videoRef}
+        key={currentIdx}
+        src={clipUrl}
+        autoPlay
+        onEnded={handleEnded}
+        className="w-full aspect-video"
+        playsInline
+      />
+      <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2">
+        <span className="text-[8px] text-white/60 bg-black/60 px-1.5 py-0.5 rounded">
+          {currentIdx + 1}/{clips.length}
+        </span>
+        <div className="flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-[#d4a853] transition-all"
+            style={{ width: `${((currentIdx + 1) / clips.length) * 100}%` }}
+          />
+        </div>
+        <button
+          onClick={() => { setPlaying(false); setCurrentIdx(0); }}
+          className="text-[8px] text-white/40 bg-black/60 px-1.5 py-0.5 rounded hover:text-white/70"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Sequence Card (within Production Tab) ──────────────────────────
 
 function SequenceCard({
@@ -2071,6 +2149,9 @@ function SequenceCard({
               />
             </div>
           )}
+
+          {/* Sequence Preview Player — play all clips in order */}
+          <SequencePreviewPlayer scenes={sequence.scenes || []} />
 
           {/* Scene List with Clip Versions */}
           {sequence.scenes && sequence.scenes.length > 0 && (
