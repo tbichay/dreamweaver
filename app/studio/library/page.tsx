@@ -1560,8 +1560,8 @@ export default function LibraryPage() {
             />
           )}
 
-          {/* Actor Grid */}
-          {filteredActors.length === 0 ? (
+          {/* Actor Grid — hidden when sheet is open */}
+          {!showNewActorForm && !selectedActor && (filteredActors.length === 0 ? (
             <div className="card p-8 text-center text-white/30 text-sm">
               <p>Noch keine Schauspieler. Erstelle deinen ersten digitalen Schauspieler mit KI-Stimme.</p>
             </div>
@@ -1647,7 +1647,7 @@ export default function LibraryPage() {
                 );
               })}
             </div>
-          )}
+          ))}
         </>
       )}
 
