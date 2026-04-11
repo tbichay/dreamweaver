@@ -102,21 +102,38 @@ export async function PUT(request: Request) {
       body.generatedVoiceId,
     );
 
-    // Default voice settings for a custom voice
+    // Expressive default settings (like kids app characters — low stability = more emotion)
     const defaultSettings = body.voiceSettings || {
-      stability: 0.45,
-      similarity_boost: 0.70,
-      style: 0.50,
+      stability: 0.35,          // Low = more expressive, emotional variation
+      similarity_boost: 0.75,   // High = closer to designed voice
+      style: 0.65,              // High = more personality and expression
       use_speaker_boost: true,
-      speed: 1.0,
+      speed: 0.95,              // Slightly slow for storytelling
     };
 
-    // Update actor with permanent voice ID
+    // Generate an expressive TTS preview with the saved voice
+    let expressivePreviewUrl: string | undefined;
+    try {
+      const { generateSingleTTS } = await import("@/lib/elevenlabs");
+      const emotionalSample = "Es war einmal... ein kleines Wesen, das sich fuerchtete. \"Oh nein!\" rief es erschrocken. Aber dann — ein Lachen! \"Ha! Das war ja gar nicht so schlimm!\" Und mit einem warmen Laecheln fluesterte es: \"Alles wird gut.\"";
+      const { mp3 } = await generateSingleTTS(emotionalSample, permanentVoiceId, defaultSettings as any);
+      const previewBlob = await put(
+        `studio/actors/voice-expressive-${Date.now()}.mp3`,
+        Buffer.from(mp3),
+        { access: "private", contentType: "audio/mpeg" },
+      );
+      expressivePreviewUrl = previewBlob.url;
+    } catch (err) {
+      console.warn("[Voice] Expressive preview generation failed:", err);
+    }
+
+    // Update actor with permanent voice ID + expressive preview
     const updatedActor = await prisma.digitalActor.update({
       where: { id: body.actorId },
       data: {
         voiceId: permanentVoiceId,
         voiceSettings: JSON.parse(JSON.stringify(defaultSettings)),
+        ...(expressivePreviewUrl && { voicePreviewUrl: expressivePreviewUrl }),
       },
     });
 
