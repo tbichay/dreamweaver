@@ -152,6 +152,7 @@ export async function klingAvatar(
   const input: Record<string, unknown> = {
     image_url: imageUrl,
     audio_url: audioUrl,
+    negative_prompt: "text, subtitles, captions, words, letters, writing, watermark",
   };
   if (prompt) input.prompt = prompt;
 
@@ -215,6 +216,7 @@ export async function klingI2V(options: KlingI2VOptions): Promise<string> {
   const input: Record<string, unknown> = {
     start_image_url: startImageUrl,
     prompt,
+    negative_prompt: "text, subtitles, captions, titles, words, letters, writing, watermark, logo, text overlay, text morphing, speech bubble",
     duration: durationSeconds,
     aspect_ratio: aspectRatio,
     generate_audio: generateAudio,
