@@ -238,7 +238,10 @@ export async function POST(
 
         if (isDialog && (portraitBuffer || characterRefs.length > 0)) {
           // ── DIALOG: Kling 3.0 Pro with Character Binding + Audio Lip-Sync ──
-          const segDur = Math.min(10, Math.max(2, (scene.audioEndMs - scene.audioStartMs) / 1000));
+          // Audio duration is MASTER — clip must match exactly
+          const audioDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
+          // Kling supports 2-10s per clip. Round up to ensure audio fits.
+          const segDur = Math.max(2, Math.ceil(audioDurSec));
           send({ progress: "Kling 3.0 Pro: Character + Lip-Sync..." });
           await task.progress("Kling 3.0 Dialog...", 30);
 

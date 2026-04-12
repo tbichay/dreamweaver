@@ -104,7 +104,12 @@ export async function POST(
                 videoUrl: scene.videoUrl,
                 dialogAudioUrl: scene.dialogAudioUrl,
                 sfxAudioUrl: scene.sfxAudioUrl,
-                durationMs: scene.actualDurationMs || scene.dialogDurationMs || scene.audioEndMs - scene.audioStartMs || (scene.durationHint || 5) * 1000,
+                // Audio is MASTER for dialog scenes — use audio duration, not video duration
+                durationMs: scene.type === "dialog" && scene.dialogDurationMs
+                  ? scene.dialogDurationMs
+                  : scene.type === "dialog" && scene.audioEndMs > scene.audioStartMs
+                  ? scene.audioEndMs - scene.audioStartMs
+                  : scene.actualDurationMs || (scene.durationHint || 5) * 1000,
                 type: scene.type,
                 characterId: scene.characterId,
               });
