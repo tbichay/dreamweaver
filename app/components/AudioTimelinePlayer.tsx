@@ -92,10 +92,30 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, musicUrl, mus
       // Check if audioStartMs values are actually set (not all 0)
       const allStartsZero = dialogScenes.every((s) => !s.audioStartMs || s.audioStartMs === 0);
 
+      // Build a timing map: for each scene, calculate correct start time
+      // This handles both cases: audioStartMs set correctly OR all zero
+      const sceneTimingMap = new Map<number, number>(); // sceneIndex → startMs
+      if (allStartsZero) {
+        let cumMs = 0;
+        for (let i = 0; i < scenes.length; i++) {
+          sceneTimingMap.set(i, cumMs);
+          // Estimate scene duration from dialogDurationMs or durationHint
+          const s = scenes[i];
+          const durMs = (s.audioEndMs - s.audioStartMs) > 0
+            ? (s.audioEndMs - s.audioStartMs)
+            : 4000; // ~4s default per scene
+          cumMs += durMs + 200; // 200ms gap
+        }
+      } else {
+        for (let i = 0; i < scenes.length; i++) {
+          sceneTimingMap.set(i, scenes[i].audioStartMs || 0);
+        }
+      }
+
       // Load dialog tracks
       if (track === "all" || track === "dialog") {
-        let cumulativeMs = 0; // Fallback timing if audioStartMs is missing
-        for (const scene of dialogScenes) {
+        for (let i = 0; i < scenes.length; i++) {
+          const scene = scenes[i];
           if (!scene.dialogAudioUrl) continue;
           try {
             const res = await fetch(resolveUrl(scene.dialogAudioUrl));
@@ -104,29 +124,22 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, musicUrl, mus
             if (arrayBuf.byteLength < 100) continue;
             const buffer = await ctx.decodeAudioData(arrayBuf);
 
-            // Use audioStartMs if available, otherwise cumulative timing
-            const startSec = allStartsZero
-              ? cumulativeMs / 1000
-              : (scene.audioStartMs || 0) / 1000;
+            const startMs = sceneTimingMap.get(i) || 0;
+            scheduled.push({ buffer, startSec: startMs / 1000, volume: 1.0 });
 
-            scheduled.push({ buffer, startSec, volume: 1.0 });
-
-            // Accumulate for fallback timing (dialog duration + small gap)
-            cumulativeMs += buffer.duration * 1000 + 300; // 300ms gap between dialogs
+            // If using fallback timing, update map with actual audio duration
+            if (allStartsZero && i + 1 < scenes.length) {
+              const nextStart = startMs + buffer.duration * 1000 + 200;
+              sceneTimingMap.set(i + 1, Math.max(sceneTimingMap.get(i + 1) || 0, nextStart));
+            }
           } catch { /* skip */ }
         }
       }
 
-      // Load SFX tracks (play alongside their dialog)
+      // Load SFX tracks (same timing as their corresponding scene)
       if (track === "all") {
-        let sfxCumulativeMs = 0;
-        for (const scene of scenes) {
-          if (scene.dialogAudioUrl) {
-            // Track cumulative timing for SFX positioning
-            sfxCumulativeMs = allStartsZero
-              ? sfxCumulativeMs // will be updated below
-              : (scene.audioStartMs || sfxCumulativeMs);
-          }
+        for (let i = 0; i < scenes.length; i++) {
+          const scene = scenes[i];
           if (!scene.sfxAudioUrl) continue;
           try {
             const res = await fetch(resolveUrl(scene.sfxAudioUrl));
@@ -135,11 +148,8 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, musicUrl, mus
             if (arrayBuf.byteLength < 100) continue;
             const buffer = await ctx.decodeAudioData(arrayBuf);
 
-            const startSec = allStartsZero
-              ? sfxCumulativeMs / 1000
-              : (scene.audioStartMs || 0) / 1000;
-
-            scheduled.push({ buffer, startSec, volume: 0.3 });
+            const startMs = sceneTimingMap.get(i) || 0;
+            scheduled.push({ buffer, startSec: startMs / 1000, volume: 0.3 });
           } catch { /* skip */ }
         }
       }
