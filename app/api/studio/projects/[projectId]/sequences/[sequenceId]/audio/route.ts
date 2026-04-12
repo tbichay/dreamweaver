@@ -139,6 +139,12 @@ export async function POST(
         for (let i = 0; i < scenes.length; i++) {
           const scene = scenes[i];
 
+          // Check if task was cancelled
+          if (await task.isCancelled()) {
+            send({ progress: "Abgebrochen!" });
+            break;
+          }
+
           // Dialog TTS (only for scenes with spokenText)
           if (scene.spokenText && scene.characterId) {
             dialogCount++;
@@ -162,27 +168,24 @@ export async function POST(
               voiceSettings = { ...knownChar.voiceSettings };
             }
 
-            // Apply emotional modifiers with full context
+            // Apply emotional voice settings (stability, style, speed based on scene emotion)
             const { buildEmotionContext, applyEmotion } = await import("@/lib/studio/tts-emotion");
             const emotionResult = buildEmotionContext(
               {
                 emotion: scene.emotion || "neutral",
-                sceneDescription: scene.sceneDescription,
-                mood: scene.mood,
                 characterName: char?.name,
-                spokenText: scene.spokenText,
               },
-              sequence.project.stylePrompt || undefined,
-              sequence.directingStyle || undefined,
+              undefined, // Skip visual style for simpler context
+              undefined,
             );
             const settings = applyEmotion({ ...voiceSettings }, emotionResult);
 
             try {
+              // Generate TTS — no previous_text to keep it simple and reliable
               const { mp3, durationMs } = await generateSingleTTS(
                 scene.spokenText,
                 voiceId,
                 settings,
-                emotionResult.contextText, // previous_text for prosody
               );
               const audioBuffer = Buffer.from(mp3);
 
