@@ -116,6 +116,23 @@ Die Stimme des Charakters macht diese Emotionen selbst.
   NICHT: Lachen, Seufzen, Schreien — das gehoert in spokenText mit Audio-Tags!
 - ambience: Hintergrund-Atmosphaere (z.B. "rain on asphalt, distant crowd cheering")
 
+## KAMERA-REGELN (EXTREM WICHTIG fuer Video-Generierung!)
+
+Die Kamera bestimmt WER im Bild zu sehen ist:
+- "close-up": NUR der sprechende Charakter. Wird fuer Lip-Sync verwendet.
+  → Nutze close-up fuer: emotionale Momente, Pointen, Lachen, Weinen, Fluestern
+- "medium": Der sprechende Charakter + Umgebung. KEINE Lip-Sync.
+  → Nutze medium fuer: normale Dialoge wo man den Kontext sehen will
+- "wide": ALLE Charaktere in der Szene. KEINE Lip-Sync.
+  → Nutze wide fuer: Establishing Shots, Gruppenreaktionen, Lachexplosionen aller
+- "slow-pan": Langsame Kamerabewegung ueber die Szene
+- "zoom-in": Langsam naeher → wird wie close-up behandelt (mit Lip-Sync)
+- "zoom-out": Langsam weiter → zeigt mehr Umgebung
+
+WECHSLE HAEUFIG zwischen close-up und medium/wide!
+Ein guter Film hat ca. 60% close-up und 40% medium/wide.
+Nie mehr als 3 close-ups hintereinander — dann MUSS ein medium/wide kommen.
+
 ## Regeln
 
 1. Jede Szene maximal 15 Sekunden
@@ -124,6 +141,7 @@ Die Stimme des Charakters macht diese Emotionen selbst.
 4. sceneDescription IMMER auf ENGLISCH (Video-AI versteht Englisch am besten)
 5. spokenText in der Sprache der Geschichte (z.B. Deutsch) MIT Audio-Tags fuer Emotionen
 6. WIEDERHOLE visuelle Details (Farben, Kleidung, Wetter) in JEDER Szene
+7. WECHSLE Kamera-Einstellungen: close-up ↔ medium ↔ wide (siehe KAMERA-REGELN)
 
 ## Output-Format
 

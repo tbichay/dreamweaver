@@ -237,44 +237,73 @@ export async function POST(
         }
 
         if (isDialog && (portraitBuffer || characterRefs.length > 0)) {
-          // ── DIALOG: Kling Avatar — single character speaks with lip-sync ──
-          // IMPORTANT: Use the SPEAKING character's portrait, NOT a group scene
-          // This ensures only the correct character moves their mouth
+          // ── DIALOG: Camera-based strategy ──
+          // close-up → Avatar (only speaker, with lip-sync)
+          // medium/wide → I2V (group scene, no lip-sync, audio plays over)
           const audioDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
           const segDur = Math.max(2, Math.ceil(audioDurSec));
+          const camera = scene.camera || "close-up";
+          const isCloseUp = camera === "close-up" || camera === "zoom-in";
 
-          // Always use the character's own portrait for dialog (not prevFrame)
-          const speakerImage = portraitBuffer || characterRefs[0];
-          if (!speakerImage) throw new Error("Kein Portrait verfuegbar fuer Dialog-Szene");
+          if (isCloseUp) {
+            // ── CLOSE-UP: Kling Avatar — only the speaker, with lip-sync ──
+            const speakerImage = portraitBuffer || characterRefs[0];
+            if (!speakerImage) throw new Error("Kein Portrait fuer Close-Up Dialog");
 
-          send({ progress: `Kling Avatar: ${character?.name || "Dialog"} spricht...` });
-          await task.progress(`Avatar: ${character?.name || "Dialog"}...`, 30);
+            send({ progress: `Close-Up: ${character?.name || "Dialog"} spricht...` });
+            await task.progress(`Close-Up: ${character?.name || "Dialog"}`, 30);
 
-          try {
-            // Kling Avatar: portrait + audio → talking head with lip-sync
-            // This generates a video of ONLY the speaking character
-            videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "pro");
-          } catch (err) {
-            console.warn("[Clip] Kling Avatar Pro failed, trying Standard:", err);
-            send({ progress: "Fallback: Kling Avatar Standard..." });
             try {
-              videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "standard");
-            } catch (err2) {
-              console.warn("[Clip] Kling Avatar Standard failed, trying I2V + LipSync:", err2);
-              send({ progress: "Fallback: Kling I2V + LipSync..." });
-              // Last resort: I2V + separate LipSync
+              videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "pro");
+            } catch (err) {
+              console.warn("[Clip] Avatar Pro failed, trying Standard:", err);
+              send({ progress: "Fallback: Avatar Standard..." });
+              try {
+                videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "standard");
+              } catch (err2) {
+                console.warn("[Clip] Avatar Standard failed, trying I2V:", err2);
+                send({ progress: "Fallback: I2V..." });
+                videoUrl = await klingI2V({
+                  imageBuffer: speakerImage,
+                  prompt,
+                  durationSeconds: Math.ceil(segDur),
+                  aspectRatio,
+                  quality: "pro",
+                  generateAudio: false,
+                });
+              }
+            }
+          } else {
+            // ── MEDIUM/WIDE: Kling I2V — group scene, NO lip-sync ──
+            // Audio plays over the video but no mouths move
+            // Use prevFrame (group) or landscape as start image
+            const groupImage = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
+            if (!groupImage) throw new Error("Kein Bild fuer Gruppenszene");
+
+            send({ progress: `${camera}: Gruppenszene mit ${character?.name || "Dialog"}...` });
+            await task.progress(`${camera}: Gruppe`, 30);
+
+            try {
               videoUrl = await klingI2V({
-                imageBuffer: speakerImage,
+                imageBuffer: groupImage,
                 prompt,
                 durationSeconds: Math.ceil(segDur),
                 aspectRatio,
                 quality: "pro",
+                characterElements: characterRefs.length > 0 ? characterRefs : undefined,
                 generateAudio: false,
               });
-              const videoRes2 = await fetch(videoUrl);
-              const videoBuffer2 = Buffer.from(await videoRes2.arrayBuffer());
-              const { klingLipSync } = await import("@/lib/fal");
-              videoUrl = await klingLipSync(videoBuffer2, audioSegment);
+            } catch (err) {
+              console.warn("[Clip] I2V Pro failed, trying Standard:", err);
+              send({ progress: "Fallback: I2V Standard..." });
+              videoUrl = await klingI2V({
+                imageBuffer: groupImage,
+                prompt,
+                durationSeconds: Math.ceil(segDur),
+                aspectRatio,
+                quality: "standard",
+                generateAudio: false,
+              });
             }
           }
         } else {
