@@ -60,7 +60,7 @@ export async function POST(
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { projectId, sequenceId } = await params;
-  const body = await request.json() as { force?: boolean };
+  const body = await request.json() as { force?: boolean; ambienceOnly?: boolean };
 
   // Load sequence with project and characters
   const sequence = await prisma.studioSequence.findFirst({

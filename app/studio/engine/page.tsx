@@ -1953,36 +1953,70 @@ function SequenceCard({
     setProgress("Starte Audio...");
     setError("");
 
-
-    const controller = new AbortController();
-    abortRef.current = controller;
+    const scenes = sequence.scenes || [];
+    let totalDurationMs = 0;
+    let dialogsDone = 0;
+    const totalDialogs = scenes.filter((s) => s.spokenText && s.characterId).length;
 
     try {
-      const res = await fetch(
-        `/api/studio/projects/${projectId}/sequences/${sequence.id}/audio`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ force: true }),
-          signal: controller.signal,
-        },
-      );
+      // Generate each scene individually (avoids Vercel timeout)
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        const needsDialog = scene.spokenText && scene.characterId;
+        const needsSfx = scene.sfx;
 
-      let hadError = false;
-      await consumeSSE(res, {
-        onProgress: setProgress,
-        onError: (e) => { setError(e); hadError = true; },
-        onDone: () => onUpdate(),
-      });
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        setError((err as Error).message);
+        if (!needsDialog && !needsSfx) continue;
+
+        if (needsDialog) {
+          dialogsDone++;
+          setProgress(`Dialog ${dialogsDone}/${totalDialogs}: Szene ${i + 1}...`);
+        } else {
+          setProgress(`SFX: Szene ${i + 1}...`);
+        }
+
+        const res = await fetch(
+          `/api/studio/projects/${projectId}/sequences/${sequence.id}/audio-scene`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sceneIndex: i, totalDurationMs }),
+          },
+        );
+
+        const data = await res.json();
+        if (!res.ok) {
+          console.warn(`[Audio] Scene ${i + 1} failed:`, data.error);
+          setProgress(`Szene ${i + 1} fehlgeschlagen: ${data.error?.slice(0, 60)}`);
+          continue; // Skip failed scene, continue with next
+        }
+
+        if (data.dialogDurationMs) {
+          totalDurationMs = data.newTotalDurationMs || (totalDurationMs + data.dialogDurationMs);
+          setProgress(`Dialog ${dialogsDone}/${totalDialogs} OK`);
+        }
       }
+
+      // Generate ambience
+      setProgress("Generiere Ambience...");
+      try {
+        await fetch(
+          `/api/studio/projects/${projectId}/sequences/${sequence.id}/audio`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ force: true, ambienceOnly: true }),
+          },
+        );
+      } catch { /* ambience is optional */ }
+
+      setProgress(`Fertig: ${dialogsDone} Dialoge`);
+      onUpdate();
+    } catch (err) {
+      setError((err as Error).message);
     }
 
     setAudioGenerating(false);
     setProgress("");
-    abortRef.current = null;
   };
 
   const generateSingleClip = async (sceneIndex: number) => {
