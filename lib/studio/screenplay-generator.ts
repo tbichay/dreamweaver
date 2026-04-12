@@ -80,8 +80,22 @@ Daher MUSS jede sceneDescription ALLE visuellen Details enthalten:
 
 ### Laenge: Minimum 3-5 Saetze pro sceneDescription. Mehr Detail = besseres Video.
 
-## SOUNDEFFEKTE (separate Felder)
-- sfx: Kurze SFX-Beschreibung auf Englisch (z.B. "tires screeching, engine roaring")
+## EMOTIONEN IM DIALOG (Audio-Tags)
+Baue Emotionen DIREKT in den spokenText ein mit Audio-Tags:
+- [laughing] vor Lachen: "[laughing] Hahaha, das ist ja witzig!"
+- [sighing] vor Seufzen: "[sighing] Na gut, wenn du meinst..."
+- [whispering] vor Fluestern: "[whispering] Psst, komm mal her..."
+- [gasping] vor Staunen: "[gasping] Das ist ja unglaublich!"
+- [crying] vor Weinen: "[crying] Das ist so traurig..."
+- [screaming] vor Schreien: "[screaming] NEIN! Pass auf!"
+- [excited] vor Aufregung: "[excited] JA! Endlich!"
+
+WICHTIG: Lachen, Seufzen, Weinen etc. gehoeren in den spokenText, NICHT in sfx!
+Die Stimme des Charakters macht diese Emotionen selbst.
+
+## SOUNDEFFEKTE (separate Felder — NUR Umgebungsgeraeusche)
+- sfx: NUR echte Umgebungsgeraeusche auf Englisch (z.B. "door creaking, wind howling")
+  NICHT: Lachen, Seufzen, Schreien — das gehoert in spokenText mit Audio-Tags!
 - ambience: Hintergrund-Atmosphaere (z.B. "rain on asphalt, distant crowd cheering")
 
 ## Regeln
@@ -90,7 +104,7 @@ Daher MUSS jede sceneDescription ALLE visuellen Details enthalten:
 2. Lange Dialog-Beats in mehrere 5-10s Szenen aufteilen
 3. Szenen muessen LUECKENLOS aneinander anschliessen
 4. sceneDescription IMMER auf ENGLISCH (Video-AI versteht Englisch am besten)
-5. spokenText in der Sprache der Geschichte (z.B. Deutsch)
+5. spokenText in der Sprache der Geschichte (z.B. Deutsch) MIT Audio-Tags fuer Emotionen
 6. WIEDERHOLE visuelle Details (Farben, Kleidung, Wetter) in JEDER Szene
 
 ## Output-Format
@@ -109,7 +123,7 @@ Antworte mit einem JSON-Objekt:
           "beatIds": ["beat-0", "beat-1"],
           "type": "landscape" | "dialog" | "transition",
           "characterId": "char-0" | null,
-          "spokenText": "Nur was der Charakter SAGT (max 100 Zeichen, in Story-Sprache)",
+          "spokenText": "[laughing] Dialog-Text MIT Audio-Tags fuer Emotionen (max 120 Zeichen, in Story-Sprache)",
           "sceneDescription": "DETAILED English description: 3-5 sentences with ALL visual details, colors, positions, weather, camera movement, character appearance, body language",
           "emotion": "tense" | "dramatic" | "calm" | "excited" | "neutral",
           "sfx": "English SFX description",
