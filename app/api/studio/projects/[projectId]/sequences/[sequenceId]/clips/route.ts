@@ -237,41 +237,45 @@ export async function POST(
         }
 
         if (isDialog && (portraitBuffer || characterRefs.length > 0)) {
-          // ── DIALOG: Kling 3.0 Pro with Character Binding + Audio Lip-Sync ──
-          // Audio duration is MASTER — clip must match exactly
+          // ── DIALOG: Kling Avatar — single character speaks with lip-sync ──
+          // IMPORTANT: Use the SPEAKING character's portrait, NOT a group scene
+          // This ensures only the correct character moves their mouth
           const audioDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
-          // Kling supports 2-10s per clip. Round up to ensure audio fits.
           const segDur = Math.max(2, Math.ceil(audioDurSec));
-          send({ progress: "Kling 3.0 Pro: Character + Lip-Sync..." });
-          await task.progress("Kling 3.0 Dialog...", 30);
 
-          // Use Kling Avatar for lip-sync (portrait + audio → talking head video)
-          const startImage = prevFrame || portraitBuffer || characterRefs[0];
-          if (!startImage) throw new Error("Kein Portrait verfuegbar fuer Dialog-Szene");
+          // Always use the character's own portrait for dialog (not prevFrame)
+          const speakerImage = portraitBuffer || characterRefs[0];
+          if (!speakerImage) throw new Error("Kein Portrait verfuegbar fuer Dialog-Szene");
+
+          send({ progress: `Kling Avatar: ${character?.name || "Dialog"} spricht...` });
+          await task.progress(`Avatar: ${character?.name || "Dialog"}...`, 30);
 
           try {
-            // Kling 3.0 Pro Image-to-Video with character binding + our TTS audio
-            videoUrl = await klingI2V({
-              imageBuffer: startImage,
-              prompt: `${prompt} The character speaks with natural lip movements matching the audio.`,
-              durationSeconds: Math.ceil(segDur),
-              aspectRatio,
-              quality: "pro",
-              characterElements: characterRefs.length > 0 ? characterRefs : portraitBuffer ? [portraitBuffer] : undefined,
-              generateAudio: false, // We provide our own TTS audio
-            });
-
-            // Apply Lip-Sync with our TTS audio
-            send({ progress: "Kling LipSync: Audio anwenden..." });
-            await task.progress("Lip-Sync...", 60);
-            const videoRes2 = await fetch(videoUrl);
-            const videoBuffer = Buffer.from(await videoRes2.arrayBuffer());
-            const { klingLipSync } = await import("@/lib/fal");
-            videoUrl = await klingLipSync(videoBuffer, audioSegment);
+            // Kling Avatar: portrait + audio → talking head with lip-sync
+            // This generates a video of ONLY the speaking character
+            videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "pro");
           } catch (err) {
-            console.warn("[Clip] Kling 3.0 Pro failed, fallback to Avatar:", err);
-            send({ progress: "Fallback: Kling Avatar..." });
-            videoUrl = await klingAvatar(startImage, audioSegment, prompt, "pro");
+            console.warn("[Clip] Kling Avatar Pro failed, trying Standard:", err);
+            send({ progress: "Fallback: Kling Avatar Standard..." });
+            try {
+              videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "standard");
+            } catch (err2) {
+              console.warn("[Clip] Kling Avatar Standard failed, trying I2V + LipSync:", err2);
+              send({ progress: "Fallback: Kling I2V + LipSync..." });
+              // Last resort: I2V + separate LipSync
+              videoUrl = await klingI2V({
+                imageBuffer: speakerImage,
+                prompt,
+                durationSeconds: Math.ceil(segDur),
+                aspectRatio,
+                quality: "pro",
+                generateAudio: false,
+              });
+              const videoRes2 = await fetch(videoUrl);
+              const videoBuffer2 = Buffer.from(await videoRes2.arrayBuffer());
+              const { klingLipSync } = await import("@/lib/fal");
+              videoUrl = await klingLipSync(videoBuffer2, audioSegment);
+            }
           }
         } else {
           // ── LANDSCAPE / TRANSITION: Kling 3.0 Image-to-Video ──

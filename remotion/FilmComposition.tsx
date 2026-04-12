@@ -184,13 +184,15 @@ const Film: React.FC<FilmProps> = ({
             isFirst={i === 0 && !title}
             isLast={i === scenes.length - 1}
           >
-            {/* Video — ALWAYS muted. All audio comes from our separate tracks (TTS, SFX, Ambience) */}
-            <Video
-              src={scene.videoUrl}
-              muted={true}
-              volume={0}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
+            {/* Video — ALWAYS muted. Cropped to hide Kling-generated subtitles at bottom */}
+            <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+              <Video
+                src={scene.videoUrl}
+                muted={true}
+                volume={0}
+                style={{ width: "100%", height: "110%", objectFit: "cover", marginTop: "-5%" }}
+              />
+            </div>
           </CrossfadeTransition>
 
           {/* Per-scene dialog audio (V2) */}
