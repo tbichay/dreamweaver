@@ -68,8 +68,8 @@ export async function POST(
 
       const { mp3, durationMs } = await generateSingleTTS(scene.spokenText, voiceId, settings);
       const audioBuffer = Buffer.from(mp3);
-      const blobPath = `studio/${projectId}/sequences/${sequenceId}/dialog-${String(body.sceneIndex).padStart(3, "0")}.mp3`;
-      const blob = await put(blobPath, audioBuffer, { access: "private", contentType: "audio/mpeg" });
+      const blobPath = `studio/${projectId}/sequences/${sequenceId}/dialog-${String(body.sceneIndex).padStart(3, "0")}-${Date.now()}.mp3`;
+      const blob = await put(blobPath, audioBuffer, { access: "private", contentType: "audio/mpeg", addRandomSuffix: true });
 
       dialogUrl = blob.url;
       dialogDurationMs = Math.round(durationMs);
@@ -82,8 +82,8 @@ export async function POST(
         const sfxMp3 = await generateSfx(scene.sfx, sfxDuration);
         if (sfxMp3) {
           const sfxBuffer = Buffer.from(sfxMp3);
-          const sfxBlobPath = `studio/${projectId}/sequences/${sequenceId}/sfx-${String(body.sceneIndex).padStart(3, "0")}.mp3`;
-          const sfxBlob = await put(sfxBlobPath, sfxBuffer, { access: "private", contentType: "audio/mpeg" });
+          const sfxBlobPath = `studio/${projectId}/sequences/${sequenceId}/sfx-${String(body.sceneIndex).padStart(3, "0")}-${Date.now()}.mp3`;
+          const sfxBlob = await put(sfxBlobPath, sfxBuffer, { access: "private", contentType: "audio/mpeg", addRandomSuffix: true });
           sfxUrl = sfxBlob.url;
         }
       } catch (err) {
