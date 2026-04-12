@@ -526,7 +526,10 @@ function buildScenePrompt(
 ): string {
   const parts: string[] = [];
 
-  // Visual style — FIRST so it sets the tone
+  // CRITICAL: No text in video — must be FIRST instruction
+  parts.push("ABSOLUTE RULE: Do NOT render ANY text, words, letters, subtitles, captions, titles, or writing of any kind in the video. The video must be PURELY VISUAL with zero text.");
+
+  // Visual style
   parts.push(`STYLE: ${stylePrompt || defaultStyle || "Photorealistic, cinematic lighting, professional cinematography."}`);
 
   // Character — detailed with actor traits/outfit
@@ -537,13 +540,30 @@ function buildScenePrompt(
     parts.push(charLine);
   }
 
-  // What the character is DOING — from spoken text context
+  // What the character is DOING — body language only, NO dialog text
   if (scene.spokenText && scene.type === "dialog") {
-    parts.push(`ACTION: The character is speaking. Their mouth moves naturally as they talk. Body language matches the emotion: ${scene.emotion || "neutral"}.`);
+    // Don't include the spoken text — just describe the action
+    const emotionAction: Record<string, string> = {
+      "neutral": "talking naturally",
+      "excited": "talking excitedly with animated gestures",
+      "happy": "talking happily with a bright smile",
+      "sad": "speaking softly with a sad expression",
+      "angry": "speaking forcefully with intense expression",
+      "scared": "speaking nervously, looking around anxiously",
+      "dramatic": "speaking with dramatic intensity",
+      "tense": "speaking through tension, jaw clenched",
+      "calm": "speaking calmly and gently",
+      "joyful": "laughing and talking with pure joy, body shaking with laughter",
+    };
+    parts.push(`ACTION: The character is ${emotionAction[scene.emotion || "neutral"] || "talking"}. Mouth moves naturally. No text or subtitles shown.`);
   }
 
-  // Main scene description — the AI Director's detailed visual description
-  parts.push(`SCENE: ${scene.sceneDescription}`);
+  // Main scene description — strip any quoted dialog to prevent text rendering
+  const cleanDescription = scene.sceneDescription
+    .replace(/"[^"]*"/g, "") // Remove quoted text
+    .replace(/says?\s*:?\s*"[^"]*"/gi, "") // Remove "says: ..."
+    .replace(/\s+/g, " ").trim();
+  parts.push(`SCENE: ${cleanDescription}`);
 
   // Continuity from previous scene
   if (prevSceneDescription) {
