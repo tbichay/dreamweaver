@@ -1268,6 +1268,54 @@ function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => st
   );
 }
 
+// ── Music Uploader ──────────────────────────────────────────────
+
+function MusicUploader({ onUploaded }: { onUploaded: () => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadName, setUploadName] = useState("");
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadName(file.name);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("type", "sound");
+    formData.append("category", "music");
+    formData.append("name", file.name.replace(/\.[^.]+$/, ""));
+    try {
+      const res = await fetch("/api/studio/assets", { method: "POST", body: formData });
+      if (res.ok) {
+        onUploaded();
+      }
+    } catch { /* */ }
+    setUploading(false);
+    setUploadName("");
+    // Reset file input
+    e.target.value = "";
+  };
+
+  return (
+    <div className="mb-4 flex items-center gap-3">
+      <label className={`px-4 py-2.5 rounded-xl border text-xs font-medium transition-all cursor-pointer inline-block ${
+        uploading
+          ? "bg-[#d4a853]/10 border-[#d4a853]/20 text-[#d4a853]/50"
+          : "bg-[#d4a853]/20 border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/30"
+      }`}>
+        {uploading ? "Laedt hoch..." : "+ Musik hochladen"}
+        <input type="file" accept="audio/*" onChange={handleUpload} disabled={uploading} className="hidden" />
+      </label>
+      {uploading && (
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin" />
+          <span className="text-[10px] text-white/30 truncate max-w-[200px]">{uploadName}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Voice Emotion Tester ────────────────────────────────────────
 
 const EMOTIONS = [
@@ -2187,24 +2235,7 @@ export default function LibraryPage() {
 
       {/* ── Music Upload ──────────────────────────────────────── */}
       {category === "music" && (
-        <div className="mb-4">
-          <label className="px-4 py-2.5 rounded-xl bg-[#d4a853]/20 border border-[#d4a853]/30 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 transition-all cursor-pointer inline-block">
-            + Musik hochladen
-            <input type="file" accept="audio/*" onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              const formData = new FormData();
-              formData.append("file", file);
-              formData.append("type", "sound");
-              formData.append("category", "music");
-              formData.append("name", file.name.replace(/\.[^.]+$/, ""));
-              try {
-                await fetch("/api/studio/assets", { method: "POST", body: formData });
-                loadAssets();
-              } catch { /* */ }
-            }} className="hidden" />
-          </label>
-        </div>
+        <MusicUploader onUploaded={loadAssets} />
       )}
 
       {/* ── Asset Grid (Landscapes, Music, Clips) ────────────────── */}
