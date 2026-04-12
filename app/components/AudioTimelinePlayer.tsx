@@ -66,90 +66,72 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
     try {
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
-      const sources: AudioBufferSourceNode[] = [];
 
-      // Load and schedule dialog tracks
+      // ── Phase 1: LOAD all audio files first (no playback yet) ──
+      console.log("[AudioTimeline] Loading all tracks...");
+      const scheduled: Array<{ buffer: AudioBuffer; startSec: number; volume: number; loop?: boolean }> = [];
+
+      // Load dialog tracks
       if (track === "all" || track === "dialog") {
         for (const scene of dialogScenes) {
           if (!scene.dialogAudioUrl) continue;
           try {
-            const dlgUrl = resolveUrl(scene.dialogAudioUrl);
-            const res = await fetch(dlgUrl);
-            if (!res.ok) { console.warn("[AudioTimeline] Dialog fetch failed:", res.status, dlgUrl.slice(0, 60)); continue; }
+            const res = await fetch(resolveUrl(scene.dialogAudioUrl));
+            if (!res.ok) continue;
             const arrayBuf = await res.arrayBuffer();
-            if (arrayBuf.byteLength < 100) { console.warn("[AudioTimeline] Dialog too small:", arrayBuf.byteLength); continue; }
-            const audioBuffer = await ctx.decodeAudioData(arrayBuf);
-
-            const source = ctx.createBufferSource();
-            source.buffer = audioBuffer;
-
-            // Volume control
-            const gain = ctx.createGain();
-            gain.gain.value = 1.0;
-            source.connect(gain);
-            gain.connect(ctx.destination);
-
-            // Schedule at correct time
-            const startSec = (scene.audioStartMs || 0) / 1000;
-            source.start(ctx.currentTime + startSec);
-            sources.push(source);
-          } catch (err) {
-            console.warn("[AudioTimeline] Dialog load failed:", err);
-          }
+            if (arrayBuf.byteLength < 100) continue;
+            const buffer = await ctx.decodeAudioData(arrayBuf);
+            scheduled.push({ buffer, startSec: (scene.audioStartMs || 0) / 1000, volume: 1.0 });
+          } catch { /* skip */ }
         }
       }
 
-      // Load and schedule SFX tracks
+      // Load SFX tracks
       if (track === "all") {
         for (const scene of scenes) {
           if (!scene.sfxAudioUrl) continue;
           try {
-            const sfxUrl = resolveUrl(scene.sfxAudioUrl);
-            console.log("[AudioTimeline] Loading SFX:", sfxUrl.slice(0, 60));
-            const res = await fetch(sfxUrl);
-            if (!res.ok) { console.warn("[AudioTimeline] SFX fetch failed:", res.status); continue; }
+            const res = await fetch(resolveUrl(scene.sfxAudioUrl));
+            if (!res.ok) continue;
             const arrayBuf = await res.arrayBuffer();
-            if (arrayBuf.byteLength < 100) { console.warn("[AudioTimeline] SFX too small:", arrayBuf.byteLength); continue; }
-            const audioBuffer = await ctx.decodeAudioData(arrayBuf);
-
-            const source = ctx.createBufferSource();
-            source.buffer = audioBuffer;
-
-            const gain = ctx.createGain();
-            gain.gain.value = 0.3; // SFX at 30% volume
-            source.connect(gain);
-            gain.connect(ctx.destination);
-
-            const startSec = (scene.audioStartMs || 0) / 1000;
-            source.start(ctx.currentTime + startSec);
-            sources.push(source);
-          } catch { /* skip failed SFX */ }
+            if (arrayBuf.byteLength < 100) continue;
+            const buffer = await ctx.decodeAudioData(arrayBuf);
+            scheduled.push({ buffer, startSec: (scene.audioStartMs || 0) / 1000, volume: 0.3 });
+          } catch { /* skip */ }
         }
       }
 
-      // Load and play ambience
+      // Load ambience
       if ((track === "all" || track === "ambience") && ambienceUrl) {
         try {
           const res = await fetch(resolveUrl(ambienceUrl));
           const arrayBuf = await res.arrayBuffer();
-          const audioBuffer = await ctx.decodeAudioData(arrayBuf);
+          const buffer = await ctx.decodeAudioData(arrayBuf);
+          scheduled.push({ buffer, startSec: 0, volume: track === "ambience" ? 0.5 : 0.08, loop: true });
+        } catch { /* skip */ }
+      }
 
-          const source = ctx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.loop = true; // Loop ambience
+      // ── Phase 2: SCHEDULE all at once (relative to NOW) ──
+      console.log("[AudioTimeline] Scheduling", scheduled.length, "tracks");
+      const sources: AudioBufferSourceNode[] = [];
+      const playStart = ctx.currentTime + 0.1; // Small buffer for scheduling
 
-          const gain = ctx.createGain();
-          gain.gain.value = track === "ambience" ? 0.5 : 0.08; // Louder when solo
-          source.connect(gain);
-          gain.connect(ctx.destination);
+      for (const item of scheduled) {
+        const source = ctx.createBufferSource();
+        source.buffer = item.buffer;
+        if (item.loop) source.loop = true;
 
-          source.start(ctx.currentTime);
-          sources.push(source);
-        } catch { /* skip failed ambience */ }
+        const gain = ctx.createGain();
+        gain.gain.value = item.volume;
+        source.connect(gain);
+        gain.connect(ctx.destination);
+
+        source.start(playStart + item.startSec);
+        sources.push(source);
       }
 
       sourcesRef.current = sources;
-      startTimeRef.current = ctx.currentTime;
+      startTimeRef.current = playStart;
       setPlaying(true);
       setLoading(false);
 
