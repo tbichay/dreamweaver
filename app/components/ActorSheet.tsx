@@ -77,6 +77,12 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
   // Portrait state
   const [portraitUrl, setPortraitUrl] = useState(initial?.portraitAssetId);
 
+  // Character Sheet state (front, profile, fullBody)
+  const [charSheet, setCharSheet] = useState<{ front?: string; profile?: string; fullBody?: string }>(
+    initial?.characterSheet || {},
+  );
+  const [sheetGenerating, setSheetGenerating] = useState<string | null>(null); // "front" | "profile" | "fullBody" | "all"
+
   // Voice picker
   const [showVoicePicker, setShowVoicePicker] = useState(false);
 
@@ -161,6 +167,34 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
     setPortraitLoading(false);
   };
 
+  const handleGenerateSheet = async (angle: "front" | "profile" | "fullBody" | "all") => {
+    setError(null);
+    const id = await ensureActor();
+    if (!id) return;
+
+    const angles = angle === "all" ? ["front", "profile", "fullBody"] as const : [angle] as const;
+    setSheetGenerating(angle);
+
+    for (const a of angles) {
+      try {
+        const res = await fetch("/api/studio/actors/character-sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actorId: id, angle: a, description: description || name, style }),
+        });
+        const data = await res.json();
+        if (res.ok && data.characterSheet) {
+          setCharSheet((prev) => ({ ...prev, ...data.characterSheet }));
+          // Update front portrait if it was the front angle
+          if (a === "front" && data.portraitUrl) setPortraitUrl(data.portraitUrl);
+        } else if (!res.ok) {
+          setError(data.error || `Fehler bei ${a}`);
+        }
+      } catch { setError("Netzwerkfehler"); }
+    }
+    setSheetGenerating(null);
+  };
+
   const handleSave = async () => {
     const id = await ensureActor();
     if (!id) return;
@@ -238,6 +272,54 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
           <TextInput value={traits} onChange={setTraits} placeholder="z.B. Traegt Brille, Narbe, markantes Kinn" />
         </Field>
       </Section>
+
+      {/* Character Sheet — 3 Poses */}
+      {isEdit && (
+        <Section title="Character Sheet" action={
+          <ActionButton
+            onClick={() => handleGenerateSheet("all")}
+            loading={sheetGenerating === "all"}
+            variant="secondary"
+            disabled={sheetGenerating !== null}
+          >
+            Alle generieren
+          </ActionButton>
+        }>
+          <p className="text-[9px] text-white/20 mb-2">3 Posen fuer konsistente Video-Generierung (Kling Element Binding)</p>
+          <div className="grid grid-cols-3 gap-2">
+            {(["front", "profile", "fullBody"] as const).map((angle) => {
+              const labels = { front: "Front", profile: "Profil", fullBody: "Ganzkoerper" };
+              const url = charSheet[angle];
+              const isGen = sheetGenerating === angle || sheetGenerating === "all";
+              return (
+                <div key={angle} className="text-center">
+                  <div className="w-full aspect-[3/4] rounded-lg bg-white/5 overflow-hidden mb-1 relative">
+                    {url ? (
+                      <img src={blobProxy(url)} alt={labels[angle]} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        {isGen ? (
+                          <div className="w-4 h-4 border-2 border-[#C8A97E] border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <span className="text-white/10 text-lg">📷</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[8px] text-white/30 mb-1">{labels[angle]}</p>
+                  <button
+                    onClick={() => handleGenerateSheet(angle)}
+                    disabled={isGen || sheetGenerating !== null}
+                    className="text-[8px] px-2 py-0.5 rounded bg-white/5 text-white/25 hover:text-white/40 hover:bg-white/10 disabled:opacity-30 transition-all"
+                  >
+                    {url ? "Neu" : "Generieren"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       {/* Voice — select from library */}
       <Section title="Stimme" action={
