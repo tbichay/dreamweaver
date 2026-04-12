@@ -41,7 +41,23 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
   const animRef = useRef<number>(0);
 
   const dialogScenes = scenes.filter((s) => s.dialogAudioUrl);
-  const totalDuration = scenes.reduce((max, s) => Math.max(max, s.audioEndMs || 0), 0);
+  const sfxScenes = scenes.filter((s) => s.sfxAudioUrl);
+  // Total duration: use audioEndMs if set, otherwise estimate from dialog count
+  const rawTotalDuration = scenes.reduce((max, s) => Math.max(max, s.audioEndMs || 0), 0);
+  const totalDuration = rawTotalDuration > 0 ? rawTotalDuration : dialogScenes.length * 5000; // ~5s per dialog as estimate
+
+  // Debug: log scene timing on mount
+  useEffect(() => {
+    if (dialogScenes.length > 0) {
+      console.log("[AudioTimeline] Scene timing:");
+      for (const s of scenes) {
+        if (s.dialogAudioUrl || s.sfxAudioUrl) {
+          console.log(`  ${s.type} ${s.characterId?.slice(-6) || "—"}: ${s.audioStartMs}ms → ${s.audioEndMs}ms (dialog=${!!s.dialogAudioUrl}, sfx=${!!s.sfxAudioUrl})`);
+        }
+      }
+      console.log(`  Total: ${totalDuration}ms, Dialogs: ${dialogScenes.length}, SFX: ${sfxScenes.length}`);
+    }
+  }, [scenes.length]);
 
   if (dialogScenes.length === 0) return null;
 
@@ -71,8 +87,12 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
       console.log("[AudioTimeline] Loading all tracks...");
       const scheduled: Array<{ buffer: AudioBuffer; startSec: number; volume: number; loop?: boolean }> = [];
 
+      // Check if audioStartMs values are actually set (not all 0)
+      const allStartsZero = dialogScenes.every((s) => !s.audioStartMs || s.audioStartMs === 0);
+
       // Load dialog tracks
       if (track === "all" || track === "dialog") {
+        let cumulativeMs = 0; // Fallback timing if audioStartMs is missing
         for (const scene of dialogScenes) {
           if (!scene.dialogAudioUrl) continue;
           try {
@@ -81,14 +101,30 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
             const arrayBuf = await res.arrayBuffer();
             if (arrayBuf.byteLength < 100) continue;
             const buffer = await ctx.decodeAudioData(arrayBuf);
-            scheduled.push({ buffer, startSec: (scene.audioStartMs || 0) / 1000, volume: 1.0 });
+
+            // Use audioStartMs if available, otherwise cumulative timing
+            const startSec = allStartsZero
+              ? cumulativeMs / 1000
+              : (scene.audioStartMs || 0) / 1000;
+
+            scheduled.push({ buffer, startSec, volume: 1.0 });
+
+            // Accumulate for fallback timing (dialog duration + small gap)
+            cumulativeMs += buffer.duration * 1000 + 300; // 300ms gap between dialogs
           } catch { /* skip */ }
         }
       }
 
-      // Load SFX tracks
+      // Load SFX tracks (play alongside their dialog)
       if (track === "all") {
+        let sfxCumulativeMs = 0;
         for (const scene of scenes) {
+          if (scene.dialogAudioUrl) {
+            // Track cumulative timing for SFX positioning
+            sfxCumulativeMs = allStartsZero
+              ? sfxCumulativeMs // will be updated below
+              : (scene.audioStartMs || sfxCumulativeMs);
+          }
           if (!scene.sfxAudioUrl) continue;
           try {
             const res = await fetch(resolveUrl(scene.sfxAudioUrl));
@@ -96,7 +132,12 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
             const arrayBuf = await res.arrayBuffer();
             if (arrayBuf.byteLength < 100) continue;
             const buffer = await ctx.decodeAudioData(arrayBuf);
-            scheduled.push({ buffer, startSec: (scene.audioStartMs || 0) / 1000, volume: 0.3 });
+
+            const startSec = allStartsZero
+              ? sfxCumulativeMs / 1000
+              : (scene.audioStartMs || 0) / 1000;
+
+            scheduled.push({ buffer, startSec, volume: 0.3 });
           } catch { /* skip */ }
         }
       }
@@ -112,7 +153,10 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, blobProxy }: 
       }
 
       // ── Phase 2: SCHEDULE all at once (relative to NOW) ──
-      console.log("[AudioTimeline] Scheduling", scheduled.length, "tracks");
+      console.log("[AudioTimeline] Scheduling", scheduled.length, "tracks:");
+      for (const item of scheduled) {
+        console.log(`  → startSec=${item.startSec.toFixed(2)}, dur=${item.buffer.duration.toFixed(2)}s, vol=${item.volume}${item.loop ? " (loop)" : ""}`);
+      }
       const sources: AudioBufferSourceNode[] = [];
       const playStart = ctx.currentTime + 0.1; // Small buffer for scheduling
 
