@@ -1680,25 +1680,8 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 // ── Landscape Section (within SequenceCard) ────────────────────────
 
 function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequence; projectId: string; onUpdate: () => void }) {
-  const [generating, setGenerating] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [customPrompt, setCustomPrompt] = useState("");
-  const [showPrompt, setShowPrompt] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
-  const [libraryAssets, setLibraryAssets] = useState<Array<{ id: string; blobUrl: string }>>([]);
-  const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-
-  useEffect(() => {
-    if (showLibrary && libraryAssets.length === 0 && !loadingLibrary) {
-      setLoadingLibrary(true);
-      fetch("/api/studio/assets?type=landscape&limit=20")
-        .then((r) => r.json())
-        .then((d) => setLibraryAssets(d.assets || []))
-        .catch(() => {})
-        .finally(() => setLoadingLibrary(false));
-    }
-  }, [showLibrary, libraryAssets.length, loadingLibrary]);
 
   const selectFromLibrary = async (blobUrl: string) => {
     try {
@@ -1712,35 +1695,6 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
     } catch { /* */ }
   };
 
-  const generateLandscape = async () => {
-    setGenerating(true);
-    try {
-      await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}/landscape`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: customPrompt || undefined }),
-      });
-      onUpdate();
-    } catch { /* */ }
-    setGenerating(false);
-  };
-
-  const uploadLandscape = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}/landscape`, {
-        method: "POST",
-        body: formData,
-      });
-      onUpdate();
-    } catch { /* */ }
-    setUploading(false);
-  };
-
   return (
     <div>
       <p className="text-[9px] text-white/25 mb-1.5">Landscape / Hintergrund</p>
@@ -1752,14 +1706,10 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
               alt="Landscape"
               className="w-full h-28 object-cover rounded-lg"
             />
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 rounded-lg transition-opacity">
-              <button onClick={(e) => { e.stopPropagation(); generateLandscape(); }} disabled={generating} className="text-[9px] px-2 py-1 bg-white/20 text-white rounded">
-                {generating ? "..." : "🔄 Neu"}
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition-opacity">
+              <button onClick={(e) => { e.stopPropagation(); setShowLibrary(true); }} className="text-[10px] px-3 py-1.5 bg-white/20 text-white rounded-lg hover:bg-white/30">
+                Aendern
               </button>
-              <label className="text-[9px] px-2 py-1 bg-white/20 text-white rounded cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                📷 Upload
-                <input type="file" accept="image/*" onChange={uploadLandscape} className="hidden" />
-              </label>
             </div>
           </div>
           {/* Fullscreen overlay */}
@@ -1797,23 +1747,6 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
         />
       )}
 
-      {showPrompt && !sequence.landscapeRefUrl && (
-        <div className="mt-2 flex gap-2">
-          <input
-            value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            placeholder={`z.B. ${sequence.location || "Magischer Wald"} bei Sonnenuntergang`}
-            className="flex-1 text-[10px] bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/60 placeholder-white/20"
-          />
-          <button
-            onClick={generateLandscape}
-            disabled={generating}
-            className="text-[9px] px-3 py-1.5 bg-[#d4a853] text-black rounded-lg font-medium disabled:opacity-50"
-          >
-            {generating ? "..." : "Generieren"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
