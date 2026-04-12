@@ -1653,13 +1653,30 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         body: JSON.stringify({ format: project.format || "portrait" }),
       });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setAssembleError(errData.error || `Fehler ${res.status}`);
+        setAssembling(false);
+        return;
+      }
+
       await consumeSSE(res, {
         onProgress: setAssembleProgress,
         onError: setAssembleError,
-        onDone: () => onUpdate(project.id),
+        onDone: () => { onUpdate(project.id); },
       });
+
+      // Check if film was generated even if connection dropped
+      try {
+        const checkRes = await fetch(`/api/studio/projects/${project.id}`);
+        const checkData = await checkRes.json();
+        if (checkData.project?.videoUrl) {
+          setFilmUrl(checkData.project.videoUrl);
+          onUpdate(project.id);
+        }
+      } catch { /* */ }
     } catch (err) {
-      setAssembleError((err as Error).message);
+      setAssembleError((err as Error).message || "Render fehlgeschlagen");
     }
 
     setAssembling(false);
