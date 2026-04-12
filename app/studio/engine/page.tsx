@@ -447,11 +447,34 @@ function StoryTab({ project, onUpdate }: { project: Project; onUpdate: (id: stri
               if (data.title) setName(data.title);
               if (data.text) setText(data.text);
             }
-          } catch { /* */ }
+          } catch (parseErr) {
+            console.warn("[Story] SSE parse error:", parseErr, line.slice(0, 100));
+          }
         }
       }
+
+      // Stream ended — check if we got text but no done signal (connection dropped)
+      if (fullText && !genError) {
+        setText(fullText);
+        onUpdate(project.id);
+      }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") setGenError((err as Error).message);
+      if ((err as Error).name !== "AbortError") {
+        const msg = (err as Error).message || "Verbindung fehlgeschlagen";
+        console.error("[Story] Stream error:", err);
+        setGenError(msg);
+
+        // Recovery: check if story was saved despite stream failure
+        try {
+          const checkRes = await fetch(`/api/studio/projects/${project.id}`);
+          const checkData = await checkRes.json();
+          if (checkData.project?.storyText) {
+            setText(checkData.project.storyText);
+            if (checkData.project.name) setName(checkData.project.name);
+            setGenError(""); // Clear error — story was saved
+          }
+        } catch { /* */ }
+      }
     }
 
     setGenerating(false);

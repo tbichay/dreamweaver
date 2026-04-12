@@ -35,7 +35,8 @@ export async function POST(request: Request) {
       const task = await createTask(session.user!.id!, "story", body.projectId, { theme: body.brief.theme }, 2);
 
       send({ progress: "Generiere Geschichte...", taskId: task.id });
-      const keepAlive = setInterval(() => send({ progress: "writing..." }), 5000);
+      // Keep-alive every 2s (CRITICAL: Vercel kills idle SSE connections after ~50s)
+      const keepAlive = setInterval(() => send({ progress: "writing..." }), 2000);
 
       try {
         await task.progress("Generiere Geschichte...", 10);
