@@ -208,10 +208,44 @@ export async function POST(
       generateParams.quality = "medium"; // Better quality for reference matching
     }
 
-    const response = await (openai.images.generate as any)(generateParams);
+    let b64: string | undefined;
 
-    const b64 = response.data[0]?.b64_json;
-    if (!b64) continue;
+    // Try with reference images first, fallback to text-only if it fails
+    try {
+      const response = await (openai.images.generate as any)(generateParams);
+      b64 = response.data[0]?.b64_json;
+      if (!b64 && response.data[0]?.url) {
+        // Some API versions return URL instead of b64 — download it
+        const imgRes = await fetch(response.data[0].url);
+        if (imgRes.ok) {
+          const buf = Buffer.from(await imgRes.arrayBuffer());
+          b64 = buf.toString("base64");
+        }
+      }
+    } catch (genErr) {
+      console.error(`[Storyboard] Scene ${sceneIndex} generation failed with refs:`, genErr);
+      // Fallback: try WITHOUT reference images (text-only)
+      if (referenceImages.length > 0) {
+        console.log(`[Storyboard] Scene ${sceneIndex}: retrying WITHOUT reference images...`);
+        try {
+          const fallbackResponse = await (openai.images.generate as any)({
+            model: "gpt-image-1.5",
+            prompt: fullPrompt,
+            n: 1,
+            size,
+            quality: "low",
+          });
+          b64 = fallbackResponse.data[0]?.b64_json;
+        } catch (fallbackErr) {
+          console.error(`[Storyboard] Scene ${sceneIndex} fallback also failed:`, fallbackErr);
+        }
+      }
+    }
+
+    if (!b64) {
+      console.warn(`[Storyboard] Scene ${sceneIndex}: no image generated, skipping`);
+      continue;
+    }
 
     const imgBuffer = Buffer.from(b64, "base64");
     const blobPath = `studio/${projectId}/sequences/${sequenceId}/storyboard/scene-${sceneIndex}-${Date.now()}.png`;

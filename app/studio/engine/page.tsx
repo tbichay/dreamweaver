@@ -2007,19 +2007,38 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     const totalSeqScenes = project.sequences.reduce((sum, s) => sum + (s.scenes?.length || 0), 0);
     const tid = toast.loading(`Generiere ${totalSeqScenes} Storyboard-Frames...`);
     let done = 0;
+    let failed = 0;
     for (const seq of project.sequences) {
       if (!seq.scenes || seq.scenes.length === 0) continue;
       toast.update(tid, `Sequenz "${seq.name}" (${done}/${totalSeqScenes} Frames)...`);
       try {
-        await fetch(`/api/studio/projects/${project.id}/sequences/${seq.id}/storyboard`, {
+        const res = await fetch(`/api/studio/projects/${project.id}/sequences/${seq.id}/storyboard`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ generateAll: true }),
         });
-        done += seq.scenes.length;
-      } catch { /* continue */ }
+        if (res.ok) {
+          const data = await res.json();
+          const count = data.count || data.frames?.length || 0;
+          done += count;
+          if (count === 0) failed += (seq.scenes?.length || 0);
+        } else {
+          const errData = await res.json().catch(() => ({ error: "Fehler" }));
+          console.error(`[Storyboard] Batch failed for ${seq.name}:`, errData);
+          failed += (seq.scenes?.length || 0);
+        }
+      } catch (err) {
+        console.error(`[Storyboard] Network error for ${seq.name}:`, err);
+        failed += (seq.scenes?.length || 0);
+      }
     }
-    toast.success(`${done} Storyboard-Frames generiert!`, tid);
+    if (done > 0 && failed === 0) {
+      toast.success(`${done} Storyboard-Frames generiert!`, tid);
+    } else if (done > 0) {
+      toast.success(`${done} Frames generiert, ${failed} fehlgeschlagen`, tid);
+    } else {
+      toast.error(`Keine Frames generiert (${failed} fehlgeschlagen)`, tid);
+    }
     onUpdate(project.id);
     setGeneratingAll(false);
   };
