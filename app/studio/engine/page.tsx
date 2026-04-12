@@ -1712,9 +1712,9 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
       {/* Film Assembly */}
       {allClipsDone && (
-        <div className="mt-5 pt-4 border-t border-white/5">
+        <div className="mt-5 pt-4 border-t border-[#a8d5b8]/20 bg-[#a8d5b8]/5 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-xs font-medium text-[#f5eed6]">Film zusammenfuegen</h4>
+            <h4 className="text-sm font-semibold text-[#a8d5b8]">{"\uD83C\uDFAC"} Film zusammenfuegen</h4>
             {project.status === "completed" && (
               <span className="text-[8px] px-2 py-0.5 rounded-full bg-[#a8d5b8]/20 text-[#a8d5b8]">
                 Fertig
