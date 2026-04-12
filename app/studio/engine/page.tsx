@@ -762,6 +762,8 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   const [availableProps, setAvailableProps] = useState<Array<{ id: string; name: string; blobUrl: string }>>([]);
   const [selectedLocationIds, setSelectedLocationIds] = useState<Set<string>>(new Set());
   const [selectedPropIds, setSelectedPropIds] = useState<Set<string>>(new Set());
+  const [availableMusic, setAvailableMusic] = useState<Array<{ id: string; name: string; blobUrl: string; durationSec?: number }>>([]);
+  const [selectedMusicId, setSelectedMusicId] = useState<string | null>(null);
   const [assetsLoaded, setAssetsLoaded] = useState(false);
 
   const blobProxy = (url: string) =>
@@ -774,9 +776,11 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     Promise.all([
       fetch("/api/studio/assets?type=landscape").then((r) => r.json()),
       fetch("/api/studio/assets?type=reference&category=prop").then((r) => r.json()),
-    ]).then(([locData, propData]) => {
+      fetch("/api/studio/assets?type=sound").then((r) => r.json()),
+    ]).then(([locData, propData, musicData]) => {
       setAvailableLocations((locData.assets || []).map((a: any) => ({ id: a.id, name: a.name || "Location", blobUrl: a.blobUrl })));
       setAvailableProps((propData.assets || []).map((a: any) => ({ id: a.id, name: a.name || "Prop", blobUrl: a.blobUrl })));
+      setAvailableMusic((musicData.assets || []).map((a: any) => ({ id: a.id, name: a.name || "Musik", blobUrl: a.blobUrl, durationSec: a.durationSec })));
       // Select all by default
       setSelectedLocationIds(new Set((locData.assets || []).map((a: any) => a.id)));
       setSelectedPropIds(new Set((propData.assets || []).map((a: any) => a.id)));
@@ -1038,7 +1042,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
       </p>
 
       {/* Locations + Props for this film */}
-      {(availableLocations.length > 0 || availableProps.length > 0) && (
+      {(availableLocations.length > 0 || availableProps.length > 0 || availableMusic.length > 0) && (
         <div className="space-y-3 pt-2 border-t border-white/5">
           {/* Locations */}
           {availableLocations.length > 0 && (
@@ -1110,9 +1114,59 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
             </div>
           )}
 
-          {availableLocations.length === 0 && availableProps.length === 0 && (
+          {/* Music */}
+          {availableMusic.length > 0 && (
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">
+                Hintergrundmusik (optional)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSelectedMusicId(null)}
+                  disabled={generating}
+                  className={`px-2.5 py-1.5 rounded-lg text-[10px] transition-all border ${
+                    !selectedMusicId
+                      ? "bg-white/10 text-white/50 border-white/20"
+                      : "bg-white/3 text-white/25 border-white/5 hover:border-white/15"
+                  }`}
+                >
+                  Keine
+                </button>
+                {availableMusic.map((m) => {
+                  const selected = selectedMusicId === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => setSelectedMusicId(selected ? null : m.id)}
+                      disabled={generating}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] transition-all border ${
+                        selected
+                          ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
+                          : "bg-white/3 text-white/25 border-white/5 hover:border-white/15"
+                      }`}
+                    >
+                      <span>🎵</span>
+                      <span className="truncate max-w-[120px]">{m.name}</span>
+                      {m.durationSec && <span className="text-[8px] opacity-40">{Math.round(m.durationSec)}s</span>}
+                      {selected && <span className="text-purple-300">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedMusicId && (
+                <audio
+                  src={blobProxy(availableMusic.find((m) => m.id === selectedMusicId)?.blobUrl || "")}
+                  controls
+                  className="mt-1.5 w-full h-7 opacity-50"
+                />
+              )}
+              <p className="text-[8px] text-white/15 mt-1">Wird als Hintergrundmusik im Film verwendet</p>
+            </div>
+          )}
+
+          {availableLocations.length === 0 && availableProps.length === 0 && availableMusic.length === 0 && (
             <p className="text-[9px] text-white/20">
-              Tipp: Erstelle <a href="/studio/library" className="text-[#d4a853]/60 hover:text-[#d4a853] underline">Locations + Props in der Library</a> bevor du das Drehbuch generierst.
+              Tipp: Erstelle <a href="/studio/library" className="text-[#d4a853]/60 hover:text-[#d4a853] underline">Locations, Props + Musik in der Library</a> bevor du das Drehbuch generierst.
             </p>
           )}
         </div>
