@@ -232,7 +232,9 @@ export async function POST(
                 };
               }
             } catch (err) {
-              console.error(`[PerSceneAudio] SFX failed for scene ${i}:`, err);
+              const sfxErr = err instanceof Error ? err.message : String(err);
+              console.error(`[PerSceneAudio] SFX failed for scene ${i}:`, sfxErr);
+              send({ progress: `SFX ${sfxCount} fehlgeschlagen: ${sfxErr.slice(0, 80)}` });
             }
           }
         }
@@ -254,7 +256,9 @@ export async function POST(
               ambienceUrl = ambienceBlob.url;
             }
           } catch (err) {
-            console.error("[PerSceneAudio] Ambience generation failed:", err);
+            const ambErr = err instanceof Error ? err.message : String(err);
+            console.error("[PerSceneAudio] Ambience generation failed:", ambErr);
+            send({ progress: `Ambience fehlgeschlagen: ${ambErr.slice(0, 80)}` });
           }
         }
 
@@ -278,15 +282,23 @@ export async function POST(
           },
         });
 
+        // Count actually generated files
+        const actualDialogs = updatedScenes.filter((s) => s.dialogAudioUrl).length;
+        const actualSfx = updatedScenes.filter((s) => s.sfxAudioUrl).length;
+        const expectedDialogs = scenes.filter((s) => s.spokenText && s.characterId).length;
+        const expectedSfx = scenes.filter((s) => s.sfx).length;
+
         clearInterval(keepAlive);
-        await task.complete({ dialogCount, sfxCount, hasAmbience: !!ambienceUrl, duration: totalDurationMs / 1000 });
+        await task.complete({ dialogCount: actualDialogs, sfxCount: actualSfx, hasAmbience: !!ambienceUrl, duration: totalDurationMs / 1000 });
         send({
           done: true,
           audioUrl: ambienceUrl,
           duration: totalDurationMs / 1000,
           timeline,
-          dialogCount,
-          sfxCount,
+          dialogCount: actualDialogs,
+          expectedDialogs,
+          sfxCount: actualSfx,
+          expectedSfx,
           hasAmbience: !!ambienceUrl,
         });
       } catch (err) {
