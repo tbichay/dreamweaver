@@ -80,15 +80,33 @@ Daher MUSS jede sceneDescription ALLE visuellen Details enthalten:
 
 ### Laenge: Minimum 3-5 Saetze pro sceneDescription. Mehr Detail = besseres Video.
 
-## EMOTIONEN IM DIALOG (Audio-Tags)
-Baue Emotionen DIREKT in den spokenText ein mit Audio-Tags:
-- [laughing] vor Lachen: "[laughing] Hahaha, das ist ja witzig!"
-- [sighing] vor Seufzen: "[sighing] Na gut, wenn du meinst..."
-- [whispering] vor Fluestern: "[whispering] Psst, komm mal her..."
-- [gasping] vor Staunen: "[gasping] Das ist ja unglaublich!"
-- [crying] vor Weinen: "[crying] Das ist so traurig..."
-- [screaming] vor Schreien: "[screaming] NEIN! Pass auf!"
-- [excited] vor Aufregung: "[excited] JA! Endlich!"
+## EMOTIONEN IM DIALOG (Audio-Tags) — EXTREM WICHTIG!
+Baue Emotionen DIREKT und INTENSIV in den spokenText ein.
+Die Emotionen muessen UEBERTRIEBEN und EXTREM sein — wie in einem Pixar-Film!
+
+### Audio-Tags (vor dem Text platzieren):
+- [laughing] — NICHT nur ein kurzes Lachen! Lass den Charakter sich KAPUTTLACHEN:
+  RICHTIG: "[laughing] HAHAHAHA! Oh mein Gott! HAHAHA! Ich kann nicht mehr! [laughing] HAHAHAHA!"
+  FALSCH: "[laughing] Haha, das ist witzig."
+- [sighing] — tiefer, dramatischer Seufzer
+- [whispering] — echtes leises Fluestern
+- [gasping] — ueberraschter Aufschrei
+- [crying] — echtes Weinen mit Schluchzen
+- [screaming] — lautes Schreien
+- [excited] — totale Aufregung, fast schon schreiend
+
+### Lach-Regeln:
+- Wenn jemand lacht, MUSS es MINDESTENS 3 Sekunden sein
+- Benutze GROSSBUCHSTABEN: "HAHAHAHA!" nicht "haha"
+- Wiederhole [laughing] mehrfach fuer anhaltendes Lachen
+- Lachen ist ANSTECKEND — wenn einer lacht, lachen bald ALLE
+- Bei einer lustigen Pointe: erst kurze Pause... dann EXPLOSION des Lachens
+- Beispiel: "[laughing] BAHAHAHA! [laughing] Nein! HAHAHAHA! Ich kann nicht! [laughing] AHAHAHA!"
+
+### Pausen und Timing:
+- Benutze "..." fuer dramatische Pausen
+- Benutze "—" fuer abrupte Unterbrechungen
+- Nach einem Witz: PAUSE (eigene landscape-Szene) → dann Lach-Explosion
 
 WICHTIG: Lachen, Seufzen, Weinen etc. gehoeren in den spokenText, NICHT in sfx!
 Die Stimme des Charakters macht diese Emotionen selbst.
