@@ -418,7 +418,8 @@ model Asset {
   id            String   @id @default(cuid())
 
   // Classification
-  type          String   // portrait | landscape | clip | sound | reference
+  type          String   // portrait | landscape | clip | sound | reference | music
+  name          String?  // Display name (e.g. "Verzauberter Wald bei Sonnenuntergang")
   category      String?  // "character:koda" | "location:koalatree" | "sfx:nature"
   tags          String[]
 

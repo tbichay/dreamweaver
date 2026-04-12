@@ -24,6 +24,7 @@ export interface AssetProvenance {
 
 export interface CreateAssetOpts {
   type: AssetType;
+  name?: string;                 // Display name (e.g. "Verzauberter Wald")
   category?: string;             // "character:koda", "location:forest"
   tags?: string[];
   buffer: Buffer;
@@ -79,6 +80,7 @@ export async function createAsset(opts: CreateAssetOpts) {
   const asset = await prisma.asset.create({
     data: {
       type: opts.type,
+      name: opts.name,
       category: opts.category,
       tags: opts.tags || [],
       blobUrl: blob.url,

@@ -9,11 +9,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { type, description, style, tags } = body as {
+  const { type, description, style, tags, name } = body as {
     type: "portrait" | "landscape";
     description: string;
     style: string;
     tags?: string[];
+    name?: string;
   };
 
   if (!type || !description) {
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
 
   const asset = await createAsset({
     type,
+    name: name || description,
     category: "standalone",
     tags: [
       ...(tags || []),

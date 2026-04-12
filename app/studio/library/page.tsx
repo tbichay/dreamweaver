@@ -947,6 +947,114 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
   );
 }
 
+// ── Landscape Generator ─────────────────────────────────────────
+
+const LANDSCAPE_STYLES = [
+  { value: "pixar-3d", label: "Pixar 3D" },
+  { value: "disney-2d", label: "Disney 2D" },
+  { value: "ghibli", label: "Ghibli" },
+  { value: "realistic", label: "Realistisch" },
+  { value: "storybook", label: "Bilderbuch" },
+];
+
+const LANDSCAPE_MOODS = [
+  { value: "warm", label: "Warm & Golden" },
+  { value: "dark", label: "Dunkel & Mystisch" },
+  { value: "bright", label: "Hell & Froehlich" },
+  { value: "dramatic", label: "Dramatisch" },
+  { value: "calm", label: "Ruhig & Friedlich" },
+];
+
+function LandscapeGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => string; onCreated: () => void }) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [style, setStyle] = useState("pixar-3d");
+  const [mood, setMood] = useState("warm");
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = async () => {
+    if (!name.trim()) { setError("Name/Beschreibung erforderlich"); return; }
+    setGenerating(true);
+    setError(null);
+    try {
+      const styleLabel = LANDSCAPE_STYLES.find((s) => s.value === style)?.label || style;
+      const moodLabel = LANDSCAPE_MOODS.find((m) => m.value === mood)?.label || mood;
+
+      const res = await fetch("/api/studio/library/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "landscape",
+          description: name.trim(),
+          style,
+          name: name.trim(),
+          tags: [style, mood, ...name.toLowerCase().split(/\s+/).filter((w) => w.length > 3)],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Fehler"); return; }
+      setShowForm(false);
+      setName("");
+      onCreated();
+    } catch { setError("Netzwerkfehler"); }
+    setGenerating(false);
+  };
+
+  return (
+    <div className="mb-4">
+      {!showForm ? (
+        <button
+          onClick={() => setShowForm(true)}
+          className="px-4 py-2.5 rounded-xl bg-[#d4a853]/20 border border-[#d4a853]/30 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 transition-all"
+        >
+          + Neues Landscape
+        </button>
+      ) : (
+        <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-3">
+          <h4 className="text-sm font-medium text-[#f5eed6]">Neues Landscape</h4>
+
+          {error && <p className="text-[10px] text-red-400">{error}</p>}
+
+          <div>
+            <label className="text-[10px] text-white/40 block mb-1">Beschreibung</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="z.B. Verzauberter Wald bei Sonnenuntergang"
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[#d4a853]/40"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] text-white/40 block mb-1">Stil</label>
+              <select value={style} onChange={(e) => setStyle(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80">
+                {LANDSCAPE_STYLES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-white/40 block mb-1">Stimmung</label>
+              <select value={mood} onChange={(e) => setMood(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80">
+                {LANDSCAPE_MOODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={generate} disabled={generating || !name.trim()} className="px-4 py-2 rounded-lg bg-[#d4a853]/20 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 disabled:opacity-30">
+              {generating ? "Generiert..." : "Generieren"}
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-white/5 text-white/30 text-xs hover:text-white/50">
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Voice Emotion Tester ────────────────────────────────────────
 
 const EMOTIONS = [
@@ -1845,6 +1953,11 @@ export default function LibraryPage() {
         <VoicesView voices={voices} blobProxy={blobProxy} onImport={loadAssets} />
       )}
 
+      {/* ── Landscape Generation ─────────────────────────────── */}
+      {category === "landscapes" && (
+        <LandscapeGenerator blobProxy={blobProxy} onCreated={loadAssets} />
+      )}
+
       {/* ── Music Upload ──────────────────────────────────────── */}
       {category === "music" && (
         <div className="mb-4">
@@ -1917,7 +2030,8 @@ export default function LibraryPage() {
                       )}
                       {/* Info */}
                       <div className="p-2">
-                        {asset.category && <p className="text-[9px] text-white/30 truncate">{asset.category}</p>}
+                        {(asset as { name?: string }).name && <p className="text-[10px] text-[#f5eed6] truncate font-medium">{(asset as { name?: string }).name}</p>}
+                        {asset.category && <p className="text-[8px] text-white/20 truncate">{asset.category}</p>}
                         <p className="text-[8px] text-white/15 mt-0.5">
                           {(asset.sizeBytes / 1024).toFixed(0)}KB
                           {asset.costCents ? ` · $${(asset.costCents / 100).toFixed(2)}` : ""}
