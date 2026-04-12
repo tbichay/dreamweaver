@@ -199,8 +199,19 @@ export async function POST(
         // Delete old sequences and create fresh ones
         await prisma.studioSequence.deleteMany({ where: { projectId } });
 
+        // Auto-assign location images to sequences
+        // Use first available location image for all sequences (or match by locationId)
+        const defaultLocationUrl = locationRefs.length > 0 ? locationRefs[0].imageUrl : undefined;
+
         for (const act of screenplay.acts) {
           for (const seq of act.sequences) {
+            // Try to match sequence's locationId to a location asset
+            let landscapeRefUrl = defaultLocationUrl;
+            if (seq.locationId) {
+              const matchedLoc = locationRefs.find((l) => l.id === seq.locationId);
+              if (matchedLoc?.imageUrl) landscapeRefUrl = matchedLoc.imageUrl;
+            }
+
             await prisma.studioSequence.create({
               data: {
                 projectId,
@@ -211,6 +222,7 @@ export async function POST(
                 directingStyle: seq.directingStyle,
                 storySegment: seq.storySegment,
                 characterIds: seq.characterIds,
+                landscapeRefUrl: landscapeRefUrl || undefined,
                 scenes: JSON.parse(JSON.stringify(seq.scenes)),
                 sceneCount: seq.scenes.length,
                 status: "storyboard",

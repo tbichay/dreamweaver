@@ -58,55 +58,79 @@ export async function POST(
 
   const results: { sceneIndex: number; imageUrl: string }[] = [];
 
-  // Pre-load actor portraits for character reference
+  // ── Helper: load buffer from blob or HTTP URL ──
+  async function loadImageBuffer(url: string): Promise<Buffer | undefined> {
+    try {
+      if (url.includes(".blob.vercel-storage.com")) {
+        const blob = await get(url, { access: "private" });
+        if (!blob?.stream) return undefined;
+        const reader = blob.stream.getReader();
+        const chunks: Uint8Array[] = [];
+        let chunk;
+        while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+        return Buffer.concat(chunks);
+      } else if (url.startsWith("http")) {
+        const res = await fetch(url);
+        if (res.ok) return Buffer.from(await res.arrayBuffer());
+      }
+    } catch { /* skip */ }
+    return undefined;
+  }
+
+  // ── Pre-load actor portraits (try ALL possible sources) ──
   const characterPortraitCache = new Map<string, Buffer>();
   const characters = sequence.project?.characters || [];
   for (const char of characters) {
-    const actor = (char as unknown as { actor?: { portraitAssetId?: string; characterSheet?: { front?: string } } }).actor;
-    const portraitUrl = char.portraitUrl || actor?.portraitAssetId || actor?.characterSheet?.front;
+    const actor = (char as unknown as { actor?: {
+      portraitAssetId?: string;
+      characterSheet?: { front?: string; profile?: string; fullBody?: string };
+    } }).actor;
+    const castSnapshot = (char as unknown as { castSnapshot?: { portraitUrl?: string } }).castSnapshot;
+
+    // Try multiple sources: castSnapshot → actor.characterSheet.front → actor.portraitAssetId → char.portraitUrl
+    const portraitUrl = castSnapshot?.portraitUrl
+      || actor?.characterSheet?.front
+      || actor?.portraitAssetId
+      || char.portraitUrl;
+
     if (portraitUrl && !characterPortraitCache.has(char.id)) {
-      try {
-        let buf: Buffer | undefined;
-        if (portraitUrl.includes(".blob.vercel-storage.com")) {
-          const blob = await get(portraitUrl, { access: "private" });
-          if (blob?.stream) {
-            const reader = blob.stream.getReader();
-            const chunks: Uint8Array[] = [];
-            let chunk;
-            while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-            buf = Buffer.concat(chunks);
-          }
-        } else if (portraitUrl.startsWith("http")) {
-          const res = await fetch(portraitUrl);
-          if (res.ok) buf = Buffer.from(await res.arrayBuffer());
-        }
-        if (buf) characterPortraitCache.set(char.id, buf);
-      } catch { /* skip */ }
+      const buf = await loadImageBuffer(portraitUrl);
+      if (buf) {
+        characterPortraitCache.set(char.id, buf);
+        console.log(`[Storyboard] Portrait loaded for ${char.name}: ${portraitUrl.slice(-40)}`);
+      } else {
+        console.warn(`[Storyboard] Portrait FAILED for ${char.name}: ${portraitUrl.slice(-40)}`);
+      }
     }
   }
-  console.log(`[Storyboard] ${characterPortraitCache.size} actor portraits loaded for reference`);
+  console.log(`[Storyboard] ${characterPortraitCache.size}/${characters.length} actor portraits loaded`);
 
-  // Pre-load location/landscape image for this sequence
+  // ── Pre-load location image (try sequence ref → Library locations) ──
   let locationImageBuffer: Buffer | undefined;
-  const landscapeUrl = sequence.landscapeRefUrl;
-  if (landscapeUrl) {
-    try {
-      if (landscapeUrl.includes(".blob.vercel-storage.com")) {
-        const blob = await get(landscapeUrl, { access: "private" });
-        if (blob?.stream) {
-          const reader = blob.stream.getReader();
-          const chunks: Uint8Array[] = [];
-          let chunk;
-          while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
-          locationImageBuffer = Buffer.concat(chunks);
-        }
-      } else if (landscapeUrl.startsWith("http")) {
-        const res = await fetch(landscapeUrl);
-        if (res.ok) locationImageBuffer = Buffer.from(await res.arrayBuffer());
-      }
-      if (locationImageBuffer) console.log(`[Storyboard] Location image loaded as background reference`);
-    } catch { /* skip */ }
+
+  // 1. Try sequence's assigned landscape
+  if (sequence.landscapeRefUrl) {
+    locationImageBuffer = await loadImageBuffer(sequence.landscapeRefUrl);
+    if (locationImageBuffer) console.log(`[Storyboard] Location from sequence landscapeRefUrl`);
   }
+
+  // 2. Fallback: load first location from Library (user's locations)
+  if (!locationImageBuffer) {
+    try {
+      const { getAssets } = await import("@/lib/assets");
+      const locationAssets = await getAssets({
+        type: "landscape",
+        userId: session.user!.id!,
+        limit: 1,
+      });
+      if (locationAssets.length > 0) {
+        locationImageBuffer = await loadImageBuffer(locationAssets[0].blobUrl);
+        if (locationImageBuffer) console.log(`[Storyboard] Location from Library: ${(locationAssets[0] as { name?: string }).name}`);
+      }
+    } catch { /* no locations */ }
+  }
+
+  if (!locationImageBuffer) console.log(`[Storyboard] No location image available`);
 
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI();
@@ -159,26 +183,29 @@ export async function POST(
       quality: "low",
     };
 
+    console.log(`[Storyboard] Scene ${sceneIndex}: ${referenceImages.length} reference images (${referenceImages.map((r) => r.role).join(", ") || "none"})`);
+
     if (referenceImages.length > 0) {
       // Pass location + actor portraits as reference images
       generateParams.image = referenceImages.map((ref) => ({
         image: ref.image.toString("base64"),
-        detail: "low",
+        detail: "high", // High detail so AI can match faces/locations accurately
       }));
 
       const hasLocation = referenceImages.some((r) => r.role === "background/location");
       const hasCharacter = referenceImages.some((r) => r.role.includes("character"));
 
-      let refInstructions = "CRITICAL REFERENCE INSTRUCTIONS:\n";
+      let refInstructions = "CRITICAL — YOU MUST USE THE REFERENCE IMAGES:\n";
       if (hasLocation) {
-        refInstructions += "- The FIRST reference image is the LOCATION/SET. Use it as the background environment. Match the scenery, lighting, colors, and atmosphere EXACTLY.\n";
+        refInstructions += "- Reference image 1 is the LOCATION/SET. Use EXACTLY this environment as the background. Same scenery, lighting, colors, atmosphere.\n";
       }
       if (hasCharacter) {
-        refInstructions += "- Character reference image(s): The character(s) MUST look EXACTLY like in the reference (same face, hair, body type, clothing, art style).\n";
+        refInstructions += "- Character reference image(s): The character(s) MUST look IDENTICAL to the reference. Same face, same hair, same body, same clothing, same art style. Do NOT change their appearance.\n";
       }
+      refInstructions += "- This is a STORYBOARD FRAME for a film. Place the character(s) from the reference INTO the location from the reference.\n";
 
       generateParams.prompt = `${refInstructions}\n${fullPrompt}`;
-      generateParams.quality = "medium"; // Better quality when using references
+      generateParams.quality = "medium"; // Better quality for reference matching
     }
 
     const response = await (openai.images.generate as any)(generateParams);
