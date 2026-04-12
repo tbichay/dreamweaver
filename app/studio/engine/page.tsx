@@ -1985,9 +1985,11 @@ function SequenceCard({
 
         const data = await res.json();
         if (!res.ok) {
-          console.warn(`[Audio] Scene ${i + 1} failed:`, data.error);
-          setProgress(`Szene ${i + 1} fehlgeschlagen: ${data.error?.slice(0, 60)}`);
-          continue; // Skip failed scene, continue with next
+          const errMsg = data.error || `HTTP ${res.status}`;
+          console.error(`[Audio] Scene ${i + 1} failed:`, errMsg);
+          setError(`Szene ${i + 1}: ${errMsg}`);
+          // Don't stop — try remaining scenes
+          continue;
         }
 
         if (data.dialogDurationMs) {
