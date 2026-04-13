@@ -32,5 +32,14 @@ try {
 
 ## Error Handling
 - Every error MUST be shown via toast.error()
+
+## External API Image Upload (CRITICAL — learned the hard way)
+When an external API needs to FETCH an image from a URL:
+- Vercel Blob private URLs → **NOT accessible** by external APIs
+- Vercel Blob `getDownloadUrl()` → gives a signed public URL (~1h) → **WORKS**
+- Data URIs → work for small images (<5MB), may fail for larger ones
+- fal.ai `uploadToFal()` → gives public URLs → **WORKS** (but costs credits)
+- Wikipedia/rate-limited URLs → external APIs get 429 → **FAILS**
+- Always test with `curl` first before debugging complex integration code
 - Additionally show inline errors for form validation
 - Never silently swallow errors with `catch { /* */ }`
