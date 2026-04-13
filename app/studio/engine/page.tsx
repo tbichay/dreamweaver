@@ -1235,19 +1235,11 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         {!generating ? (
           <>
             <button
-              onClick={() => generate(false)}
+              onClick={() => generate(true)}
               className="px-5 py-2 rounded-xl bg-[#d4a853] text-black text-sm font-medium hover:bg-[#e4b863]"
             >
-              Drehbuch generieren
+              {project.sequences.length > 0 ? "Drehbuch neu generieren" : "Drehbuch generieren"}
             </button>
-            {project.status !== "draft" && (
-              <button
-                onClick={() => generate(true)}
-                className="px-4 py-2 rounded-xl bg-white/5 text-white/40 text-xs hover:text-white/60"
-              >
-                Neu generieren
-              </button>
-            )}
           </>
         ) : (
           <button
