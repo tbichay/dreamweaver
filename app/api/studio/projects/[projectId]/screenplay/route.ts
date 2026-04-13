@@ -199,21 +199,69 @@ export async function POST(
         // Delete old sequences and create fresh ones
         await prisma.studioSequence.deleteMany({ where: { projectId } });
 
-        // Auto-assign location images to sequences
-        const defaultLocationUrl = locationRefs.length > 0 ? locationRefs[0].imageUrl : undefined;
-        if (defaultLocationUrl) {
-          console.log(`[Screenplay] Default location image: ${locationRefs[0].name} → ${defaultLocationUrl.slice(-40)}`);
-        } else {
-          console.log(`[Screenplay] No location images available`);
+        // Smart location assignment: match each sequence to the BEST location
+        // based on name/description similarity
+        function matchLocationToSequence(
+          seqLocation: string,
+          locations: typeof locationRefs,
+        ): string | undefined {
+          if (locations.length === 0) return undefined;
+          if (locations.length === 1) return locations[0].imageUrl;
+
+          // Try exact locationId match first
+          const seqLower = seqLocation.toLowerCase();
+
+          // Score each location by keyword overlap with sequence location text
+          let bestScore = -1;
+          let bestUrl = locations[0].imageUrl; // default to first
+
+          for (const loc of locations) {
+            let score = 0;
+            const locName = (loc.name || "").toLowerCase();
+            const locDesc = (loc.description || "").toLowerCase();
+            const locTags = (loc.tags || []).map((t) => t.toLowerCase());
+
+            // Keyword matching
+            const keywords = seqLower.split(/\s+/).filter((w) => w.length > 3);
+            for (const kw of keywords) {
+              if (locName.includes(kw)) score += 3;
+              if (locDesc.includes(kw)) score += 2;
+              if (locTags.some((t) => t.includes(kw))) score += 1;
+            }
+
+            // Common location type matching
+            if (seqLower.includes("strand") && (locName.includes("strand") || locName.includes("beach"))) score += 5;
+            if (seqLower.includes("wasser") && (locName.includes("wasser") || locName.includes("ocean") || locName.includes("meer"))) score += 5;
+            if (seqLower.includes("wald") && (locName.includes("wald") || locName.includes("forest"))) score += 5;
+            if (seqLower.includes("stadt") && (locName.includes("stadt") || locName.includes("city"))) score += 5;
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestUrl = loc.imageUrl;
+            }
+          }
+
+          console.log(`[Screenplay] Location match: "${seqLocation}" → best=${bestUrl?.slice(-30)} (score=${bestScore})`);
+          return bestUrl;
         }
 
         for (const act of screenplay.acts) {
           for (const seq of act.sequences) {
-            // Try to match sequence's locationId to a location asset
-            let landscapeRefUrl = defaultLocationUrl;
+            // Smart match: find best location for this sequence
+            let landscapeRefUrl: string | undefined;
+
+            // 1. Try explicit locationId from AI
             if (seq.locationId) {
               const matchedLoc = locationRefs.find((l) => l.id === seq.locationId);
-              if (matchedLoc?.imageUrl) landscapeRefUrl = matchedLoc.imageUrl;
+              if (matchedLoc?.imageUrl) {
+                landscapeRefUrl = matchedLoc.imageUrl;
+                console.log(`[Screenplay] Seq "${seq.name}": location by ID → ${matchedLoc.name}`);
+              }
+            }
+
+            // 2. Smart match by location text
+            if (!landscapeRefUrl && locationRefs.length > 0) {
+              landscapeRefUrl = matchLocationToSequence(seq.location || seq.name, locationRefs);
             }
 
             await prisma.studioSequence.create({

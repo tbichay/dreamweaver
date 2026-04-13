@@ -164,6 +164,7 @@ Antworte mit einem JSON-Objekt:
     {
       "name": "Sequenzname",
       "location": "Detaillierte Ort-Beschreibung",
+      "locationId": "ID der verwendeten Location aus der Liste oben (oder null wenn keine passt)",
       "atmosphere": "Wetter und Lichtstimmung...",
       "characterIds": ["char-0", "char-1"],
       "transitionType": "fade-to-black" | "visual-transition" | "hard-cut",
@@ -258,9 +259,10 @@ ${charDescriptions}
 ${atmosphereText}
 
 ${locations && locations.length > 0 ? `## Verfuegbare Locations/Sets:
-Die folgenden Locations wurden VOR dem Drehbuch erstellt und stehen als Sets bereit.
-Verwende diese Locations in den Sequenzen und referenziere ihre Details in den sceneDescriptions.
-Setze locationId im Sequenz-Objekt auf die ID der verwendeten Location.
+Die folgenden Locations stehen als Sets bereit. JEDE Sequenz MUSS eine locationId bekommen!
+Weise VERSCHIEDENE Locations verschiedenen Sequenzen zu — nicht alle die gleiche.
+Wenn eine Location thematisch zur Sequenz passt (z.B. "Strand" zu einer Strand-Szene), verwende sie.
+Setze locationId im Sequenz-Objekt auf die ID der passenden Location.
 
 ${locations.map((loc) => `- ID: "${loc.id}" — "${loc.name}": ${loc.description}${loc.tags.length > 0 ? ` (Tags: ${loc.tags.join(", ")})` : ""}`).join("\n")}
 
