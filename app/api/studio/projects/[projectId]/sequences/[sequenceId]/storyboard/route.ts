@@ -77,8 +77,19 @@ export async function POST(
     return undefined;
   }
 
-  // ── Pre-load actor portraits (try ALL possible sources) ──
+  // ── Deterministic seed from string (for Flux Kontext consistency) ──
+  function hashSeed(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash) % 1000000;
+  }
+
+  // ── Pre-load actor images (prefer FULLBODY for storyboard!) ──
   const characterPortraitCache = new Map<string, Buffer>();
+  const characterSeedCache = new Map<string, number>();
   const characters = sequence.project?.characters || [];
   for (const char of characters) {
     const actor = (char as unknown as { actor?: {
@@ -87,11 +98,16 @@ export async function POST(
     } }).actor;
     const castSnapshot = (char as unknown as { castSnapshot?: { portraitUrl?: string } }).castSnapshot;
 
-    // Try multiple sources: castSnapshot → actor.characterSheet.front → actor.portraitAssetId → char.portraitUrl
-    const portraitUrl = castSnapshot?.portraitUrl
+    // For storyboard: prefer FULLBODY (shows whole person in action)
+    // Fallback chain: fullBody → front → castSnapshot → portraitAssetId → portraitUrl
+    const portraitUrl = actor?.characterSheet?.fullBody
       || actor?.characterSheet?.front
+      || castSnapshot?.portraitUrl
       || actor?.portraitAssetId
       || char.portraitUrl;
+
+    // Fixed seed per character per project (ensures same face across frames)
+    characterSeedCache.set(char.id, hashSeed(char.id + projectId));
 
     if (portraitUrl && !characterPortraitCache.has(char.id)) {
       const buf = await loadImageBuffer(portraitUrl);
@@ -202,24 +218,45 @@ export async function POST(
 
     let b64: string | undefined;
 
+    // Get fixed seed for this character
+    const charSeed = sceneCharId ? characterSeedCache.get(sceneCharId) : undefined;
+
     if (charPortrait) {
-      // ── CHARACTER SCENE: Use Flux Kontext for identity preservation ──
-      // Used for ALL scenes with a character (dialog, action, reaction shots)
-      console.log(`[Storyboard] Scene ${sceneIndex}: FLUX KONTEXT — character "${charInfo?.name}" (type: ${scene.type})`);
+      // ── CHARACTER SCENE: Flux Kontext with fixed seed for consistency ──
+      console.log(`[Storyboard] Scene ${sceneIndex}: FLUX KONTEXT — "${charInfo?.name}" seed=${charSeed} (type: ${scene.type})`);
       try {
         const { fluxKontext } = await import("@/lib/fal");
-        const scenePrompt = `Place this exact person into a new scene. Maintain their identical face, hair, and body. This is a HUMAN character, NOT an animal.
 
-Scene: ${cleanImagePrompt}
+        // Use the FULL sceneDescription for action-specific prompting
+        // Strip quoted dialog but keep the action/movement description
+        const actionDesc = scene.sceneDescription
+          .replace(/"[^"]*"/g, "")
+          .replace(/koalatree/gi, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const scenePrompt = `Show this EXACT same person (identical face, hair, body) performing the following action:
+
+ACTION: ${actionDesc}
+
+${scene.camera ? `Camera angle: ${scene.camera}.` : ""}
 ${sequence.location ? `Location: ${sequence.location}.` : ""}
-${charInfo?.outfit ? `The character is wearing: ${charInfo.outfit}.` : ""}
+${charInfo?.outfit ? `Wearing: ${charInfo.outfit}.` : ""}
+${charInfo?.description ? `Character: ${charInfo.description}.` : ""}
 ${styleHint}.
-Cinematic storyboard frame. No text, no watermarks, no logos.`;
+
+RULES:
+- This is a HUMAN, not an animal
+- Keep the person's face IDENTICAL to the reference
+- The person must be ACTIVELY performing the described action
+- Cinematic film storyboard frame
+- No text, no watermarks, no logos`;
 
         const result = await fluxKontext({
           imageBuffer: charPortrait,
           prompt: scenePrompt,
           aspectRatio: format === "portrait" ? "9:16" : "16:9",
+          seed: charSeed, // Fixed seed per character = consistent face across all frames
         });
 
         // Download the generated image
@@ -302,24 +339,46 @@ No text, no watermarks, no logos.`,
       continue;
     }
 
-    // ── AI Quality Check: verify location + character consistency ──
+    // ── AI Quality Check: verify character + action + composition ──
     let qualityIssues: string[] = [];
     try {
       const { validateImage } = await import("@/lib/studio/image-quality");
+      const actionDesc = scene.sceneDescription?.replace(/"[^"]*"/g, "").trim() || "";
       const validationPrompt = charInfo
-        ? `${fullPrompt}\n\nEXPECTED: The character should be a HUMAN named "${charInfo.name}" — ${charInfo.description}. NOT an animal, NOT a koala, NOT a cartoon animal.`
+        ? `EXPECTED: A HUMAN character named "${charInfo.name}" (${charInfo.description}). NOT an animal, NOT a koala.
+ACTION: The character should be doing: ${actionDesc}
+LOCATION: ${sequence.location || "unspecified"}
+Check: Is the character a human? Is the action correct? Is the location correct?`
         : fullPrompt;
       const validation = await validateImage(b64, validationPrompt, "storyboard");
       qualityIssues = validation.issues;
       console.log(`[Storyboard] Scene ${sceneIndex} quality: ${validation.score}/10${validation.issues.length > 0 ? ` — Issues: ${validation.issues.join(", ")}` : " ✓"}`);
 
-      // If failed badly and has improved prompt: re-generate once via GPT-Image
-      if (!validation.passed && validation.improvedPrompt && validation.score < 5) {
-        console.log(`[Storyboard] Scene ${sceneIndex}: re-generating with corrected prompt...`);
+      // If failed: retry with Flux Kontext using seed+1 (different variation, same face)
+      if (!validation.passed && validation.score < 6 && charPortrait && charSeed) {
+        console.log(`[Storyboard] Scene ${sceneIndex}: RETRY with seed+1 (score was ${validation.score})...`);
+        try {
+          const { fluxKontext: fluxRetry } = await import("@/lib/fal");
+          const retryResult = await fluxRetry({
+            imageBuffer: charPortrait,
+            prompt: `${validation.improvedPrompt || cleanImagePrompt}. This is a HUMAN character, not an animal. ${styleHint}.`,
+            aspectRatio: format === "portrait" ? "9:16" : "16:9",
+            seed: charSeed + 1,
+          });
+          const retryRes = await fetch(retryResult.url);
+          if (retryRes.ok) {
+            const retryBuf = Buffer.from(await retryRes.arrayBuffer());
+            b64 = retryBuf.toString("base64");
+            qualityIssues = [`Auto-retry: ${validation.issues[0] || "quality too low"}`];
+          }
+        } catch { /* use original */ }
+      } else if (!validation.passed && validation.score < 5) {
+        // Non-character scene: retry with GPT-Image
+        console.log(`[Storyboard] Scene ${sceneIndex}: RETRY with GPT-Image...`);
         try {
           const retryResponse = await (openai.images.generate as any)({
             model: "gpt-image-1.5",
-            prompt: validation.improvedPrompt,
+            prompt: validation.improvedPrompt || `${styleHint}. ${cleanImagePrompt}`,
             n: 1,
             size,
             quality: "medium",
