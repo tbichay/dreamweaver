@@ -50,6 +50,7 @@ interface ClipRequest {
   stylePrompt?: string;
   mode?: "film" | "hoerspiel" | "audiobook"; // film = lip-sync, hoerspiel/audiobook = no lip-sync
   force?: boolean;
+  provider?: "kling" | "runway"; // Video provider (default: kling)
 }
 
 export async function POST(
@@ -312,45 +313,80 @@ export async function POST(
           const camera = scene.camera || "close-up";
           const isCloseUp = camera === "close-up" || camera === "zoom-in";
 
+          const useRunwayForDialog = body.provider === "runway";
+
           if (isCloseUp) {
-            // ── CLOSE-UP: Kling Avatar — only the speaker, with lip-sync ──
             const speakerImage = portraitBuffer || characterRefs[0];
             if (!speakerImage) throw new Error("Kein Portrait fuer Close-Up Dialog");
 
-            send({ progress: `Close-Up: ${character?.name || "Dialog"} spricht...` });
+            send({ progress: `Close-Up: ${character?.name || "Dialog"} spricht... (${useRunwayForDialog ? "Runway" : "Kling"})` });
             await task.progress(`Close-Up: ${character?.name || "Dialog"}`, 30);
 
-            try {
-              videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "pro");
-            } catch (err) {
-              console.warn("[Clip] Avatar Pro failed, trying Standard:", err);
-              send({ progress: "Fallback: Avatar Standard..." });
+            if (useRunwayForDialog) {
+              // ── RUNWAY: Generate video from portrait, then lip-sync applied in Remotion ──
               try {
-                videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "standard");
-              } catch (err2) {
-                console.warn("[Clip] Avatar Standard failed, trying I2V:", err2);
-                send({ progress: "Fallback: I2V..." });
-                videoUrl = await klingI2V({
-                  imageBuffer: speakerImage,
-                  prompt,
-                  durationSeconds: Math.ceil(segDur),
-                  aspectRatio,
-                  quality: "pro",
-                  generateAudio: false,
+                const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
+                videoUrl = await runwayI2V({
+                  imageUrl: bufferToDataUri(speakerImage, "image/png"),
+                  prompt: `${prompt}. Character speaking naturally, mouth moving, expressive face.`,
+                  duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
+                  ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
+                  model: quality === "premium" ? "gen4.5" : "gen4_turbo",
                 });
+              } catch (runwayErr) {
+                console.warn("[Clip] Runway dialog failed, falling back to Kling Avatar:", runwayErr);
+                send({ progress: "Runway fehlgeschlagen, Fallback: Kling Avatar..." });
+                // Fall through to Kling below
+              }
+            }
+
+            if (!videoUrl) {
+              // ── KLING AVATAR: portrait + audio → video with lip-sync ──
+              try {
+                videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "pro");
+              } catch (err) {
+                console.warn("[Clip] Avatar Pro failed, trying Standard:", err);
+                send({ progress: "Fallback: Avatar Standard..." });
+                try {
+                  videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "standard");
+                } catch (err2) {
+                  console.warn("[Clip] Avatar Standard failed, trying I2V:", err2);
+                  send({ progress: "Fallback: I2V..." });
+                  videoUrl = await klingI2V({
+                    imageBuffer: speakerImage,
+                    prompt,
+                    durationSeconds: Math.ceil(segDur),
+                    aspectRatio,
+                    quality: "pro",
+                    generateAudio: false,
+                  });
+                }
               }
             }
           } else {
-            // ── MEDIUM/WIDE: Kling I2V — group scene, NO lip-sync ──
-            // Audio plays over the video but no mouths move
-            // Use prevFrame (group) or landscape as start image
-            // Priority: landscape (correct location!) → prevFrame → storyboard → portrait
+            // ── MEDIUM/WIDE: group scene, NO lip-sync ──
             const groupImage = landscapeBuffer || prevFrame || portraitBuffer || characterRefs[0];
             if (!groupImage) throw new Error("Kein Bild fuer Gruppenszene");
 
-            send({ progress: `${camera}: Gruppenszene mit ${character?.name || "Dialog"}...` });
+            send({ progress: `${camera}: Gruppenszene (${useRunwayForDialog ? "Runway" : "Kling"})...` });
             await task.progress(`${camera}: Gruppe`, 30);
 
+            if (useRunwayForDialog) {
+              try {
+                const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
+                videoUrl = await runwayI2V({
+                  imageUrl: bufferToDataUri(groupImage, "image/png"),
+                  prompt,
+                  duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
+                  ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
+                  model: quality === "premium" ? "gen4.5" : "gen4_turbo",
+                });
+              } catch (runwayErr) {
+                console.warn("[Clip] Runway group failed, falling back to Kling:", runwayErr);
+              }
+            }
+
+            if (!videoUrl) {
             try {
               videoUrl = await klingI2V({
                 imageBuffer: groupImage,
@@ -373,25 +409,47 @@ export async function POST(
                 generateAudio: false,
               });
             }
+            } // close if (!videoUrl) — Kling fallback for group
           }
         } else {
-          // ── LANDSCAPE / TRANSITION: Try O3 first (longer clips!), fallback to v3 ──
+          // ── LANDSCAPE / TRANSITION ──
 
-          // Prefer storyboard frame as start image (user approved visual)
           const storyboardFrame = scene.storyboardImageUrl ? await loadBlobBuffer(scene.storyboardImageUrl) : undefined;
-          // Priority: landscape FIRST (correct location!), then prevFrame for continuity, then storyboard for composition
           const imageSource = landscapeBuffer || prevFrame || storyboardFrame || portraitBuffer || characterRefs[0];
           if (!imageSource) {
-            send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Landscape oder Actor zuweisen.`, skipped: true });
+            send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Location oder Actor zuweisen.`, skipped: true });
             clearInterval(keepAlive);
             try { controller.close(); } catch { /* */ }
             return;
           }
 
           const durSec = scene.durationHint || 5;
+          const useRunway = body.provider === "runway";
 
-          // Try Kling O3 first for longer clips + multi-shot support
-          const useO3 = durSec > 5 || scene.storyboardImageUrl; // O3 preferred when storyboard frame exists or long scene
+          // ── RUNWAY PATH ──
+          if (useRunway) {
+            try {
+              send({ progress: `Runway Gen-4 Turbo: Szene...` });
+              await task.progress("Runway...", 30);
+
+              const { runwayI2V, bufferToDataUri } = await import("@/lib/runway");
+              const imageDataUri = bufferToDataUri(imageSource, "image/png");
+              videoUrl = await runwayI2V({
+                imageUrl: imageDataUri,
+                prompt,
+                duration: durSec <= 5 ? 5 : 10,
+                ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
+                model: quality === "premium" ? "gen4.5" : "gen4_turbo",
+              });
+            } catch (runwayErr) {
+              console.warn("[Clip] Runway failed, falling back to Kling:", runwayErr);
+              send({ progress: "Runway fehlgeschlagen, Fallback: Kling..." });
+            }
+          }
+
+          // ── KLING PATH (default or fallback) ──
+          if (!videoUrl) {
+            const useO3 = durSec > 5 || scene.storyboardImageUrl;
 
           if (useO3) {
             try {
@@ -453,6 +511,7 @@ export async function POST(
               });
             }
           }
+          } // close if (!videoUrl) — Kling fallback block
         }
 
         // Extract last frame for next scene continuity

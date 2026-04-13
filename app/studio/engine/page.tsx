@@ -2798,7 +2798,8 @@ function SequenceCard({
   const [clipGenerating, setClipGenerating] = useState(false);
   const [generatingSceneIdx, setGeneratingSceneIdx] = useState<number | null>(null);
   const [showCostConfirm, setShowCostConfirm] = useState(false); // kept for UI compat
-  const clipQuality = "pro" as const; // Always Kling Pro
+  const clipQuality = "pro" as const;
+  const [videoProvider, setVideoProvider] = useState<"kling" | "runway">("kling");
   // Use project style as default — no need to ask again
   const defaultStyleId = projectStyle ? (VISUAL_STYLES.find((s) => s.prompt === projectStyle)?.id || "custom") : "disney-2d";
   const [visualStyle, setVisualStyle] = useState(defaultStyleId);
@@ -2926,7 +2927,7 @@ function SequenceCard({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle }),
+          body: JSON.stringify({ sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider }),
         },
       );
       let hadError = false;
@@ -3015,7 +3016,7 @@ function SequenceCard({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle }),
+            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider }),
           },
         );
         let hadError = false;
@@ -3090,12 +3091,29 @@ function SequenceCard({
               </button>
             )}
             {canGenerateClips && !isGenerating && (
-              <button
-                onClick={generateAllClipsTracked}
-                className="text-[11px] px-4 py-2 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium"
-              >
-                {sequence.scenes?.some((s) => s.status === "done") ? "Clips neu generieren" : "Clips generieren"}
-              </button>
+              <>
+                {/* Provider Selection */}
+                <div className="flex items-center gap-1.5 bg-white/5 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setVideoProvider("kling")}
+                    className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "kling" ? "bg-[#d4a853]/20 text-[#d4a853] font-medium" : "text-white/30 hover:text-white/50"}`}
+                  >
+                    Kling
+                  </button>
+                  <button
+                    onClick={() => setVideoProvider("runway")}
+                    className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" ? "bg-purple-500/20 text-purple-300 font-medium" : "text-white/30 hover:text-white/50"}`}
+                  >
+                    Runway
+                  </button>
+                </div>
+                <button
+                  onClick={generateAllClipsTracked}
+                  className={`text-[11px] px-4 py-2 rounded-lg font-medium ${videoProvider === "runway" ? "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30" : "bg-[#d4a853]/20 text-[#d4a853] hover:bg-[#d4a853]/30"}`}
+                >
+                  {sequence.scenes?.some((s) => s.status === "done") ? "Clips neu generieren" : "Clips generieren"} ({videoProvider === "runway" ? "Runway" : "Kling"})
+                </button>
+              </>
             )}
             {hasActorsCast && sequence.audioUrl && !isGenerating && (
               <span className="text-[9px] text-amber-400/60 px-2 py-1 bg-amber-500/10 rounded-lg">
