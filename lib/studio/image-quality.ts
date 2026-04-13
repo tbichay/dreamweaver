@@ -95,7 +95,7 @@ export async function enhanceImagePrompt(
   const guidelines = CATEGORY_GUIDELINES[category];
 
   const response = await anthropic.messages.create({
-    model: "claude-haiku-4-20250414",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 800,
     messages: [{
       role: "user",
@@ -164,7 +164,7 @@ export async function validateImage(
   const guidelines = CATEGORY_GUIDELINES[category];
 
   const response = await anthropic.messages.create({
-    model: "claude-haiku-4-20250414",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 500,
     messages: [{
       role: "user",

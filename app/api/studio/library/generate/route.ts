@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { type, description, style, tags, name, category: reqCategory, skipEnhance, qualityCheck } = body as {
+  let { type, description, style, tags, name, category: reqCategory, skipEnhance, qualityCheck } = body as {
     type: "portrait" | "landscape" | "reference";
     description: string;
     style: string;
@@ -45,19 +45,22 @@ export async function POST(request: Request) {
             ? "Studio Ghibli anime style, soft pastel colors"
             : "High quality";
 
-  let prompt: string;
+  let prompt: string = "";
   let enhancedData: { reasoning: string; warnings: string[] } | undefined;
 
   if (!skipEnhance) {
     console.log(`[Generate] Enhancing prompt: "${description.slice(0, 60)}..." (${imageCategory})`);
-    const enhanced = await enhanceImagePrompt(description, imageCategory, styleHint);
-    prompt = enhanced.prompt;
-    enhancedData = { reasoning: enhanced.reasoning, warnings: enhanced.warnings };
-    console.log(`[Generate] Enhanced: "${prompt.slice(0, 80)}..." | Reasoning: ${enhanced.reasoning}`);
-    if (enhanced.warnings.length > 0) {
-      console.log(`[Generate] Warnings: ${enhanced.warnings.join(", ")}`);
+    try {
+      const enhanced = await enhanceImagePrompt(description, imageCategory, styleHint);
+      prompt = enhanced.prompt;
+      enhancedData = { reasoning: enhanced.reasoning, warnings: enhanced.warnings };
+      console.log(`[Generate] Enhanced: "${prompt.slice(0, 80)}..." | Reasoning: ${enhanced.reasoning}`);
+    } catch (enhErr) {
+      console.warn(`[Generate] Enhancement failed, using fallback:`, enhErr);
+      skipEnhance = true; // Fall through to manual prompt below
     }
-  } else {
+  }
+  if (skipEnhance) {
     // Fallback: build prompt manually (old behavior)
     if (type === "portrait") {
       prompt = `${styleHint}. Character portrait: ${description}. Head and shoulders, expressive eyes, detailed face. No text, no watermarks.`;

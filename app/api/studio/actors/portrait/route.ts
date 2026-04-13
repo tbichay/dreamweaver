@@ -37,15 +37,24 @@ export async function POST(request: Request) {
   const openai = new OpenAI();
   const style = body.style || "realistic";
 
-  // Enhance prompt with AI
-  const { enhanceImagePrompt } = await import("@/lib/studio/image-quality");
+  // Enhance prompt with AI (graceful fallback if it fails)
   const outfitHint = actor.outfit ? ` Outfit: ${actor.outfit}.` : "";
   const traitsHint = actor.traits ? ` Traits: ${actor.traits}.` : "";
   const rawDescription = `${body.description}.${outfitHint}${traitsHint} Head and shoulders portrait.`;
 
-  const enhanced = await enhanceImagePrompt(rawDescription, "actor", style);
-  const portraitPrompt = enhanced.prompt;
-  console.log(`[Portrait] Enhanced: "${portraitPrompt.slice(0, 80)}..." | ${enhanced.reasoning}`);
+  const styleHint = style === "realistic"
+    ? "Photorealistic portrait, cinematic lighting"
+    : style === "pixar-3d" ? "Pixar 3D animation style" : "High quality";
+
+  let portraitPrompt = `${styleHint}. Character: ${rawDescription} No text, no watermarks.`;
+  try {
+    const { enhanceImagePrompt } = await import("@/lib/studio/image-quality");
+    const enhanced = await enhanceImagePrompt(rawDescription, "actor", style);
+    portraitPrompt = enhanced.prompt;
+    console.log(`[Portrait] Enhanced: "${portraitPrompt.slice(0, 80)}..." | ${enhanced.reasoning}`);
+  } catch (enhErr) {
+    console.warn(`[Portrait] Prompt enhancement failed, using raw prompt:`, enhErr);
+  }
 
   const response = await (openai.images.generate as any)({
     model: "gpt-image-1.5",
