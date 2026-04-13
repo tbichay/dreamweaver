@@ -58,7 +58,7 @@ async function runwayFetch(path: string, options: RequestInit = {}): Promise<Res
   });
 }
 
-async function pollTask(taskId: string, timeoutMs = 600000): Promise<RunwayTask> {
+async function pollTask(taskId: string, timeoutMs = 180000): Promise<RunwayTask> { // 3 min max (Gen-4 Turbo typically 30-90s)
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
     const res = await runwayFetch(`/tasks/${taskId}`);
