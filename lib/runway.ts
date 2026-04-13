@@ -1,14 +1,14 @@
 /**
- * Runway ML API Client — Complete Video Generation Suite
+ * Runway ML API Client — Video Generation
  *
- * Features:
- * - Image-to-Video (Gen-4 Turbo $0.05/s, Gen-4.5 $0.12/s)
- * - Camera Motion Control (6 axes, -10 to +10)
- * - Character Reference Images (up to 3)
- * - Lip-Sync from Audio + Portrait
- * - Text-to-Video
+ * IMPORTANT: REST API uses snake_case field names (prompt_image, not promptImage).
+ * The Runway SDKs convert automatically, but we use raw fetch.
  *
- * All generation is async: submit task → poll → get result.
+ * Endpoint: https://api.dev.runwayml.com/v1 (Developer API — "dev" = Developer Portal, not Development)
+ *
+ * Accepted fields for /v1/image_to_video:
+ *   model, prompt_image, prompt_text, ratio, duration, seed, webhook_url
+ *   NOTHING ELSE (no watermark, motion, referenceImages)
  */
 
 const RUNWAY_BASE = "https://api.dev.runwayml.com/v1";
@@ -29,48 +29,19 @@ interface RunwayTask {
   failure?: string;
 }
 
-/** Camera motion control — 6 axes, each -10 to +10 */
-export interface RunwayCameraMotion {
-  /** Truck left (-) / right (+) */
-  horizontal?: number;
-  /** Pedestal down (-) / up (+) */
-  vertical?: number;
-  /** Rotate camera left (-) / right (+) */
-  pan?: number;
-  /** Tilt camera down (-) / up (+) */
-  tilt?: number;
-  /** Zoom out (-) / in (+) */
-  zoom?: number;
-  /** Dutch angle left (-) / right (+) */
-  roll?: number;
-}
-
 export interface RunwayI2VOptions {
-  /** Start image (public URL or data URI) */
+  /** Image: HTTPS URL or data:image/png;base64,... */
   imageUrl: string;
   /** Scene description */
   prompt: string;
-  /** Duration: 5 or 10 seconds */
+  /** 5 or 10 seconds */
   duration?: 5 | 10;
   /** Aspect ratio */
   ratio?: "1280:720" | "720:1280" | "960:960";
-  /** Model: gen4_turbo ($0.05/s) or gen4.5 ($0.12/s) */
+  /** gen4_turbo ($0.05/s) or gen4.5 ($0.12/s) */
   model?: "gen4_turbo" | "gen4.5";
-  /** Camera motion (6 axes) */
-  camera?: RunwayCameraMotion;
-  /** Reference images for character consistency (up to 3, as URLs or data URIs) */
-  referenceImages?: Array<{ uri: string; tag?: string }>;
-  /** Disable watermark */
-  watermark?: boolean;
-}
-
-export interface RunwayLipSyncOptions {
-  /** Portrait image (URL or data URI) */
-  imageUrl: string;
-  /** Audio file URL or data URI (MP3/WAV) */
-  audioUrl: string;
-  /** Max duration (auto-trimmed to audio length, max 45s) */
-  maxDuration?: number;
+  /** Reproducibility seed */
+  seed?: number;
 }
 
 // ── API Helpers ────────────────────────────────────────────────
@@ -91,7 +62,7 @@ async function pollTask(taskId: string, timeoutMs = 600000): Promise<RunwayTask>
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
     const res = await runwayFetch(`/tasks/${taskId}`);
-    if (!res.ok) throw new Error(`Runway poll failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) throw new Error(`Runway poll: ${res.status} ${await res.text()}`);
 
     const task: RunwayTask = await res.json();
     console.log(`[Runway] Task ${taskId}: ${task.status}`);
@@ -104,73 +75,30 @@ async function pollTask(taskId: string, timeoutMs = 600000): Promise<RunwayTask>
   throw new Error(`Runway timed out after ${timeoutMs / 1000}s`);
 }
 
-// ── Image to Video (with Camera + References) ──────────────────
+// ── Image to Video ─────────────────────────────────────────────
 
 /**
- * Generate video from image with full control.
+ * Generate video from image using Runway Gen-4 Turbo or Gen-4.5.
  *
- * Features:
- * - Camera motion (pan, tilt, zoom, dolly, roll)
- * - Character references (up to 3 images for consistency)
- * - Gen-4 Turbo ($0.05/s) or Gen-4.5 ($0.12/s)
+ * CRITICAL: Uses snake_case field names (prompt_image, prompt_text).
  */
 export async function runwayI2V(options: RunwayI2VOptions): Promise<string> {
   const {
     imageUrl, prompt, duration = 5, ratio = "1280:720",
-    model = "gen4_turbo", camera, referenceImages, watermark = false,
+    model = "gen4_turbo", seed,
   } = options;
 
-  const cameraStr = camera ? ` [cam: h=${camera.horizontal||0} v=${camera.vertical||0} p=${camera.pan||0} t=${camera.tilt||0} z=${camera.zoom||0}]` : "";
-  console.log(`[Runway] ${model} I2V: ${prompt.slice(0, 50)}...${cameraStr} (${duration}s)`);
+  console.log(`[Runway] ${model} I2V: "${prompt.slice(0, 60)}..." (${duration}s, ${ratio})`);
 
-  // IMPORTANT: Runway API only accepts these fields for /v1/image_to_video:
-  // model, promptImage, promptText, ratio, duration
-  // referenceImages, motion, watermark cause 400 "Validation of body failed"
+  // SNAKE_CASE field names — this is the fix!
   const body: Record<string, unknown> = {
     model,
-    promptImage: imageUrl,
-    promptText: prompt,
+    prompt_image: imageUrl,   // NOT promptImage
+    prompt_text: prompt,      // NOT promptText
     ratio,
     duration,
   };
-
-  // NOTE: Camera motion and reference images are NOT yet supported
-  // via the REST API for gen4_turbo (only available in web UI).
-  // Camera instructions are included in the promptText instead.
-  if (camera) {
-    // Encode camera as text prompt suffix instead of API params
-    const camParts: string[] = [];
-    if (camera.pan && camera.pan > 0) camParts.push("camera pans right");
-    if (camera.pan && camera.pan < 0) camParts.push("camera pans left");
-    if (camera.tilt && camera.tilt > 0) camParts.push("camera tilts up");
-    if (camera.tilt && camera.tilt < 0) camParts.push("camera tilts down");
-    if (camera.zoom && camera.zoom > 0) camParts.push("camera slowly zooms in");
-    if (camera.zoom && camera.zoom < 0) camParts.push("camera slowly zooms out");
-    if (camera.horizontal && camera.horizontal > 0) camParts.push("camera tracks right");
-    if (camera.horizontal && camera.horizontal < 0) camParts.push("camera tracks left");
-    if (camParts.length > 0) {
-      body.promptText = `${prompt}. Camera movement: ${camParts.join(", ")}.`;
-    }
-    // Keep this block for future API support:
-    const _motionParams: Record<string, number> = {};
-    if (camera.horizontal) _motionParams.horizontal = clamp(camera.horizontal, -10, 10);
-    if (false && Object.keys(_motionParams).length > 0) {
-      body.motion = _motionParams;
-    }
-  }
-
-  // NOTE: referenceImages are NOT supported via REST API for gen4_turbo.
-  // Character descriptions are included in promptText instead.
-  // When Runway adds reference image support, uncomment:
-  // if (referenceImages && referenceImages.length > 0) {
-  //   body.referenceImages = referenceImages.slice(0, 3).map((ref) => ({
-  //     uri: ref.uri,
-  //     ...(ref.tag && { tag: ref.tag }),
-  //   }));
-  // }
-  if (referenceImages && referenceImages.length > 0) {
-    console.log(`[Runway] ${referenceImages.length} reference(s) — NOT sent (API limitation), using text prompt instead`);
-  }
+  if (seed !== undefined) body.seed = seed;
 
   const res = await runwayFetch("/image_to_video", {
     method: "POST",
@@ -179,65 +107,18 @@ export async function runwayI2V(options: RunwayI2VOptions): Promise<string> {
 
   if (!res.ok) {
     const errBody = await res.text();
-    throw new Error(`Runway I2V: ${res.status} ${errBody}`);
+    console.error(`[Runway] I2V Error ${res.status}:`, errBody.slice(0, 300));
+    throw new Error(`Runway I2V: ${res.status} ${errBody.slice(0, 200)}`);
   }
 
   const data = await res.json();
   if (!data.id) throw new Error("Runway: no task ID");
-  console.log(`[Runway] Task: ${data.id}`);
+  console.log(`[Runway] Task created: ${data.id}`);
 
   const task = await pollTask(data.id);
   if (!task.output?.length) throw new Error("Runway: no video output");
 
   console.log(`[Runway] Done: ${task.output[0]}`);
-  return task.output[0];
-}
-
-// ── Lip-Sync (Portrait + Audio → Talking Video) ────────────────
-
-/**
- * Generate a talking video from portrait + audio.
- *
- * Takes a portrait image and audio file → produces video with lip-sync.
- * Cost: $0.05/s (5 credits/sec)
- * Max duration: 45 seconds
- *
- * This replaces Kling Avatar for dialog scenes.
- */
-export async function runwayLipSync(options: RunwayLipSyncOptions): Promise<string> {
-  const { imageUrl, audioUrl, maxDuration = 30 } = options;
-
-  console.log(`[Runway] Lip-Sync: using I2V with speaking prompt (avatar_videos endpoint not yet stable)...`);
-
-  // NOTE: /v1/avatar_videos returns 400 with current params.
-  // Fallback: use I2V with "character speaking" in the prompt.
-  // The audio will be overlaid in Remotion film assembly.
-  const body: Record<string, unknown> = {
-    model: "gen4_turbo",
-    promptImage: imageUrl,
-    promptText: "The person in the image is speaking naturally, with expressive facial movements, mouth moving, animated conversation. Natural body language. Cinematic close-up.",
-    ratio: "1280:720",
-    duration: Math.min(10, Math.max(5, Math.ceil(maxDuration))) as 5 | 10,
-  };
-
-  const res = await runwayFetch("/image_to_video", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const errBody = await res.text();
-    throw new Error(`Runway Lip-Sync (I2V fallback): ${res.status} ${errBody}`);
-  }
-
-  const data = await res.json();
-  if (!data.id) throw new Error("Runway Lip-Sync: no task ID");
-  console.log(`[Runway] Lip-Sync task: ${data.id}`);
-
-  const task = await pollTask(data.id);
-  if (!task.output?.length) throw new Error("Runway Lip-Sync: no video output");
-
-  console.log(`[Runway] Lip-Sync done: ${task.output[0]}`);
   return task.output[0];
 }
 
@@ -250,11 +131,16 @@ export async function runwayT2V(options: {
   model?: "gen4_turbo" | "gen4.5";
 }): Promise<string> {
   const { prompt, duration = 5, ratio = "1280:720", model = "gen4_turbo" } = options;
-  console.log(`[Runway] ${model} T2V: ${prompt.slice(0, 50)}... (${duration}s)`);
+  console.log(`[Runway] ${model} T2V: "${prompt.slice(0, 50)}..." (${duration}s)`);
 
   const res = await runwayFetch("/text_to_video", {
     method: "POST",
-    body: JSON.stringify({ model, promptText: prompt, ratio, duration }),
+    body: JSON.stringify({
+      model,
+      prompt_text: prompt,  // snake_case!
+      ratio,
+      duration,
+    }),
   });
 
   if (!res.ok) throw new Error(`Runway T2V: ${res.status} ${await res.text()}`);
@@ -265,26 +151,24 @@ export async function runwayT2V(options: {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function clamp(val: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, val));
-}
-
+/**
+ * Convert buffer to data URI for Runway API.
+ */
 export function bufferToDataUri(buffer: Buffer, mimeType = "image/png"): string {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
 /**
- * Upload buffer for Runway API access.
- * Uses data URI for small files (<2MB) and Vercel Blob + download URL for larger files.
+ * Upload buffer for Runway: data URI for small files, Blob download URL for large.
  */
 export async function uploadForRunway(buffer: Buffer, filename: string, contentType: string): Promise<string> {
-  // Data URIs work for files under ~2MB (Runway's body limit is ~16MB for data URIs)
-  if (buffer.byteLength < 2 * 1024 * 1024) {
-    console.log(`[Runway] Using data URI for ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB)`);
+  // Data URIs for files under 1.5MB (safe after base64 expansion)
+  if (buffer.byteLength < 1.5 * 1024 * 1024) {
+    console.log(`[Runway] Data URI for ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB)`);
     return `data:${contentType};base64,${buffer.toString("base64")}`;
   }
 
-  // For larger files: upload to Vercel Blob (private) and get a download URL
+  // Larger files: Vercel Blob private + download URL
   const { put, getDownloadUrl } = await import("@vercel/blob");
   const blob = await put(`runway-temp/${filename}-${Date.now()}`, buffer, {
     access: "private",
@@ -292,30 +176,29 @@ export async function uploadForRunway(buffer: Buffer, filename: string, contentT
     addRandomSuffix: true,
   });
   const downloadUrl = await getDownloadUrl(blob.url);
-  console.log(`[Runway] Uploaded ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB) → download URL`);
+  console.log(`[Runway] Blob upload for ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB)`);
   return downloadUrl;
 }
 
 /**
- * Map our cameraMotion values to Runway's numeric camera parameters.
- * Our values: "static", "pan-left", "pan-right", "tilt-up", "dolly-forward", etc.
- * Runway values: numeric -10 to +10 per axis.
+ * Map our cameraMotion strings to text descriptions for Runway prompt.
+ * (Runway REST API doesn't have numeric camera params — only via web UI)
  */
-export function mapCameraMotion(motion?: string): RunwayCameraMotion | undefined {
-  if (!motion || motion === "static") return undefined;
+export function mapCameraMotion(motion?: string): string {
+  if (!motion || motion === "static") return "";
 
-  const presets: Record<string, RunwayCameraMotion> = {
-    "pan-left": { pan: -5 },
-    "pan-right": { pan: 5 },
-    "tilt-up": { tilt: 5 },
-    "tilt-down": { tilt: -5 },
-    "zoom-in": { zoom: 6 },
-    "zoom-out": { zoom: -5 },
-    "dolly-forward": { zoom: 4, tilt: -1 },
-    "dolly-back": { zoom: -4, tilt: 1 },
-    "tracking": { horizontal: 6, pan: 2 },
-    "rotation": { pan: 8 },
+  const descriptions: Record<string, string> = {
+    "pan-left": "Camera pans smoothly to the left",
+    "pan-right": "Camera pans smoothly to the right",
+    "tilt-up": "Camera tilts upward slowly",
+    "tilt-down": "Camera tilts downward slowly",
+    "zoom-in": "Camera slowly zooms in closer",
+    "zoom-out": "Camera slowly zooms out wider",
+    "dolly-forward": "Camera moves forward toward the subject",
+    "dolly-back": "Camera pulls back from the subject",
+    "tracking": "Camera tracks alongside the moving subject",
+    "rotation": "Camera slowly rotates around the subject",
   };
 
-  return presets[motion] || undefined;
+  return descriptions[motion] || "";
 }

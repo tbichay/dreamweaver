@@ -334,40 +334,25 @@ export async function POST(
             await task.progress(`Close-Up: ${character?.name || "Dialog"}`, 30);
 
             if (useRunwayForDialog) {
-              // ── RUNWAY LIP-SYNC: Portrait + Audio → Talking Video ──
+              // ── RUNWAY I2V: Generate video with speaking character ──
+              // Audio will be overlaid in Remotion (Runway REST API has no lip-sync endpoint)
               try {
-                const { runwayLipSync, runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
-                const speakerDataUri = await uploadForRunway(speakerImage, "speaker.png", "image/png");
+                const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
+                const startImage = prevFrame || landscapeBuffer || speakerImage;
+                const imageUrl = await uploadForRunway(startImage, "start.png", "image/png");
+                const charDesc = actorDataForPrompt
+                  ? `Character "${character?.name}": ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                  : "";
+                const cameraHint = mapCameraMotion(scene.cameraMotion);
 
-                if (audioSegment.byteLength > 100) {
-                  // Has audio → use Lip-Sync endpoint
-                  const audioDataUri = await uploadForRunway(audioSegment, "audio.mp3", "audio/mpeg");
-                  send({ progress: `Runway Lip-Sync: ${character?.name}...` });
-                  videoUrl = await runwayLipSync({
-                    imageUrl: speakerDataUri,
-                    audioUrl: audioDataUri,
-                    maxDuration: Math.ceil(segDur),
-                  });
-                } else {
-                  // No audio → use I2V with camera + references
-                  const runwayStartImage = prevFrame || landscapeBuffer || speakerImage;
-                  const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
-                  const charRefs = await Promise.all(characterRefs.map(async (ref) => ({ uri: await uploadForRunway(ref, "ref.png", "image/png"), tag: charTag })));
-                  const charDesc = actorDataForPrompt
-                    ? `@${charTag} "${character?.name}": ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
-                    : "";
-
-                  send({ progress: `Runway I2V: ${character?.name}...` });
-                  videoUrl = await runwayI2V({
-                    imageUrl: await uploadForRunway(runwayStartImage, "start.png", "image/png"),
-                    prompt: `${charDesc} ${prompt}. @${charTag} speaking, expressive face, in action.`,
-                    duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
-                    ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
-                    model: quality === "premium" ? "gen4.5" : "gen4_turbo",
-                    camera: mapCameraMotion(scene.cameraMotion),
-                    referenceImages: charRefs.length > 0 ? charRefs : undefined,
-                  });
-                }
+                send({ progress: `Runway: ${character?.name} Close-Up...` });
+                videoUrl = await runwayI2V({
+                  imageUrl,
+                  prompt: `${charDesc} ${prompt}. Character speaking naturally, expressive face.${cameraHint ? ` ${cameraHint}.` : ""}`,
+                  duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
+                  ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
+                  model: quality === "premium" ? "gen4.5" : "gen4_turbo",
+                });
               } catch (runwayErr) {
                 const errMsg = (runwayErr as Error).message?.slice(0, 200) || "unknown";
                 console.error("[Clip] RUNWAY FAILED:", errMsg);
@@ -409,22 +394,20 @@ export async function POST(
             if (useRunwayForDialog) {
               try {
                 const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
-                const runwayGroupImage = prevFrame || groupImage;
-                const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
+                const startImage = prevFrame || groupImage;
+                const imageUrl = await uploadForRunway(startImage, "group.png", "image/png");
                 const charDesc = character
-                  ? `@${charTag} "${character.name}" (${(character as any)?.description || ""}) is in the scene. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                  ? `Character "${character.name}" (${(character as any)?.description || ""}) is in the scene. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                   : "";
-                const charRefs = await Promise.all(characterRefs.map(async (ref) => ({ uri: await uploadForRunway(ref, "ref.png", "image/png"), tag: charTag })));
+                const cameraHint = mapCameraMotion(scene.cameraMotion);
 
-                send({ progress: `Runway: ${camera} mit ${character?.name}...` });
+                send({ progress: `Runway: ${camera} Szene...` });
                 videoUrl = await runwayI2V({
-                  imageUrl: await uploadForRunway(runwayGroupImage, "group.png", "image/png"),
-                  prompt: `${charDesc} ${prompt}`,
+                  imageUrl,
+                  prompt: `${charDesc} ${prompt}${cameraHint ? `. ${cameraHint}` : ""}`,
                   duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                   ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                   model: quality === "premium" ? "gen4.5" : "gen4_turbo",
-                  camera: mapCameraMotion(scene.cameraMotion),
-                  referenceImages: charRefs.length > 0 ? charRefs : undefined,
                 });
               } catch (runwayErr) {
                 console.warn("[Clip] Runway group failed, falling back to Kling:", runwayErr);
@@ -477,24 +460,21 @@ export async function POST(
           if (useRunway) {
             try {
               const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
-              const imageDataUri = await uploadForRunway(imageSource, "scene.png", "image/png");
-              const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
+              const imageUrl = await uploadForRunway(imageSource, "scene.png", "image/png");
               const charDesc = character
-                ? `@${charTag} "${character.name}" is in this scene. ${(character as any)?.description || ""}. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                ? `Character "${character.name}" is in this scene. ${(character as any)?.description || ""}. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                 : "";
-              const charRefs = await Promise.all(allElements.map(async (ref) => ({ uri: await uploadForRunway(ref, "ref.png", "image/png"), tag: charTag })));
+              const cameraHint = mapCameraMotion(scene.cameraMotion);
 
-              send({ progress: `Runway: Szene${scene.cameraMotion ? ` (${scene.cameraMotion})` : ""}...` });
+              send({ progress: `Runway: Landscape...` });
               await task.progress("Runway...", 30);
 
               videoUrl = await runwayI2V({
-                imageUrl: imageDataUri,
-                prompt: `${charDesc} ${prompt}`.trim(),
+                imageUrl,
+                prompt: `${charDesc} ${prompt}${cameraHint ? `. ${cameraHint}` : ""}`.trim(),
                 duration: durSec <= 5 ? 5 : 10,
                 ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                 model: quality === "premium" ? "gen4.5" : "gen4_turbo",
-                camera: mapCameraMotion(scene.cameraMotion),
-                referenceImages: charRefs.length > 0 ? charRefs.slice(0, 3) : undefined,
               });
             } catch (runwayErr) {
               const lsErr = (runwayErr as Error).message?.slice(0, 200) || "unknown";
