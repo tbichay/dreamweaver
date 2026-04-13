@@ -631,6 +631,59 @@ export async function klingO3(options: KlingO3Options): Promise<string> {
   return result.video.url;
 }
 
+// ── Flux Kontext Pro — Character-Consistent Scene Generation ($0.04/img) ──
+
+interface FluxKontextResult {
+  images: Array<{ url: string; width: number; height: number; content_type: string }>;
+  seed: number;
+}
+
+interface FluxKontextOptions {
+  /** Reference image (character portrait) — identity will be preserved */
+  imageBuffer: Buffer;
+  /** Scene description — what to generate with this character */
+  prompt: string;
+  /** Aspect ratio */
+  aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3" | "3:4";
+  /** Seed for reproducibility */
+  seed?: number;
+}
+
+/**
+ * Generate a scene with a character using Flux Kontext Pro.
+ *
+ * KEY ADVANTAGE: Maintains character identity (face, hair, body) across
+ * completely different scenes. Perfect for storyboard frames.
+ *
+ * Takes a character portrait → generates a new scene with the SAME person.
+ * Cost: $0.04 per image (same as GPT-Image).
+ *
+ * Model: fal-ai/flux-pro/kontext
+ */
+export async function fluxKontext(options: FluxKontextOptions): Promise<{ url: string; width: number; height: number }> {
+  const { imageBuffer, prompt, aspectRatio = "16:9", seed } = options;
+
+  console.log(`[fal.ai] Flux Kontext Pro: uploading reference + generating scene...`);
+  const imageUrl = await uploadToFal(imageBuffer, "reference.png", "image/png");
+
+  const input: Record<string, unknown> = {
+    image_url: imageUrl,
+    prompt,
+    aspect_ratio: aspectRatio,
+  };
+  if (seed !== undefined) input.seed = seed;
+
+  const result = await runFal<FluxKontextResult>("fal-ai/flux-pro/kontext", input);
+
+  if (!result.images || result.images.length === 0) {
+    throw new Error("Flux Kontext: no image generated");
+  }
+
+  const img = result.images[0];
+  console.log(`[fal.ai] Flux Kontext done: ${img.url} (${img.width}x${img.height})`);
+  return { url: img.url, width: img.width, height: img.height };
+}
+
 // ── Download Helper ────────────────────────────────────────────────
 
 export async function downloadVideo(url: string): Promise<Buffer> {

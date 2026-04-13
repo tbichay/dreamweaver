@@ -179,99 +179,106 @@ export async function POST(
     const format = (sequence.project as { format?: string }).format || "portrait";
     const size = format === "portrait" ? "1024x1536" : "1536x1024";
 
-    // ── Strategy: ONLY character portrait as image reference ──
-    // GPT-Image can't handle multiple reference images well (ignores face identity).
-    // Solution: Character portrait = only image ref. Location + Props = detailed TEXT.
+    // ── NEW STRATEGY: Flux Kontext for characters, GPT-Image for landscapes ──
+    // Flux Kontext Pro: preserves character identity across scenes ($0.04/img)
+    // GPT-Image-1.5: good for landscapes with input_fidelity: high ($0.04/img)
     const charInfo = scene.characterId ? charNameMap.get(scene.characterId) : undefined;
     const charPortrait = scene.characterId ? characterPortraitCache.get(scene.characterId) : undefined;
 
-    // Build rich text description for location + props (instead of image refs)
-    let contextPrompt = "";
-    if (sequence.location) {
-      contextPrompt += `SETTING: ${sequence.location}. `;
-    }
-    if (locationImageBuffer && !charPortrait) {
-      // Only use location as image ref for landscape scenes WITHOUT character
-    }
-    // Describe props in text
-    for (const [, propBuf] of propImageCache) {
-      // We can't use the image, but we have prop names from earlier loading
-      // The prop details should already be in the scene description from the screenplay
-      break; // Props are described via sceneDescription text
-    }
-    if (charInfo) {
-      contextPrompt += `CHARACTER: "${charInfo.name}" — ${charInfo.description}. `;
-      if (charInfo.outfit) contextPrompt += `WEARING: ${charInfo.outfit}. `;
-    }
-
-    const generateParams: Record<string, unknown> = {
-      model: "gpt-image-1.5",
-      n: 1,
-      size,
-      quality: "low",
-    };
-
-    if (charPortrait && scene.type === "dialog") {
-      // ── DIALOG SCENE: Character portrait as ONLY image reference ──
-      // This preserves face identity (same approach as character-sheet which works)
-      generateParams.image = [{ image: charPortrait.toString("base64"), detail: "high" }];
-      generateParams.prompt = `This reference image shows the character "${charInfo?.name || "Character"}". Generate a new scene with THIS EXACT SAME PERSON (identical face, hair, body type).
-
-${contextPrompt}
-
-The character MUST look IDENTICAL to the reference photo. Same face shape, nose, eyes, jawline, hair color and style, skin tone, age. Do NOT change the person's appearance at all.
-
-${styleHint}. ${imagePrompt}`;
-      generateParams.quality = "medium";
-      console.log(`[Storyboard] Scene ${sceneIndex}: DIALOG — actor portrait as sole reference + text context`);
-
-    } else if (locationImageBuffer && scene.type !== "dialog") {
-      // ── LANDSCAPE/TRANSITION: Location image as reference (no character needed) ──
-      generateParams.image = [{ image: locationImageBuffer.toString("base64"), detail: "high" }];
-      generateParams.prompt = `This reference image shows the LOCATION/SETTING. Generate a new scene in THIS EXACT SAME environment (same scenery, lighting, colors, atmosphere).
-
-${styleHint}. ${imagePrompt}`;
-      generateParams.quality = "medium";
-      console.log(`[Storyboard] Scene ${sceneIndex}: LANDSCAPE — location as sole reference`);
-
-    } else {
-      // ── NO IMAGE REF: Text-only with detailed descriptions ──
-      generateParams.prompt = `${contextPrompt}\n${styleHint}. ${imagePrompt}`;
-      console.log(`[Storyboard] Scene ${sceneIndex}: TEXT-ONLY (no image refs available)`);
-    }
-
     let b64: string | undefined;
 
-    // Try with reference images first, fallback to text-only if it fails
-    try {
-      const response = await (openai.images.generate as any)(generateParams);
-      b64 = response.data[0]?.b64_json;
-      if (!b64 && response.data[0]?.url) {
-        // Some API versions return URL instead of b64 — download it
-        const imgRes = await fetch(response.data[0].url);
+    if (charPortrait && (scene.type === "dialog" || charInfo)) {
+      // ── CHARACTER SCENE: Use Flux Kontext for identity preservation ──
+      console.log(`[Storyboard] Scene ${sceneIndex}: FLUX KONTEXT — character "${charInfo?.name}" with identity preservation`);
+      try {
+        const { fluxKontext } = await import("@/lib/fal");
+        const scenePrompt = `Place this exact person into a new scene. Maintain their identical face, hair, and body.
+
+Scene: ${imagePrompt}
+${sequence.location ? `Location: ${sequence.location}.` : ""}
+${charInfo?.outfit ? `The character is wearing: ${charInfo.outfit}.` : ""}
+${styleHint}.
+Cinematic storyboard frame. No text, no watermarks.`;
+
+        const result = await fluxKontext({
+          imageBuffer: charPortrait,
+          prompt: scenePrompt,
+          aspectRatio: format === "portrait" ? "9:16" : "16:9",
+        });
+
+        // Download the generated image
+        const imgRes = await fetch(result.url);
         if (imgRes.ok) {
           const buf = Buffer.from(await imgRes.arrayBuffer());
           b64 = buf.toString("base64");
         }
-      }
-    } catch (genErr) {
-      console.error(`[Storyboard] Scene ${sceneIndex} generation failed with refs:`, genErr);
-      // Fallback: try WITHOUT reference images (text-only)
-      if (generateParams.image) {
-        console.log(`[Storyboard] Scene ${sceneIndex}: retrying WITHOUT reference images...`);
+      } catch (fluxErr) {
+        console.error(`[Storyboard] Flux Kontext failed for scene ${sceneIndex}:`, fluxErr);
+        // Fallback to GPT-Image
+        console.log(`[Storyboard] Scene ${sceneIndex}: falling back to GPT-Image...`);
         try {
-          const fallbackResponse = await (openai.images.generate as any)({
+          const response = await (openai.images.generate as any)({
             model: "gpt-image-1.5",
-            prompt: fullPrompt,
+            prompt: `${styleHint}. ${imagePrompt}`,
+            image: charPortrait ? [{ image: charPortrait.toString("base64"), detail: "high" }] : undefined,
+            input_fidelity: "high",
             n: 1,
             size,
-            quality: "low",
+            quality: "medium",
           });
-          b64 = fallbackResponse.data[0]?.b64_json;
-        } catch (fallbackErr) {
-          console.error(`[Storyboard] Scene ${sceneIndex} fallback also failed:`, fallbackErr);
-        }
+          b64 = response.data[0]?.b64_json;
+        } catch { /* final fallback below */ }
       }
+
+    } else if (locationImageBuffer) {
+      // ── LANDSCAPE SCENE: GPT-Image with input_fidelity high ──
+      console.log(`[Storyboard] Scene ${sceneIndex}: GPT-IMAGE — landscape with input_fidelity high`);
+      try {
+        const response = await (openai.images.generate as any)({
+          model: "gpt-image-1.5",
+          prompt: `This reference shows the location. Generate a cinematic scene in THIS EXACT environment.
+
+${styleHint}. ${imagePrompt}
+No text, no watermarks.`,
+          image: [{ image: locationImageBuffer.toString("base64"), detail: "high" }],
+          input_fidelity: "high",
+          n: 1,
+          size,
+          quality: "medium",
+        });
+        b64 = response.data[0]?.b64_json;
+      } catch (imgErr) {
+        console.error(`[Storyboard] GPT-Image landscape failed:`, imgErr);
+      }
+
+    } else {
+      // ── TEXT-ONLY: No references available ──
+      console.log(`[Storyboard] Scene ${sceneIndex}: TEXT-ONLY`);
+      try {
+        const response = await (openai.images.generate as any)({
+          model: "gpt-image-1.5",
+          prompt: `${styleHint}. ${imagePrompt}`,
+          n: 1,
+          size,
+          quality: "low",
+        });
+        b64 = response.data[0]?.b64_json;
+      } catch { /* no image */ }
+    }
+
+    // Final fallback if nothing worked
+    if (!b64) {
+      console.log(`[Storyboard] Scene ${sceneIndex}: trying bare text-only fallback...`);
+      try {
+        const response = await (openai.images.generate as any)({
+          model: "gpt-image-1.5",
+          prompt: `${styleHint}. ${imagePrompt}. No text, no watermarks.`,
+          n: 1,
+          size,
+          quality: "low",
+        });
+        b64 = response.data[0]?.b64_json;
+      } catch { /* give up */ }
     }
 
     if (!b64) {
@@ -283,17 +290,20 @@ ${styleHint}. ${imagePrompt}`;
     let qualityIssues: string[] = [];
     try {
       const { validateImage } = await import("@/lib/studio/image-quality");
-      const validation = await validateImage(b64, generateParams.prompt as string, "storyboard");
+      const validation = await validateImage(b64, fullPrompt, "storyboard");
       qualityIssues = validation.issues;
       console.log(`[Storyboard] Scene ${sceneIndex} quality: ${validation.score}/10${validation.issues.length > 0 ? ` — Issues: ${validation.issues.join(", ")}` : " ✓"}`);
 
-      // If failed badly and has improved prompt: re-generate once
+      // If failed badly and has improved prompt: re-generate once via GPT-Image
       if (!validation.passed && validation.improvedPrompt && validation.score < 5) {
         console.log(`[Storyboard] Scene ${sceneIndex}: re-generating with corrected prompt...`);
         try {
           const retryResponse = await (openai.images.generate as any)({
-            ...generateParams,
+            model: "gpt-image-1.5",
             prompt: validation.improvedPrompt,
+            n: 1,
+            size,
+            quality: "medium",
           });
           const retryB64 = retryResponse.data[0]?.b64_json;
           if (retryB64) {
