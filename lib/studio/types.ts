@@ -59,6 +59,9 @@ export interface StudioScene {
   cameraMotion?: "static" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "zoom-in" | "zoom-out" | "dolly-forward" | "dolly-back" | "tracking" | "rotation";
   transitionTo?: "cut" | "flow" | "zoom-to-character";
 
+  // Clip transition: how THIS clip connects to the NEXT
+  clipTransition?: "seamless" | "hard-cut" | "fade-to-black" | "match-cut";
+
   // Context from screenplay
   emotion?: "neutral" | "tense" | "dramatic" | "calm" | "excited" | "sad" | "angry" | "joyful";
   sfx?: string;      // e.g. "Motor heult auf, Reifen quietschen"

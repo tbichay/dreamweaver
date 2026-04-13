@@ -32,6 +32,7 @@ export interface FilmScene {
   durationFrames: number;
   characterId?: string;
   type: "dialog" | "landscape" | "transition" | "intro" | "outro";
+  clipTransition?: "seamless" | "hard-cut" | "fade-to-black" | "match-cut";
 }
 
 export interface FilmProps {
@@ -41,7 +42,6 @@ export interface FilmProps {
   storyAudioUrl?: string;        // V1 fallback: single story audio track
   backgroundMusicUrl?: string;
   musicVolume?: number;
-  crossfadeDurationFrames?: number;
   title?: string;
   subtitle?: string;
   // Credits / Outro
@@ -49,37 +49,39 @@ export interface FilmProps {
   showCredits?: boolean;
 }
 
-// ── Crossfade Transition ───────────────────────────────────────────
+// ── Fade-to-Black Transition ──────────────────────────────────────
 
-const CrossfadeTransition: React.FC<{
+const FADE_TO_BLACK_FRAMES = 30; // 1 second total (15 fade-out + 15 fade-in)
+const FADE_HALF = 15; // 0.5s each direction
+
+const FadeToBlackTransition: React.FC<{
   children: React.ReactNode;
   durationFrames: number;
-  crossfadeDurationFrames: number;
-  isFirst: boolean;
-  isLast: boolean;
-}> = ({ children, durationFrames, crossfadeDurationFrames, isFirst, isLast }) => {
+  fadeType: "out" | "in" | "none";
+}> = ({ children, durationFrames, fadeType }) => {
   const frame = useCurrentFrame();
 
-  // Fade in (unless first scene)
-  const fadeIn = isFirst
-    ? 1
-    : interpolate(frame, [0, crossfadeDurationFrames], [0, 1], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      });
-
-  // Fade out (unless last scene)
-  const fadeOut = isLast
-    ? 1
-    : interpolate(
-        frame,
-        [durationFrames - crossfadeDurationFrames, durationFrames],
-        [1, 0],
-        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-      );
+  let opacity = 1;
+  if (fadeType === "out") {
+    // Fade out in the last FADE_HALF frames
+    opacity = interpolate(
+      frame,
+      [durationFrames - FADE_HALF, durationFrames],
+      [1, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+  } else if (fadeType === "in") {
+    // Fade in during the first FADE_HALF frames
+    opacity = interpolate(
+      frame,
+      [0, FADE_HALF],
+      [0, 1],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+  }
 
   return (
-    <AbsoluteFill style={{ opacity: Math.min(fadeIn, fadeOut) }}>
+    <AbsoluteFill style={{ opacity }}>
       {children}
     </AbsoluteFill>
   );
@@ -213,7 +215,6 @@ const Film: React.FC<FilmProps> = ({
   storyAudioUrl,
   backgroundMusicUrl,
   musicVolume = 0.08,
-  crossfadeDurationFrames = 30, // 1 second crossfade for smooth transitions
   title,
   subtitle,
   credits,
@@ -224,7 +225,7 @@ const Film: React.FC<FilmProps> = ({
   // Determine if we have per-scene audio (V2) or single story audio (V1)
   const hasPerSceneAudio = scenes.some((s) => s.dialogAudioUrl || s.sfxAudioUrl);
 
-  // Calculate scene start frames (accounting for crossfade overlap)
+  // Calculate scene start frames — transition-aware (no overlap for most, gap for fade-to-black)
   let currentFrame = 0;
   const titleDurationFrames = title ? 3 * fps : 0; // 3s title card
   currentFrame += titleDurationFrames;
@@ -233,11 +234,28 @@ const Film: React.FC<FilmProps> = ({
   for (let i = 0; i < scenes.length; i++) {
     sceneStarts.push(currentFrame);
     currentFrame += scenes[i].durationFrames;
-    // Overlap with next scene for crossfade (except last)
+
+    // Check if NEXT scene needs a fade-to-black gap
     if (i < scenes.length - 1) {
-      currentFrame -= crossfadeDurationFrames;
+      const nextTransition = scenes[i + 1].clipTransition || "seamless";
+      if (nextTransition === "fade-to-black") {
+        currentFrame += FADE_TO_BLACK_FRAMES; // Add black gap between scenes
+      }
+      // seamless, hard-cut, match-cut: back-to-back, no overlap, no gap
     }
   }
+
+  // Determine fade type for each scene based on its transition and the next scene's transition
+  const getFadeType = (i: number): "out" | "in" | "none" => {
+    const transition = scenes[i].clipTransition || "seamless";
+    const nextTransition = i < scenes.length - 1 ? (scenes[i + 1].clipTransition || "seamless") : "none";
+
+    // If the NEXT scene is fade-to-black, this scene fades OUT
+    if (nextTransition === "fade-to-black") return "out";
+    // If THIS scene is fade-to-black, it fades IN
+    if (transition === "fade-to-black") return "in";
+    return "none";
+  };
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#0a1a0a" }}>
@@ -248,18 +266,16 @@ const Film: React.FC<FilmProps> = ({
         </Sequence>
       )}
 
-      {/* Scene clips with crossfade transitions + per-scene audio */}
+      {/* Scene clips with transition-aware rendering + per-scene audio */}
       {scenes.map((scene, i) => (
         <Sequence
           key={i}
           from={sceneStarts[i]}
           durationInFrames={scene.durationFrames}
         >
-          <CrossfadeTransition
+          <FadeToBlackTransition
             durationFrames={scene.durationFrames}
-            crossfadeDurationFrames={crossfadeDurationFrames}
-            isFirst={i === 0 && !title}
-            isLast={i === scenes.length - 1}
+            fadeType={getFadeType(i)}
           >
             {/* Video — ALWAYS muted. Cropped to hide Kling-generated subtitles at bottom */}
             <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
@@ -270,7 +286,7 @@ const Film: React.FC<FilmProps> = ({
                 style={{ width: "100%", height: "110%", objectFit: "cover", marginTop: "-5%" }}
               />
             </div>
-          </CrossfadeTransition>
+          </FadeToBlackTransition>
 
           {/* Per-scene dialog audio (V2) */}
           {hasPerSceneAudio && scene.dialogAudioUrl && (
@@ -331,7 +347,6 @@ export const FilmComposition: React.FC = () => {
           title: "KoalaTree",
           subtitle: "praesentiert",
           musicVolume: 0.08,
-          crossfadeDurationFrames: 30,
         }}
       />
 
@@ -348,7 +363,6 @@ export const FilmComposition: React.FC = () => {
           title: "KoalaTree",
           subtitle: "praesentiert",
           musicVolume: 0.08,
-          crossfadeDurationFrames: 30,
         }}
       />
 
@@ -365,7 +379,6 @@ export const FilmComposition: React.FC = () => {
           title: "KoalaTree",
           subtitle: "praesentiert",
           musicVolume: 0.08,
-          crossfadeDurationFrames: 30,
         }}
       />
     </>

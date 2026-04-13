@@ -194,9 +194,11 @@ export async function POST(
           }
         }
 
-        // Load previous frame for continuity
+        // Load previous frame for continuity — ONLY for seamless/match-cut transitions
         let prevFrame: Buffer | undefined;
-        if (body.sceneIndex > 0) {
+        const transition = scene.clipTransition || "seamless";
+        const needsPrevFrame = transition === "seamless" || transition === "match-cut";
+        if (body.sceneIndex > 0 && needsPrevFrame) {
           const prevFramePath = `studio/${projectId}/sequences/${sequenceId}/frames/frame-${String(body.sceneIndex - 1).padStart(3, "0")}.png`;
           try {
             const existing = await get(prevFramePath, { access: "private" });
@@ -208,6 +210,9 @@ export async function POST(
               prevFrame = Buffer.concat(chunks);
             }
           } catch { /* no previous frame */ }
+          console.log(`[Clip] Scene ${body.sceneIndex}: ${transition} — ${prevFrame ? "using prevFrame as start" : "no prevFrame available"}`);
+        } else if (body.sceneIndex > 0) {
+          console.log(`[Clip] Scene ${body.sceneIndex}: ${transition} — skipping prevFrame (fresh start)`);
         }
 
         let videoUrl = "";
@@ -340,15 +345,16 @@ export async function POST(
                 } else {
                   // No audio → use I2V with camera + references
                   const runwayStartImage = prevFrame || landscapeBuffer || speakerImage;
-                  const charRefs = characterRefs.map((ref) => ({ uri: bufferToDataUri(ref, "image/png") }));
+                  const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
+                  const charRefs = characterRefs.map((ref) => ({ uri: bufferToDataUri(ref, "image/png"), tag: charTag }));
                   const charDesc = actorDataForPrompt
-                    ? `Character "${character?.name}": ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                    ? `@${charTag} "${character?.name}": ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                     : "";
 
                   send({ progress: `Runway I2V: ${character?.name}...` });
                   videoUrl = await runwayI2V({
                     imageUrl: bufferToDataUri(runwayStartImage, "image/png"),
-                    prompt: `${charDesc} ${prompt}. Character speaking, expressive face, in action.`,
+                    prompt: `${charDesc} ${prompt}. @${charTag} speaking, expressive face, in action.`,
                     duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                     ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                     model: quality === "premium" ? "gen4.5" : "gen4_turbo",
@@ -397,10 +403,11 @@ export async function POST(
               try {
                 const { runwayI2V, bufferToDataUri, mapCameraMotion } = await import("@/lib/runway");
                 const runwayGroupImage = prevFrame || groupImage;
+                const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
                 const charDesc = character
-                  ? `The main character "${character.name}" (${(character as any)?.description || ""}) is in the scene. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                  ? `@${charTag} "${character.name}" (${(character as any)?.description || ""}) is in the scene. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                   : "";
-                const charRefs = characterRefs.map((ref) => ({ uri: bufferToDataUri(ref, "image/png") }));
+                const charRefs = characterRefs.map((ref) => ({ uri: bufferToDataUri(ref, "image/png"), tag: charTag }));
 
                 send({ progress: `Runway: ${camera} mit ${character?.name}...` });
                 videoUrl = await runwayI2V({
@@ -464,10 +471,11 @@ export async function POST(
             try {
               const { runwayI2V, bufferToDataUri, mapCameraMotion } = await import("@/lib/runway");
               const imageDataUri = bufferToDataUri(imageSource, "image/png");
+              const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
               const charDesc = character
-                ? `The main character "${character.name}" is in this scene. ${(character as any)?.description || ""}. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
+                ? `@${charTag} "${character.name}" is in this scene. ${(character as any)?.description || ""}. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                 : "";
-              const charRefs = allElements.map((ref) => ({ uri: bufferToDataUri(ref, "image/png") }));
+              const charRefs = allElements.map((ref) => ({ uri: bufferToDataUri(ref, "image/png"), tag: charTag }));
 
               send({ progress: `Runway: Szene${scene.cameraMotion ? ` (${scene.cameraMotion})` : ""}...` });
               await task.progress("Runway...", 30);
@@ -808,8 +816,17 @@ function buildScenePrompt(
     .replace(/\s+/g, " ").trim();
   parts.push(`SCENE: ${cleanDescription}`);
 
+  // Transition context based on clipTransition
+  const clipTransition = scene.clipTransition || "seamless";
+  if (clipTransition === "seamless") {
+    parts.push("SEAMLESS CONTINUATION from previous shot. Same camera direction. No visible cut. The motion continues exactly where the previous clip ended.");
+  } else if (clipTransition === "match-cut") {
+    parts.push("MATCH CUT: Same scene as previous shot, but dramatic change in camera angle or perspective. Environment stays the same.");
+  }
+  // hard-cut and fade-to-black: no special transition instruction (fresh start)
+
   // Continuity from previous scene
-  if (prevSceneDescription) {
+  if (prevSceneDescription && (clipTransition === "seamless" || clipTransition === "match-cut")) {
     parts.push(`CONTINUITY from previous shot: "${prevSceneDescription.slice(0, 150)}". Same environment, same lighting, same character position.`);
   }
 

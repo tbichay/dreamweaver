@@ -57,6 +57,7 @@ interface Sequence {
     ambience?: string;
     camera?: string;
     cameraMotion?: string;
+    clipTransition?: string;
     emotion?: string;
     mood?: string;
     durationHint?: number;
@@ -1782,6 +1783,9 @@ function SceneDetailRow({ scene, index, character, onSceneUpdate }: {
           <span className="text-[9px] text-white/30 shrink-0 mt-0.5">{character.emoji || ""} {character.name}</span>
         )}
         <span className="text-white/35 flex-1 truncate">{scene.sceneDescription?.slice(0, 80)}</span>
+        {scene.clipTransition && scene.clipTransition !== "hard-cut" && (
+          <span className="text-[9px] text-purple-400/40 shrink-0 mt-0.5">{scene.clipTransition}</span>
+        )}
         {scene.cameraMotion && (
           <span className="text-[9px] text-[#C8A97E]/40 shrink-0 mt-0.5">{scene.cameraMotion}</span>
         )}
@@ -1821,6 +1825,21 @@ function SceneDetailRow({ scene, index, character, onSceneUpdate }: {
                 {CAMERA_MOTIONS.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
+              </select>
+            </div>
+            {/* Clip Transition Dropdown */}
+            <div className="flex items-center gap-1">
+              <span className="text-white/25">Uebergang:</span>
+              <select
+                value={scene.clipTransition || ""}
+                onChange={(e) => onSceneUpdate?.(index, { clipTransition: e.target.value || undefined })}
+                className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-white/50 focus:outline-none focus:border-[#C8A97E]/30 appearance-none cursor-pointer"
+              >
+                <option value="">Auto</option>
+                <option value="seamless">Seamless</option>
+                <option value="hard-cut">Hard-Cut</option>
+                <option value="fade-to-black">Fade</option>
+                <option value="match-cut">Match-Cut</option>
               </select>
             </div>
             {scene.emotion && scene.emotion !== "neutral" && (
@@ -2821,7 +2840,8 @@ function SequenceCard({
   const [clipGenerating, setClipGenerating] = useState(false);
   const [generatingSceneIdx, setGeneratingSceneIdx] = useState<number | null>(null);
   const [showCostConfirm, setShowCostConfirm] = useState(false); // kept for UI compat
-  const clipQuality = "pro" as const;
+  const [clipQualityState, setClipQualityState] = useState<"standard" | "premium">("standard");
+  const clipQuality = clipQualityState;
   const [videoProvider, setVideoProvider] = useState<"kling" | "runway">("kling");
   // Use project style as default — no need to ask again
   const defaultStyleId = projectStyle ? (VISUAL_STYLES.find((s) => s.prompt === projectStyle)?.id || "custom") : "disney-2d";
@@ -3121,19 +3141,25 @@ function SequenceCard({
             )}
             {canGenerateClips && !isGenerating && (
               <>
-                {/* Provider Selection */}
+                {/* Provider + Quality Selection */}
                 <div className="flex items-center gap-1.5 bg-white/5 rounded-lg p-0.5">
                   <button
-                    onClick={() => setVideoProvider("kling")}
+                    onClick={() => { setVideoProvider("kling"); setClipQualityState("standard"); }}
                     className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "kling" ? "bg-[#d4a853]/20 text-[#d4a853] font-medium" : "text-white/30 hover:text-white/50"}`}
                   >
                     Kling
                   </button>
                   <button
-                    onClick={() => setVideoProvider("runway")}
-                    className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" ? "bg-purple-500/20 text-purple-300 font-medium" : "text-white/30 hover:text-white/50"}`}
+                    onClick={() => { setVideoProvider("runway"); setClipQualityState("standard"); }}
+                    className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" && clipQualityState === "standard" ? "bg-purple-500/20 text-purple-300 font-medium" : "text-white/30 hover:text-white/50"}`}
                   >
-                    Runway
+                    Runway Standard
+                  </button>
+                  <button
+                    onClick={() => { setVideoProvider("runway"); setClipQualityState("premium"); }}
+                    className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all ${videoProvider === "runway" && clipQualityState === "premium" ? "bg-amber-500/20 text-amber-300 font-medium" : "text-white/30 hover:text-white/50"}`}
+                  >
+                    Runway Premium
                   </button>
                 </div>
                 <button

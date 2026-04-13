@@ -12,7 +12,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { getDirectingStylePrompt, ATMOSPHERE_PRESETS } from "../directing-styles";
+import { getDirectingStylePrompt, ATMOSPHERE_PRESETS, STYLE_TRANSITION_RULES } from "../directing-styles";
 import type { BasisStoryboard, Screenplay, ScreenplaySequence, StudioScene, StudioCharacterDef } from "./types";
 
 const anthropic = new Anthropic();
@@ -146,6 +146,39 @@ WECHSLE HAEUFIG zwischen close-up und medium/wide!
 Ein guter Film hat ca. 60% close-up und 40% medium/wide.
 Nie mehr als 3 close-ups hintereinander — dann MUSS ein medium/wide kommen.
 
+## CLIP-UEBERGAENGE (clipTransition) — WICHTIG fuer nahtlose Clips!
+
+Jede Szene hat ein clipTransition-Feld das bestimmt wie Clip N in Clip N+1 uebergeht:
+- "seamless": Der letzte Frame von Clip N wird als Startbild fuer Clip N+1 genutzt.
+  Die Kamera MUSS in der gleichen Richtung weiterbewegen. Kein sichtbarer Schnitt.
+- "hard-cut": Frischer Start — neues Bild, neue Perspektive. Bewusster Schnitt.
+- "fade-to-black": Schwarzblende dazwischen. Dramatische Pause.
+- "match-cut": Letzter Frame als Start, ABER dramatischer Perspektivwechsel (z.B. close-up → wide).
+
+### KAMERA-KONTINUITAET bei seamless:
+Wenn Szene N cameraMotion "pan-right" hat und clipTransition "seamless":
+→ Szene N+1 MUSS auch "pan-right" oder "tracking" als cameraMotion haben!
+Die Kamera darf bei seamless NICHT ploetzlich die Richtung aendern.
+
+### Regeln:
+1. Erste Szene einer Sequenz: IMMER clipTransition = "hard-cut" (neuer Ort)
+2. Letzte Szene einer Sequenz: Uebergang zur naechsten Sequenz basierend auf Location-Aehnlichkeit
+   - Aehnliche Locations (Strand → Wasser): "seamless"
+   - Komplett verschiedene Locations (Strand → Stadt): "hard-cut" oder "fade-to-black"
+3. Innerhalb einer Sequenz: Der Regie-Stil bestimmt die Verteilung (siehe CLIP-UEBERGANGS-REGELN unten)
+
+## BEWEGUNGS-DETAILS in sceneDescription (EXTREM WICHTIG!)
+
+Jede sceneDescription MUSS diese 5 Elemente enthalten:
+1. LICHT: Wie faellt das Licht? (Gegenlicht, Seitenlicht, golden hour glow, rim lighting)
+2. BEWEGUNG: Wie bewegt sich der Character? (confident stride, hesitant steps, explosive sprint)
+3. PHYSISCHE DETAILS: Haare, Kleidung, Wasser, Sand — was bewegt sich im Wind/Wasser?
+4. ATMOSPHAERE: Wind, Wasserspritzer, Staub, Lichtreflexe, Partikel
+5. NEGATIVE MOTION: Fuege hinzu: "Natural fluid motion, not static, not frozen, not robotic"
+
+Beispiel RICHTIG: "Character walks confidently toward the turquoise water, sun-kissed skin glistening, dark hair tousled by ocean breeze, sand between toes, surfboard tucked under right arm, morning light casting long shadow behind. Natural fluid motion, not static."
+Beispiel FALSCH: "Character walks to the water."
+
 ## Regeln
 
 1. Jede Szene maximal 15 Sekunden
@@ -179,6 +212,8 @@ Antworte mit einem JSON-Objekt:
           "sfx": "English SFX description",
           "ambience": "English ambience description",
           "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out",
+          "clipTransition": "seamless" | "hard-cut" | "fade-to-black" | "match-cut",
+          "cameraMotion": "static" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "zoom-in" | "zoom-out" | "dolly-forward" | "dolly-back" | "tracking" | "rotation",
           "transitionTo": "cut" | "flow" | "zoom-to-character",
           "emotion": "neutral" | "tense" | "dramatic" | "calm" | "excited" | "sad" | "angry" | "joyful",
           "sfx": "Short SFX description in English for sound effect generation",
@@ -231,6 +266,12 @@ export async function generateScreenplay(options: ScreenplayOptions): Promise<Sc
     styleSection = directingStyle
       ? getDirectingStylePrompt(directingStyle)
       : getDirectingStylePrompt("pixar-classic");
+  }
+
+  // Inject style-specific transition rules
+  const transitionRules = STYLE_TRANSITION_RULES[directingStyle || "pixar-classic"] || STYLE_TRANSITION_RULES["pixar-classic"];
+  if (transitionRules) {
+    styleSection += `\n\n${transitionRules}`;
   }
 
   // Build character descriptions with char-N aliases for AI
@@ -374,6 +415,18 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
       const rawCharId = rs.characterId as string | undefined;
       const resolvedCharId = rawCharId ? (charIdMap.get(rawCharId) || rawCharId) : undefined;
 
+      // Determine clipTransition: first scene of sequence = hard-cut, rest from AI or style default
+      let clipTransition = rs.clipTransition as StudioScene["clipTransition"];
+      if (sci === 0) {
+        clipTransition = "hard-cut"; // First scene always hard-cut (establishing shot)
+      } else if (!clipTransition) {
+        // Fallback based on style: one-take always seamless, others default to seamless
+        const styleId = directingStyle || "pixar-classic";
+        clipTransition = styleId === "long-take" ? "seamless"
+          : styleId === "action" ? "hard-cut"
+          : "seamless";
+      }
+
       scenes.push({
         id: `seq${si}-scene${sci}`,
         index: sci,
@@ -385,6 +438,8 @@ Ruhiges Pacing, viel Atmosphaere, wenige Schnitte. Die Bilder begleiten die Erza
         location: (rawSeq.location as string) || "",
         mood: atmosphereText,
         camera: (rs.camera as string) || "medium",
+        cameraMotion: (rs.cameraMotion as StudioScene["cameraMotion"]) || undefined,
+        clipTransition,
         transitionTo: rs.transitionTo as StudioScene["transitionTo"],
         emotion: ((rs.emotion as string) as StudioScene["emotion"]) || "neutral",
         sfx: (rs.sfx as string) || undefined,

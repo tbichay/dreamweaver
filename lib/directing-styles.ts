@@ -323,6 +323,61 @@ export const ATMOSPHERE_PRESETS: Record<string, AtmospherePreset> = {
 
 export const DEFAULT_ATMOSPHERE = "golden-hour";
 
+// ── Style-specific Transition Rules ──────────────────────────────
+// Injected into the screenplay generator prompt per directing style.
+// Keys match DIRECTING_STYLES IDs.
+
+export const STYLE_TRANSITION_RULES: Record<string, string> = {
+  "pixar-classic": `CLIP-UEBERGANGS-REGELN (Pixar Classic):
+- Innerhalb einer Sequenz: 60% seamless, 30% match-cut, 10% hard-cut
+- cameraMotion: Mix aus static + sanfter Bewegung. Bei seamless MUSS cameraMotion identisch bleiben.
+- match-cut: Nutze bei Perspektivwechsel (close-up → wide oder umgekehrt)
+- Zwischen Sequenzen: fade-to-black (dramatische Pause, neuer Ort)
+- Erste Szene jeder Sequenz: IMMER hard-cut (Establishing Shot)`,
+
+  "long-take": `CLIP-UEBERGANGS-REGELN (One Take / Long Take):
+ALLE Szenen innerhalb einer Sequenz: clipTransition = "seamless"
+cameraMotion: IMMER tracking/pan/dolly — NIE static
+Zwischen Sequenzen: "hard-cut" nur bei echtem Ortswechsel
+Die Kamera darf NIEMALS stoppen — sie fliesst IMMER weiter.
+Wenn Szene N pan-right hat, MUSS Szene N+1 auch pan-right oder tracking haben.`,
+
+  "dramatic": `CLIP-UEBERGANGS-REGELN (Dramatisch):
+- Innerhalb einer Sequenz: 40% seamless, 30% hard-cut, 20% match-cut, 10% fade-to-black
+- cameraMotion: Langsame Builds (dolly-forward, zoom-in) + ploetzliche hard-cuts
+- match-cut bei Perspektivwechsel fuer dramatischen Effekt
+- Spannungsaufbau: seamless → seamless → match-cut (Klimax)
+- Zwischen Sequenzen: hard-cut (scharfer Bruch)`,
+
+  "minimal": `CLIP-UEBERGANGS-REGELN (Zen / Minimal):
+- Innerhalb einer Sequenz: 60% seamless, 40% fade-to-black
+- cameraMotion: Extrem langsam oder static. NIE schnelle Bewegungen.
+- fade-to-black fuer meditative Pausen zwischen Gedanken
+- Zwischen Sequenzen: fade-to-black (lange, ruhige Ueberblendung)
+- Erste Szene: hard-cut mit langem Establishing Shot`,
+
+  "action": `CLIP-UEBERGANGS-REGELN (Action):
+- Innerhalb einer Sequenz: 30% seamless, 70% hard-cut
+- cameraMotion: Schnelle Wechsel — tracking, dolly-forward, rotation
+- hard-cut fuer Energie und Tempo bei schnellen Schnittfolgen
+- seamless NUR bei Verfolgungsjagden (Kamera folgt durchgehend)
+- Zwischen Sequenzen: hard-cut (sofortiger Ortswechsel)`,
+
+  "documentary": `CLIP-UEBERGANGS-REGELN (Dokumentarisch):
+- Innerhalb einer Sequenz: 80% seamless, 20% hard-cut
+- cameraMotion: Ruhig, beobachtend — tracking, slow-pan, static
+- seamless fuer natuerlichen Fluss (Kamera beobachtet ohne einzugreifen)
+- hard-cut nur bei Themenwechsel innerhalb der Sequenz
+- Zwischen Sequenzen: hard-cut (neues Thema/Ort)`,
+
+  "thriller": `CLIP-UEBERGANGS-REGELN (Thriller):
+- Innerhalb einer Sequenz: 50% seamless, 25% hard-cut, 25% fade-to-black
+- cameraMotion: Langsame Zooms (zoom-in, dolly-forward) fuer Spannung
+- fade-to-black fuer Cliffhanger-Momente und Mystery
+- seamless bei Spannungsaufbau (langsam naeher kommen)
+- Zwischen Sequenzen: fade-to-black (Geheimnis, Dunkelheit)`,
+};
+
 export function getDirectingStylePrompt(styleId: string): string {
   const style = DIRECTING_STYLES[styleId];
   if (!style) return DIRECTING_STYLES[DEFAULT_DIRECTING_STYLE].prompt;

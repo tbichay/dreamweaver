@@ -78,6 +78,7 @@ export async function POST(
           durationMs: number;
           type: string;
           characterId?: string;
+          clipTransition?: "seamless" | "hard-cut" | "fade-to-black" | "match-cut";
         }> = [];
 
         // Collect ambience URLs from sequences (V2)
@@ -113,6 +114,7 @@ export async function POST(
                   : scene.actualDurationMs || (scene.durationHint || 5) * 1000,
                 type: scene.type,
                 characterId: scene.characterId,
+                clipTransition: scene.clipTransition,
               });
             }
           }

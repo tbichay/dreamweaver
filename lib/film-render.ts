@@ -25,6 +25,7 @@ export interface RenderFilmOptions {
     durationMs: number;
     type: string;
     characterId?: string;
+    clipTransition?: "seamless" | "hard-cut" | "fade-to-black" | "match-cut";
   }>;
   ambienceUrl?: string;          // V2: looped ambience per sequence
   storyAudioUrl?: string;        // V1 fallback: single story audio
@@ -79,7 +80,7 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
   console.log(`[Lambda Render] Using function: ${functionName}`);
 
   // 2. Prepare input props
-  const crossfadeDurationFrames = 60; // 2 seconds crossfade for smoother transitions
+  const FADE_TO_BLACK_GAP_FRAMES = 30; // 1 second black gap for fade-to-black transitions
   const filmScenes: FilmScene[] = scenes.map((s) => ({
     videoUrl: s.videoUrl,
     dialogAudioUrl: s.dialogAudioUrl,
@@ -87,13 +88,20 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     durationFrames: Math.max(FPS, Math.ceil((s.durationMs / 1000) * FPS)),
     type: s.type as FilmScene["type"],
     characterId: s.characterId,
+    clipTransition: s.clipTransition,
   }));
 
-  // Calculate total duration
+  // Calculate total duration — transition-aware (no overlap, gap for fade-to-black)
   let totalFrames = title ? 3 * FPS : 0;
   for (let i = 0; i < filmScenes.length; i++) {
     totalFrames += filmScenes[i].durationFrames;
-    if (i < filmScenes.length - 1) totalFrames -= crossfadeDurationFrames;
+    // Add gap frames for fade-to-black transitions
+    if (i < filmScenes.length - 1) {
+      const nextTransition = filmScenes[i + 1].clipTransition || "seamless";
+      if (nextTransition === "fade-to-black") {
+        totalFrames += FADE_TO_BLACK_GAP_FRAMES;
+      }
+    }
   }
   // Add credits duration (5s)
   if (credits && credits.length > 0) {
@@ -108,7 +116,6 @@ export async function renderFilmOnLambda(options: RenderFilmOptions): Promise<st
     storyAudioUrl,       // V1 fallback
     backgroundMusicUrl,
     musicVolume,
-    crossfadeDurationFrames,
     title,
     subtitle,
     credits,
