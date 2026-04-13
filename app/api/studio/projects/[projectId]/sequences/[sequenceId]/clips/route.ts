@@ -580,17 +580,22 @@ export async function POST(
         const clipPath = `studio/${projectId}/sequences/${sequenceId}/clips/clip-${String(body.sceneIndex).padStart(3, "0")}-v${timestamp}.mp4`;
         const clipBlob = await put(clipPath, videoBuffer, { access: "private", contentType: "video/mp4" });
 
-        // Provider is now always Kling 3.0
-        const provider = isDialog ? "kling-3.0-pro+lipsync" : "kling-3.0-pro";
+        // Track which provider actually generated this clip
+        const isRunwayClip = body.provider === "runway" && videoUrl && !videoUrl.includes("fal.media");
+        const provider = isRunwayClip
+          ? (quality === "premium" ? "runway-gen4.5" : "runway-gen4-turbo")
+          : isDialog ? "kling-3.0-pro+lipsync" : "kling-3.0-pro";
 
         const clipDurSec = hasAudio
           ? (scene.audioEndMs - scene.audioStartMs) / 1000
           : scene.durationHint || 5;
         const actualDurationMs = Math.round(clipDurSec * 1000);
 
-        const estimatedCost = isDialog
-          ? (quality === "premium" ? 0.55 : 0.28)
-          : (quality === "premium" ? 0.84 : 0.13);
+        const estimatedCost = isRunwayClip
+          ? (quality === "premium" ? clipDurSec * 0.12 : clipDurSec * 0.05)
+          : isDialog
+            ? (quality === "premium" ? 0.55 : 0.28)
+            : (quality === "premium" ? 0.84 : 0.13);
 
         // Save as Asset for the library (provenance tracking)
         try {
