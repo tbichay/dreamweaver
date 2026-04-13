@@ -122,9 +122,9 @@ export async function POST(
         let locationRefs: import("@/lib/studio/screenplay-generator").LocationRef[] = [];
         try {
           const { getAssets } = await import("@/lib/assets");
+          // Load ALL landscape assets (includes both "location" category and old uncategorized ones)
           const locationAssets = await getAssets({
             type: "landscape",
-            category: "location",
             userId: session.user!.id!,
           });
           const filteredLocations = body.selectedLocationIds
@@ -200,8 +200,12 @@ export async function POST(
         await prisma.studioSequence.deleteMany({ where: { projectId } });
 
         // Auto-assign location images to sequences
-        // Use first available location image for all sequences (or match by locationId)
         const defaultLocationUrl = locationRefs.length > 0 ? locationRefs[0].imageUrl : undefined;
+        if (defaultLocationUrl) {
+          console.log(`[Screenplay] Default location image: ${locationRefs[0].name} → ${defaultLocationUrl.slice(-40)}`);
+        } else {
+          console.log(`[Screenplay] No location images available`);
+        }
 
         for (const act of screenplay.acts) {
           for (const seq of act.sequences) {

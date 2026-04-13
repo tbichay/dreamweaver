@@ -89,69 +89,60 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, musicUrl, mus
       console.log("[AudioTimeline] Loading all tracks...");
       const scheduled: Array<{ buffer: AudioBuffer; startSec: number; volume: number; loop?: boolean }> = [];
 
-      // Check if audioStartMs values are actually set (not all 0)
-      const allStartsZero = dialogScenes.every((s) => !s.audioStartMs || s.audioStartMs === 0);
+      // ALWAYS build timing from actual audio file durations
+      // (audioStartMs from screenplay is unreliable — estimated, not measured)
+      // Phase 1a: Load ALL audio files and decode them
+      const loadedDialogs: Array<{ sceneIdx: number; buffer: AudioBuffer }> = [];
+      const loadedSfx: Array<{ sceneIdx: number; buffer: AudioBuffer }> = [];
 
-      // Build a timing map: for each scene, calculate correct start time
-      // This handles both cases: audioStartMs set correctly OR all zero
-      const sceneTimingMap = new Map<number, number>(); // sceneIndex → startMs
-      if (allStartsZero) {
-        let cumMs = 0;
-        for (let i = 0; i < scenes.length; i++) {
-          sceneTimingMap.set(i, cumMs);
-          // Estimate scene duration from dialogDurationMs or durationHint
-          const s = scenes[i];
-          const durMs = (s.audioEndMs - s.audioStartMs) > 0
-            ? (s.audioEndMs - s.audioStartMs)
-            : 4000; // ~4s default per scene
-          cumMs += durMs + 200; // 200ms gap
-        }
-      } else {
-        for (let i = 0; i < scenes.length; i++) {
-          sceneTimingMap.set(i, scenes[i].audioStartMs || 0);
-        }
-      }
-
-      // Load dialog tracks
-      if (track === "all" || track === "dialog") {
-        for (let i = 0; i < scenes.length; i++) {
-          const scene = scenes[i];
-          if (!scene.dialogAudioUrl) continue;
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        if (scene.dialogAudioUrl && (track === "all" || track === "dialog")) {
           try {
             const res = await fetch(resolveUrl(scene.dialogAudioUrl));
             if (!res.ok) continue;
             const arrayBuf = await res.arrayBuffer();
             if (arrayBuf.byteLength < 100) continue;
             const buffer = await ctx.decodeAudioData(arrayBuf);
-
-            const startMs = sceneTimingMap.get(i) || 0;
-            scheduled.push({ buffer, startSec: startMs / 1000, volume: 1.0 });
-
-            // If using fallback timing, update map with actual audio duration
-            if (allStartsZero && i + 1 < scenes.length) {
-              const nextStart = startMs + buffer.duration * 1000 + 200;
-              sceneTimingMap.set(i + 1, Math.max(sceneTimingMap.get(i + 1) || 0, nextStart));
-            }
+            loadedDialogs.push({ sceneIdx: i, buffer });
           } catch { /* skip */ }
         }
-      }
-
-      // Load SFX tracks (same timing as their corresponding scene)
-      if (track === "all") {
-        for (let i = 0; i < scenes.length; i++) {
-          const scene = scenes[i];
-          if (!scene.sfxAudioUrl) continue;
+        if (scene.sfxAudioUrl && track === "all") {
           try {
             const res = await fetch(resolveUrl(scene.sfxAudioUrl));
             if (!res.ok) continue;
             const arrayBuf = await res.arrayBuffer();
             if (arrayBuf.byteLength < 100) continue;
             const buffer = await ctx.decodeAudioData(arrayBuf);
-
-            const startMs = sceneTimingMap.get(i) || 0;
-            scheduled.push({ buffer, startSec: startMs / 1000, volume: 0.3 });
+            loadedSfx.push({ sceneIdx: i, buffer });
           } catch { /* skip */ }
         }
+      }
+
+      // Phase 1b: Calculate cumulative timing from ACTUAL audio durations
+      const sceneStartSec = new Map<number, number>(); // sceneIdx → start in seconds
+      let cumSec = 0;
+      for (const { sceneIdx, buffer } of loadedDialogs) {
+        sceneStartSec.set(sceneIdx, cumSec);
+        cumSec += buffer.duration + 0.2; // 200ms gap between dialogs
+      }
+
+      // Schedule dialogs
+      for (const { sceneIdx, buffer } of loadedDialogs) {
+        scheduled.push({ buffer, startSec: sceneStartSec.get(sceneIdx) || 0, volume: 1.0 });
+      }
+
+      // Schedule SFX at the same time as their dialog (or closest previous dialog)
+      for (const { sceneIdx, buffer } of loadedSfx) {
+        // Find the start time: exact match or closest dialog before this scene
+        let startSec = sceneStartSec.get(sceneIdx);
+        if (startSec === undefined) {
+          // No dialog for this scene — find nearest previous dialog's time
+          for (let j = sceneIdx - 1; j >= 0; j--) {
+            if (sceneStartSec.has(j)) { startSec = sceneStartSec.get(j)!; break; }
+          }
+        }
+        scheduled.push({ buffer, startSec: startSec || 0, volume: 0.3 });
       }
 
       // Load ambience
