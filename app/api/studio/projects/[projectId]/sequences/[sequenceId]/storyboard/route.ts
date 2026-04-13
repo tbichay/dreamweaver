@@ -177,6 +177,8 @@ export async function POST(
   const openai = new OpenAI();
 
   // Chain-based generation: each frame uses the PREVIOUS frame as reference
+  // IMPORTANT: When client calls per-scene (not batch), we load the previous
+  // frame from the DB since previousFrameBuffer is per-request only.
   let previousFrameBuffer: Buffer | undefined;
   let previousSceneDesc: string | undefined;
   let frameCountInChain = 0;
@@ -185,6 +187,29 @@ export async function POST(
     if (sceneIndex < 0 || sceneIndex >= scenes.length) continue;
 
     const scene = scenes[sceneIndex];
+
+    // ── Skip approved frames (user explicitly approved = don't overwrite) ──
+    if (scene.storyboardApproved && body.generateAll) {
+      console.log(`[Storyboard] Scene ${sceneIndex}: SKIPPED (approved)`);
+      // But still load it for chain continuity
+      if (scene.storyboardImageUrl) {
+        previousFrameBuffer = await loadImageBuffer(scene.storyboardImageUrl);
+        previousSceneDesc = scene.sceneDescription;
+        frameCountInChain++;
+      }
+      continue;
+    }
+
+    // ── Load previous frame for chain (from DB, not just memory) ──
+    if (!previousFrameBuffer && sceneIndex > 0) {
+      const prevScene = scenes[sceneIndex - 1];
+      if (prevScene?.storyboardImageUrl) {
+        previousFrameBuffer = await loadImageBuffer(prevScene.storyboardImageUrl);
+        previousSceneDesc = prevScene.sceneDescription;
+        console.log(`[Storyboard] Chain: loaded previous frame ${sceneIndex - 1} from DB`);
+      }
+    }
+
     const customPrompt = !body.generateAll ? body.prompt : undefined;
 
     // Build storyboard prompt

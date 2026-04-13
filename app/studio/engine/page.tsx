@@ -2067,22 +2067,30 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
 
   const generateAllFrames = async () => {
     setGeneratingAll(true);
-    // Generate ONE frame at a time (avoids Vercel timeout, gives live feedback)
+    // Generate ONE frame at a time with chain (each frame knows the previous)
     const allFrames = project.sequences.flatMap((seq) =>
-      (seq.scenes || []).map((_, i) => ({ seqId: seq.id, seqName: seq.name, sceneIndex: i })),
+      (seq.scenes || []).map((scene, i) => ({ seqId: seq.id, seqName: seq.name, sceneIndex: i, approved: scene.storyboardApproved })),
     );
+    const unapproved = allFrames.filter((f) => !f.approved);
     const total = allFrames.length;
-    const tid = toast.loading(`Storyboard: 0/${total} Frames...`);
+    const skipped = allFrames.length - unapproved.length;
+    const tid = toast.loading(`Storyboard: 0/${total} Frames${skipped > 0 ? ` (${skipped} genehmigt, uebersprungen)` : ""}...`);
     let done = 0;
     let failed = 0;
 
-    for (const { seqId, seqName, sceneIndex } of allFrames) {
+    for (const { seqId, seqName, sceneIndex, approved } of allFrames) {
+      // Skip approved frames (but API still loads them for chain continuity)
+      if (approved) {
+        done++;
+        toast.update(tid, `Storyboard: ${done}/${total} — ${seqName} Szene ${sceneIndex + 1} (genehmigt)`);
+        continue;
+      }
       toast.update(tid, `Storyboard: ${done}/${total} — ${seqName}, Szene ${sceneIndex + 1}...`);
       try {
         const res = await fetch(`/api/studio/projects/${project.id}/sequences/${seqId}/storyboard`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sceneIndex }),
+          body: JSON.stringify({ sceneIndex, generateAll: true }),
         });
         if (res.ok) {
           const data = await res.json();
