@@ -2160,10 +2160,33 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         >
           {generatingAll ? "Generiert alle..." : "Alle Frames generieren"}
         </button>
+        {generatedFrames > 0 && approvedFrames < generatedFrames && (
+          <button
+            onClick={async () => {
+              for (const seq of project.sequences) {
+                const scenes = seq.scenes || [];
+                for (let i = 0; i < scenes.length; i++) {
+                  if (scenes[i].storyboardImageUrl && !scenes[i].storyboardApproved) {
+                    await fetch(`/api/studio/projects/${project.id}/sequences/${seq.id}/storyboard`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ sceneIndex: i, approved: true }),
+                    });
+                  }
+                }
+              }
+              toast.info(`${generatedFrames - approvedFrames} Frames genehmigt`);
+              onUpdate(project.id);
+            }}
+            className="px-4 py-2 rounded-lg bg-green-500/15 text-green-300/70 text-xs font-medium hover:bg-green-500/25 transition-all"
+          >
+            Alle genehmigen
+          </button>
+        )}
       </div>
 
       <p className="text-[10px] text-white/35">
-        Generiere Storyboard-Frames um jede Szene VOR der Clip-Generierung zu sehen. ~$0.04 pro Frame.
+        Generiere Storyboard-Frames um jede Szene VOR der Clip-Generierung zu sehen. ~$0.02 pro Frame.
       </p>
 
       {/* Sequence groups */}
