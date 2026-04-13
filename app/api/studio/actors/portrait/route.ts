@@ -35,21 +35,17 @@ export async function POST(request: Request) {
 
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI();
-
   const style = body.style || "realistic";
-  const styleHint = style === "realistic"
-    ? "Photorealistic portrait, cinematic lighting, shallow depth of field, professional photography style"
-    : style === "disney-2d"
-    ? "2D Disney animation style portrait, vibrant colors, hand-drawn feel"
-    : style === "pixar-3d"
-    ? "Pixar 3D animation style portrait, smooth CGI rendering"
-    : style === "ghibli"
-    ? "Studio Ghibli anime style portrait, soft pastel colors"
-    : "High quality portrait";
 
+  // Enhance prompt with AI
+  const { enhanceImagePrompt } = await import("@/lib/studio/image-quality");
   const outfitHint = actor.outfit ? ` Outfit: ${actor.outfit}.` : "";
   const traitsHint = actor.traits ? ` Traits: ${actor.traits}.` : "";
-  const portraitPrompt = `${styleHint}. Character: ${body.description}.${outfitHint}${traitsHint} Head and shoulders portrait, looking slightly to the side, expressive eyes. No text, no watermarks, no logos.`;
+  const rawDescription = `${body.description}.${outfitHint}${traitsHint} Head and shoulders portrait.`;
+
+  const enhanced = await enhanceImagePrompt(rawDescription, "actor", style);
+  const portraitPrompt = enhanced.prompt;
+  console.log(`[Portrait] Enhanced: "${portraitPrompt.slice(0, 80)}..." | ${enhanced.reasoning}`);
 
   const response = await (openai.images.generate as any)({
     model: "gpt-image-1.5",

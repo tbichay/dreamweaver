@@ -74,7 +74,13 @@ export async function POST(request: Request) {
 
   const outfitHint = actor.outfit ? ` WEARING: ${actor.outfit}.` : "";
   const traitsHint = actor.traits ? ` DISTINCTIVE FEATURES: ${actor.traits}.` : "";
-  const prompt = `${styleHint}. Character: ${body.description}.${outfitHint}${traitsHint} ${angleConfig.suffix} No text, no watermarks, no logos.`;
+
+  // Enhance prompt with AI for better anatomical accuracy
+  const { enhanceImagePrompt } = await import("@/lib/studio/image-quality");
+  const rawDesc = `${body.description}.${outfitHint}${traitsHint} ${angleConfig.suffix}`;
+  const enhanced = await enhanceImagePrompt(rawDesc, "character-sheet", styleHint, `Angle: ${body.angle}`);
+  const prompt = enhanced.prompt;
+  console.log(`[CharSheet] ${body.angle} enhanced: "${prompt.slice(0, 80)}..." | ${enhanced.reasoning}`);
 
   // Use front portrait as reference for profile/fullBody consistency
   const imageInputs: Array<{ image: string; detail: string }> = [];

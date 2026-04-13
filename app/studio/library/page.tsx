@@ -1226,7 +1226,9 @@ function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => st
   const [tags, setTags] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [qualityCheck, setQualityCheck] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [enhancedInfo, setEnhancedInfo] = useState<{ reasoning: string; warnings: string[] } | null>(null);
 
   // Auto-update tags when name/description changes
   useEffect(() => {
@@ -1250,14 +1252,23 @@ function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => st
           style,
           name: name.trim(),
           tags,
+          qualityCheck,
         }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Fehler"); return; }
+      // Show enhancement info
+      if (data.enhanced) {
+        setEnhancedInfo(data.enhanced);
+      }
+      if (data.validation && !data.validation.passed) {
+        console.log("[Props] Quality issues:", data.validation.issues);
+      }
       setShowForm(false);
       setName("");
       setDescription("");
       setTags([]);
+      setEnhancedInfo(null);
       onCreated();
     } catch { setError("Netzwerkfehler"); }
     setGenerating(false);
@@ -1357,9 +1368,22 @@ function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => st
             </div>
           )}
 
+          {/* Quality Check Toggle */}
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={qualityCheck}
+                onChange={(e) => setQualityCheck(e.target.checked)}
+                className="w-3 h-3 rounded accent-[#d4a853]"
+              />
+              <span className="text-[9px] text-white/30">Qualitaets-Check (AI prueft Ergebnis)</span>
+            </label>
+          </div>
+
           <div className="flex gap-2">
             <button onClick={generate} disabled={generating || uploading || !name.trim()} className="px-4 py-2 rounded-lg bg-[#d4a853]/20 text-[#d4a853] text-xs font-medium hover:bg-[#d4a853]/30 disabled:opacity-30">
-              {generating ? "Generiert..." : "AI generieren"}
+              {generating ? (qualityCheck ? "Generiert + prueft..." : "Generiert...") : "AI generieren"}
             </button>
             <label className={`px-4 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all ${
               uploading ? "bg-white/5 text-white/20" : "bg-white/10 text-white/50 hover:text-white/70 hover:bg-white/15"
@@ -1367,10 +1391,12 @@ function PropsGenerator({ blobProxy, onCreated }: { blobProxy: (u: string) => st
               {uploading ? "Laedt..." : "Bild hochladen"}
               <input type="file" accept="image/*" onChange={handleUpload} disabled={generating || uploading} className="hidden" />
             </label>
-            <button onClick={() => { setShowForm(false); setTags([]); }} className="px-4 py-2 rounded-lg bg-white/5 text-white/30 text-xs hover:text-white/50">
+            <button onClick={() => { setShowForm(false); setTags([]); setEnhancedInfo(null); }} className="px-4 py-2 rounded-lg bg-white/5 text-white/30 text-xs hover:text-white/50">
               Abbrechen
             </button>
           </div>
+
+          <p className="text-[8px] text-white/15">Prompt wird automatisch von AI verbessert fuer bessere Ergebnisse</p>
         </div>
       )}
     </div>
