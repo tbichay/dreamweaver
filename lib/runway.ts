@@ -90,11 +90,11 @@ export async function runwayI2V(options: RunwayI2VOptions): Promise<string> {
 
   console.log(`[Runway] ${model} I2V: "${prompt.slice(0, 60)}..." (${duration}s, ${ratio})`);
 
-  // SNAKE_CASE field names — this is the fix!
+  // Runway API accepts camelCase (confirmed by successful 200 request)
   const body: Record<string, unknown> = {
     model,
-    prompt_image: imageUrl,   // NOT promptImage
-    prompt_text: prompt,      // NOT promptText
+    promptImage: imageUrl,
+    promptText: prompt,
     ratio,
     duration,
   };
@@ -137,7 +137,7 @@ export async function runwayT2V(options: {
     method: "POST",
     body: JSON.stringify({
       model,
-      prompt_text: prompt,  // snake_case!
+      promptText: prompt,
       ratio,
       duration,
     }),
