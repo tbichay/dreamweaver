@@ -1592,15 +1592,16 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
           onClose={() => setShowCastMenu(false)}
         />
       )}
-      {/* Fullscreen portrait overlay */}
+      {/* Fullscreen portrait overlay — MUST stopPropagation to prevent flicker */}
       {fullscreenPortrait && character.portraitUrl && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreenPortrait(false)}>
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={(e) => { e.stopPropagation(); setFullscreenPortrait(false); }}>
           <img
             src={portraitSrc(character.portraitUrl)}
             alt={character.name}
             className="max-w-full max-h-full object-contain rounded-xl"
+            onClick={(e) => e.stopPropagation()}
           />
-          <button className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl" onClick={() => setFullscreenPortrait(false)}>&#x2715;</button>
+          <button className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl" onClick={(e) => { e.stopPropagation(); setFullscreenPortrait(false); }}>&#x2715;</button>
         </div>
       )}
     </div>
@@ -2307,16 +2308,16 @@ function StoryboardTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         );
       })}
 
-      {/* Fullscreen Image Viewer */}
+      {/* Fullscreen Image Viewer — stopPropagation to prevent flicker */}
       {fullscreenImage && (
         <div
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setFullscreenImage(null)}
+          onClick={(e) => { e.stopPropagation(); setFullscreenImage(null); }}
         >
-          <img src={fullscreenImage} alt="Storyboard" className="max-w-full max-h-full object-contain rounded-xl" />
+          <img src={fullscreenImage} alt="Storyboard" className="max-w-full max-h-full object-contain rounded-xl" onClick={(e) => e.stopPropagation()} />
           <button
             className="absolute top-4 right-4 text-white/50 hover:text-white text-2xl"
-            onClick={() => setFullscreenImage(null)}
+            onClick={(e) => { e.stopPropagation(); setFullscreenImage(null); }}
           >
             &times;
           </button>
@@ -2671,15 +2672,16 @@ function LandscapeSection({ sequence, projectId, onUpdate }: { sequence: Sequenc
               </button>
             </div>
           </div>
-          {/* Fullscreen overlay */}
+          {/* Fullscreen overlay — stopPropagation to prevent flicker */}
           {fullscreen && (
-            <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreen(false)}>
+            <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={(e) => { e.stopPropagation(); setFullscreen(false); }}>
               <img
                 src={portraitSrc(sequence.landscapeRefUrl)}
-                alt="Landscape"
+                alt="Location"
                 className="max-w-full max-h-full object-contain rounded-xl"
+                onClick={(e) => e.stopPropagation()}
               />
-              <button className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl" onClick={() => setFullscreen(false)}>✕</button>
+              <button className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl" onClick={(e) => { e.stopPropagation(); setFullscreen(false); }}>✕</button>
             </div>
           )}
         </>
