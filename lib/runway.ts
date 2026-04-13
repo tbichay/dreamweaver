@@ -159,14 +159,32 @@ export function bufferToDataUri(buffer: Buffer, mimeType = "image/png"): string 
 }
 
 /**
- * Prepare image for Runway API — always use data URI.
- * Runway accepts data URIs up to 16MB (after base64 encoding).
- * No Blob upload needed — avoids private store issues.
+ * Upload image for Runway API — needs a publicly accessible HTTPS URL.
+ * Runway fetches the image server-side, so private Blob URLs don't work.
+ * Data URIs sometimes fail on larger images.
+ *
+ * Strategy: Upload to Vercel Blob (private), get signed download URL.
+ * The signed URL is temporary (~1h) but publicly accessible.
  */
 export async function uploadForRunway(buffer: Buffer, filename: string, contentType: string): Promise<string> {
-  const sizeMB = (buffer.byteLength / (1024 * 1024)).toFixed(1);
-  console.log(`[Runway] Data URI for ${filename} (${sizeMB}MB)`);
-  return `data:${contentType};base64,${buffer.toString("base64")}`;
+  try {
+    const { put, getDownloadUrl } = await import("@vercel/blob");
+
+    const blob = await put(`runway-temp/${filename}-${Date.now()}`, buffer, {
+      access: "private",
+      contentType,
+      addRandomSuffix: true,
+    });
+
+    // getDownloadUrl returns a signed URL that's publicly accessible
+    const downloadUrl = await getDownloadUrl(blob.url);
+    console.log(`[Runway] Uploaded ${filename} (${(buffer.byteLength / 1024).toFixed(0)}KB) → signed URL`);
+    return downloadUrl;
+  } catch (err) {
+    // Fallback: data URI
+    console.warn(`[Runway] Blob upload failed: ${(err as Error).message}. Using data URI.`);
+    return `data:${contentType};base64,${buffer.toString("base64")}`;
+  }
 }
 
 /**
