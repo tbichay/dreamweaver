@@ -1441,6 +1441,9 @@ function AssetDetailModal({ asset, blobProxy, onClose, onUpdate, onDelete }: {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [showRegenerate, setShowRegenerate] = useState(false);
+  const [regenPrompt, setRegenPrompt] = useState(asset.generatedBy?.prompt || "");
   const [allTags, setAllTags] = useState<Array<{ tag: string; count: number }>>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -1504,6 +1507,35 @@ function AssetDetailModal({ asset, blobProxy, onClose, onUpdate, onDelete }: {
     setUploading(false);
   };
 
+  const handleRegenerate = async () => {
+    if (!regenPrompt.trim()) return;
+    setRegenerating(true);
+    try {
+      // Determine style from tags
+      const styleTag = editTags.find((t) => t.startsWith("style:"));
+      const style = styleTag ? styleTag.replace("style:", "") : "pixar-3d";
+
+      const res = await fetch("/api/studio/library/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: asset.type,
+          category: asset.category || undefined,
+          description: regenPrompt,
+          style,
+          name: editName || undefined,
+          tags: editTags,
+        }),
+      });
+      if (res.ok) {
+        // Delete old asset
+        await fetch(`/api/studio/assets/${asset.id}`, { method: "DELETE" });
+        onUpdate();
+      }
+    } catch { /* */ }
+    setRegenerating(false);
+  };
+
   const addTag = (tag: string) => {
     const t = tag.trim().toLowerCase();
     if (t && !editTags.includes(t)) {
@@ -1537,14 +1569,52 @@ function AssetDetailModal({ asset, blobProxy, onClose, onUpdate, onDelete }: {
             </div>
           ) : null}
 
-          {/* Upload overlay */}
+          {/* Action overlays */}
           {asset.mimeType.startsWith("image/") && (
-            <label className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/60 text-white/60 text-[9px] cursor-pointer hover:bg-black/80 hover:text-white transition-all">
-              {uploading ? "Laedt..." : "Bild ersetzen"}
-              <input type="file" accept="image/*" onChange={handleUploadReplace} disabled={uploading} className="hidden" />
-            </label>
+            <div className="absolute bottom-2 right-2 flex gap-1.5">
+              <button
+                onClick={() => setShowRegenerate(!showRegenerate)}
+                disabled={regenerating}
+                className="px-2.5 py-1 rounded-lg bg-black/60 text-[#d4a853]/70 text-[9px] hover:bg-black/80 hover:text-[#d4a853] transition-all disabled:opacity-30"
+              >
+                {regenerating ? "Generiert..." : "Neu generieren"}
+              </button>
+              <label className="px-2.5 py-1 rounded-lg bg-black/60 text-white/60 text-[9px] cursor-pointer hover:bg-black/80 hover:text-white transition-all">
+                {uploading ? "Laedt..." : "Hochladen"}
+                <input type="file" accept="image/*" onChange={handleUploadReplace} disabled={uploading} className="hidden" />
+              </label>
+            </div>
           )}
         </div>
+
+        {/* Regenerate with prompt editor */}
+        {showRegenerate && (
+          <div className="px-4 py-3 bg-white/[0.02] border-b border-white/5">
+            <label className="text-[9px] text-white/25 uppercase tracking-wider block mb-1">Prompt bearbeiten + neu generieren</label>
+            <textarea
+              value={regenPrompt}
+              onChange={(e) => setRegenPrompt(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/60 focus:outline-none focus:border-[#d4a853]/30 resize-none font-mono"
+              placeholder="Beschreibe das Bild das generiert werden soll..."
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating || !regenPrompt.trim()}
+                className="px-3 py-1.5 rounded-lg bg-[#d4a853]/20 text-[#d4a853] text-[10px] font-medium hover:bg-[#d4a853]/30 disabled:opacity-30"
+              >
+                {regenerating ? "Generiert..." : "AI generieren"}
+              </button>
+              <button
+                onClick={() => setShowRegenerate(false)}
+                className="px-3 py-1.5 rounded-lg bg-white/5 text-white/30 text-[10px] hover:text-white/50"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="p-4 space-y-3">
           {/* Editable Name */}
