@@ -335,20 +335,23 @@ export async function POST(
 
             if (useRunwayForDialog) {
               // ── RUNWAY I2V: Generate video with speaking character ──
-              // Audio will be overlaid in Remotion (Runway REST API has no lip-sync endpoint)
               try {
                 const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
                 const startImage = prevFrame || landscapeBuffer || speakerImage;
                 const imageUrl = await uploadForRunway(startImage, "start.png", "image/png");
-                const charDesc = actorDataForPrompt
-                  ? `Character "${character?.name}": ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
-                  : "";
                 const cameraHint = mapCameraMotion(scene.cameraMotion);
+
+                // Runway has 1000 char limit on promptText!
+                // Use sceneDescription directly (shorter + more specific than buildScenePrompt)
+                const cleanDesc = (scene.sceneDescription || "").replace(/"[^"]*"/g, "").replace(/koalatree/gi, "").trim();
+                const charDesc = character?.name ? `${character.name}` : "";
+                const outfit = actorDataForPrompt?.outfit ? ` wearing ${actorDataForPrompt.outfit}` : "";
+                const runwayPrompt = `${charDesc}${outfit} — ${cleanDesc}. Speaking naturally.${cameraHint ? ` ${cameraHint}.` : ""} Cinematic, no text.`.slice(0, 990);
 
                 send({ progress: `Runway: ${character?.name} Close-Up...` });
                 videoUrl = await runwayI2V({
                   imageUrl,
-                  prompt: `${charDesc} ${prompt}. Character speaking naturally, expressive face.${cameraHint ? ` ${cameraHint}.` : ""}`,
+                  prompt: runwayPrompt,
                   duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                   ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                   model: quality === "premium" ? "gen4.5" : "gen4_turbo",
@@ -401,10 +404,14 @@ export async function POST(
                   : "";
                 const cameraHint = mapCameraMotion(scene.cameraMotion);
 
+                // Runway 1000 char limit
+                const cleanDesc2 = (scene.sceneDescription || "").replace(/"[^"]*"/g, "").replace(/koalatree/gi, "").trim();
+                const runwayPrompt2 = `${charDesc} ${cleanDesc2}${cameraHint ? `. ${cameraHint}` : ""}. Cinematic, no text.`.slice(0, 990);
+
                 send({ progress: `Runway: ${camera} Szene...` });
                 videoUrl = await runwayI2V({
                   imageUrl,
-                  prompt: `${charDesc} ${prompt}${cameraHint ? `. ${cameraHint}` : ""}`,
+                  prompt: runwayPrompt2,
                   duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                   ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                   model: quality === "premium" ? "gen4.5" : "gen4_turbo",
@@ -466,12 +473,16 @@ export async function POST(
                 : "";
               const cameraHint = mapCameraMotion(scene.cameraMotion);
 
+              // Runway 1000 char limit
+              const cleanDesc3 = (scene.sceneDescription || "").replace(/"[^"]*"/g, "").replace(/koalatree/gi, "").trim();
+              const runwayPrompt3 = `${charDesc} ${cleanDesc3}${cameraHint ? `. ${cameraHint}` : ""}. Cinematic, no text.`.slice(0, 990);
+
               send({ progress: `Runway: Landscape...` });
               await task.progress("Runway...", 30);
 
               videoUrl = await runwayI2V({
                 imageUrl,
-                prompt: `${charDesc} ${prompt}${cameraHint ? `. ${cameraHint}` : ""}`.trim(),
+                prompt: runwayPrompt3,
                 duration: durSec <= 5 ? 5 : 10,
                 ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
                 model: quality === "premium" ? "gen4.5" : "gen4_turbo",
