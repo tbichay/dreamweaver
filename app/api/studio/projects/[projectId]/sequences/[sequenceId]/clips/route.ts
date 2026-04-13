@@ -315,144 +315,16 @@ export async function POST(
         // Summary log
         console.log(`[Clip] Scene ${body.sceneIndex} ready: portrait=${!!portraitBuffer}, charRefs=${characterRefs.length}, location=${!!landscapeBuffer}, storyboard=${!!scene.storyboardImageUrl}, props=${propElements.length}, elements=${allElements.length}`);
 
-        if (isDialog && (portraitBuffer || characterRefs.length > 0)) {
-          // ── DIALOG: Camera-based strategy ──
-          // close-up → Avatar (only speaker, with lip-sync)
-          // medium/wide → I2V (group scene, no lip-sync, audio plays over)
-          const audioDurSec = (scene.audioEndMs - scene.audioStartMs) / 1000;
-          const segDur = Math.max(2, Math.ceil(audioDurSec));
-          const camera = scene.camera || "close-up";
-          const isCloseUp = camera === "close-up" || camera === "zoom-in";
+        {
+          // ── UNIFIED: Kling O3 (Omni) for ALL scene types ──
+          // O3 handles dialog, action, landscape — all in one model
+          // Audio will be overlaid in Remotion from ElevenLabs TTS
+          const durSec = isDialog
+            ? Math.max(3, Math.ceil((scene.audioEndMs - scene.audioStartMs) / 1000))
+            : (scene.durationHint || 5);
 
-          const useRunwayForDialog = body.provider === "runway";
-
-          if (isCloseUp) {
-            const speakerImage = portraitBuffer || characterRefs[0];
-            if (!speakerImage) throw new Error("Kein Portrait fuer Close-Up Dialog");
-
-            send({ progress: `Close-Up: ${character?.name || "Dialog"} spricht... (${useRunwayForDialog ? "Runway" : "Kling"})` });
-            await task.progress(`Close-Up: ${character?.name || "Dialog"}`, 30);
-
-            if (useRunwayForDialog) {
-              // ── RUNWAY I2V: Generate video with speaking character ──
-              try {
-                const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
-                const startImage = prevFrame || landscapeBuffer || speakerImage;
-                const imageUrl = await uploadForRunway(startImage, "start.png", "image/png");
-                const cameraHint = mapCameraMotion(scene.cameraMotion);
-
-                // Runway has 1000 char limit on promptText!
-                // Use sceneDescription directly (shorter + more specific than buildScenePrompt)
-                const cleanDesc = (scene.sceneDescription || "").replace(/"[^"]*"/g, "").replace(/koalatree/gi, "").trim();
-                const charDesc = character?.name ? `${character.name}` : "";
-                const outfit = actorDataForPrompt?.outfit ? ` wearing ${actorDataForPrompt.outfit}` : "";
-                const runwayPrompt = `${charDesc}${outfit} — ${cleanDesc}. Speaking naturally.${cameraHint ? ` ${cameraHint}.` : ""} Cinematic, no text.`.slice(0, 990);
-
-                send({ progress: `Runway: ${character?.name} Close-Up...` });
-                videoUrl = await runwayI2V({
-                  imageUrl,
-                  prompt: runwayPrompt,
-                  duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
-                  ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
-                  model: quality === "premium" ? "gen4.5" : "gen4_turbo",
-                });
-              } catch (runwayErr) {
-                const errMsg = (runwayErr as Error).message?.slice(0, 200) || "unknown";
-                console.error("[Clip] RUNWAY FAILED:", errMsg);
-                send({ progress: `RUNWAY FEHLER: ${errMsg.slice(0, 80)}. Fallback: Kling...` });
-              }
-            }
-
-            if (!videoUrl) {
-              // ── KLING AVATAR: portrait + audio → video with lip-sync ──
-              try {
-                videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "pro");
-              } catch (err) {
-                console.warn("[Clip] Avatar Pro failed, trying Standard:", err);
-                send({ progress: "Fallback: Avatar Standard..." });
-                try {
-                  videoUrl = await klingAvatar(speakerImage, audioSegment, prompt, "standard");
-                } catch (err2) {
-                  console.warn("[Clip] Avatar Standard failed, trying I2V:", err2);
-                  send({ progress: "Fallback: I2V..." });
-                  videoUrl = await klingI2V({
-                    imageBuffer: speakerImage,
-                    prompt,
-                    durationSeconds: Math.ceil(segDur),
-                    aspectRatio,
-                    quality: "pro",
-                    generateAudio: false,
-                  });
-                }
-              }
-            }
-          } else {
-            // ── MEDIUM/WIDE: group scene, NO lip-sync ──
-            const groupImage = landscapeBuffer || prevFrame || portraitBuffer || characterRefs[0];
-            if (!groupImage) throw new Error("Kein Bild fuer Gruppenszene");
-
-            send({ progress: `${camera}: Gruppenszene (${useRunwayForDialog ? "Runway" : "Kling"})...` });
-            await task.progress(`${camera}: Gruppe`, 30);
-
-            if (useRunwayForDialog) {
-              try {
-                const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
-                const startImage = prevFrame || groupImage;
-                const imageUrl = await uploadForRunway(startImage, "group.png", "image/png");
-                const charDesc = character
-                  ? `Character "${character.name}" (${(character as any)?.description || ""}) is in the scene. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
-                  : "";
-                const cameraHint = mapCameraMotion(scene.cameraMotion);
-
-                // Runway 1000 char limit
-                const cleanDesc2 = (scene.sceneDescription || "").replace(/"[^"]*"/g, "").replace(/koalatree/gi, "").trim();
-                const runwayPrompt2 = `${charDesc} ${cleanDesc2}${cameraHint ? `. ${cameraHint}` : ""}. Cinematic, no text.`.slice(0, 990);
-
-                send({ progress: `Runway: ${camera} Szene...` });
-                videoUrl = await runwayI2V({
-                  imageUrl,
-                  prompt: runwayPrompt2,
-                  duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
-                  ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
-                  model: quality === "premium" ? "gen4.5" : "gen4_turbo",
-                });
-              } catch (runwayErr) {
-                console.warn("[Clip] Runway group failed, falling back to Kling:", runwayErr);
-              }
-            }
-
-            if (!videoUrl) {
-            try {
-              videoUrl = await klingI2V({
-                imageBuffer: groupImage,
-                prompt,
-                durationSeconds: Math.ceil(segDur),
-                aspectRatio,
-                quality: "pro",
-                characterElements: allElements.length > 0 ? allElements : undefined,
-                generateAudio: false,
-              });
-            } catch (err) {
-              console.warn("[Clip] I2V Pro failed, trying Standard:", err);
-              send({ progress: "Fallback: I2V Standard..." });
-              videoUrl = await klingI2V({
-                imageBuffer: groupImage,
-                prompt,
-                durationSeconds: Math.ceil(segDur),
-                aspectRatio,
-                quality: "standard",
-                generateAudio: false,
-              });
-            }
-            } // close if (!videoUrl) — Kling fallback for group
-          }
-        } else {
-          // ── LANDSCAPE / TRANSITION ──
-
-          const storyboardFrame = scene.storyboardImageUrl ? await loadBlobBuffer(scene.storyboardImageUrl) : undefined;
-          // Priority: prevFrame FIRST for continuity (prevents "paddling on sand")
-          // Location only for first scene or when no prevFrame
-          const imageSource = prevFrame || landscapeBuffer || storyboardFrame || portraitBuffer || characterRefs[0];
+          // Choose start image: prevFrame for continuity, then location, then portrait
+          const imageSource = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
           if (!imageSource) {
             send({ done: true, error: `Szene ${body.sceneIndex}: Kein Bild verfuegbar. Bitte Location oder Actor zuweisen.`, skipped: true });
             clearInterval(keepAlive);
@@ -460,82 +332,21 @@ export async function POST(
             return;
           }
 
-          const durSec = scene.durationHint || 5;
-          const useRunway = body.provider === "runway";
+          send({ progress: `Kling O3: ${scene.type === "dialog" ? (character?.name || "Dialog") : "Szene"}... (${durSec}s)` });
+          await task.progress(`O3: ${scene.type}`, 30);
 
-          // ── RUNWAY PATH ──
-          if (useRunway) {
-            try {
-              const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
-              const imageUrl = await uploadForRunway(imageSource, "scene.png", "image/png");
-              const charDesc = character
-                ? `Character "${character.name}" is in this scene. ${(character as any)?.description || ""}. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
-                : "";
-              const cameraHint = mapCameraMotion(scene.cameraMotion);
-
-              // Runway 1000 char limit
-              const cleanDesc3 = (scene.sceneDescription || "").replace(/"[^"]*"/g, "").replace(/koalatree/gi, "").trim();
-              const runwayPrompt3 = `${charDesc} ${cleanDesc3}${cameraHint ? `. ${cameraHint}` : ""}. Cinematic, no text.`.slice(0, 990);
-
-              send({ progress: `Runway: Landscape...` });
-              await task.progress("Runway...", 30);
-
-              videoUrl = await runwayI2V({
-                imageUrl,
-                prompt: runwayPrompt3,
-                duration: durSec <= 5 ? 5 : 10,
-                ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
-                model: quality === "premium" ? "gen4.5" : "gen4_turbo",
-              });
-            } catch (runwayErr) {
-              const lsErr = (runwayErr as Error).message?.slice(0, 200) || "unknown";
-              console.error("[Clip] RUNWAY LANDSCAPE FAILED:", lsErr);
-              send({ progress: `RUNWAY FEHLER: ${lsErr.slice(0, 80)}. Fallback: Kling...` });
-              send({ progress: "Runway fehlgeschlagen, Fallback: Kling..." });
-            }
-          }
-
-          // ── KLING PATH (default or fallback) ──
-          if (!videoUrl) {
-            const useO3 = durSec > 5 || scene.storyboardImageUrl;
-
-          if (useO3) {
-            try {
-              // Build multi_prompt if there are consecutive landscape scenes
-              const multiPrompts: string[] = [];
-              const nextScenes = scenes.slice(body.sceneIndex, body.sceneIndex + 3); // Look ahead up to 3 scenes
-              // Only use multi_prompt if current scene is long enough
-              if (durSec >= 8 && nextScenes.length > 1) {
-                for (const ns of nextScenes) {
-                  if (ns.sceneDescription) {
-                    multiPrompts.push(ns.sceneDescription.replace(/"[^"]*"/g, "").trim());
-                  }
-                }
-              }
-
-              send({ progress: `Kling O3: ${multiPrompts.length > 1 ? `Multi-Shot (${multiPrompts.length})` : "Szene"}...` });
-              await task.progress("O3...", 30);
-
-              videoUrl = await klingO3({
-                imageBuffer: imageSource,
-                prompt,
-                durationSeconds: Math.ceil(Math.min(15, durSec)),
-                multiPrompt: multiPrompts.length > 1 ? multiPrompts : undefined,
-                shotType: scene.cameraMotion || undefined,
-                characterElements: allElements.length > 0 ? allElements : undefined,
-                generateAudio: false,
-              });
-            } catch (err) {
-              console.warn("[Clip] O3 failed, falling back to Kling v3:", err);
-              send({ progress: "Fallback: Kling 3.0..." });
-              videoUrl = ""; // Reset for fallback
-            }
-          }
-
-          if (!videoUrl) {
-            send({ progress: "Kling 3.0: Landscape..." });
-            await task.progress("Landscape...", 30);
-
+          try {
+            videoUrl = await klingO3({
+              imageBuffer: imageSource,
+              prompt,
+              durationSeconds: Math.ceil(Math.min(15, durSec)),
+              shotType: scene.cameraMotion || undefined,
+              characterElements: allElements.length > 0 ? allElements : undefined,
+              generateAudio: false, // We use ElevenLabs audio in Remotion
+            });
+          } catch (o3Err) {
+            console.warn("[Clip] O3 failed, trying Kling I2V Pro:", o3Err);
+            send({ progress: "O3 fehlgeschlagen, Fallback: Kling I2V..." });
             try {
               videoUrl = await klingI2V({
                 imageBuffer: imageSource,
@@ -543,12 +354,11 @@ export async function POST(
                 durationSeconds: Math.ceil(Math.min(10, durSec)),
                 aspectRatio,
                 quality: "pro",
-                endImageBuffer: prevFrame && portraitBuffer ? portraitBuffer : undefined,
                 characterElements: allElements.length > 0 ? allElements : undefined,
                 generateAudio: false,
               });
-            } catch (err) {
-              console.warn("[Clip] Kling 3.0 landscape failed, fallback standard:", err);
+            } catch (i2vErr) {
+              console.warn("[Clip] I2V Pro failed, trying Standard:", i2vErr);
               send({ progress: "Fallback: Kling Standard..." });
               videoUrl = await klingI2V({
                 imageBuffer: imageSource,
@@ -556,10 +366,11 @@ export async function POST(
                 durationSeconds: Math.ceil(Math.min(10, durSec)),
                 aspectRatio,
                 quality: "standard",
+                generateAudio: false,
               });
             }
           }
-          } // close if (!videoUrl) — Kling fallback block
+
         }
 
         // Extract last frame for next scene continuity
