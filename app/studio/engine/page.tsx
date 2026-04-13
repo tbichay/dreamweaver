@@ -92,6 +92,7 @@ interface Project {
   targetDurationSec?: number;
   language?: string;
   videoUrl?: string;
+  selectedAssets?: { locationIds?: string[]; propIds?: string[]; musicId?: string | null };
   characters: Character[];
   sequences: Sequence[];
   createdAt: string;
@@ -775,10 +776,12 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   // Locations + Props from Library
   const [availableLocations, setAvailableLocations] = useState<Array<{ id: string; name: string; blobUrl: string }>>([]);
   const [availableProps, setAvailableProps] = useState<Array<{ id: string; name: string; blobUrl: string }>>([]);
-  const [selectedLocationIds, setSelectedLocationIds] = useState<Set<string>>(new Set());
-  const [selectedPropIds, setSelectedPropIds] = useState<Set<string>>(new Set());
+  // Restore previous selection from project
+  const savedAssets = project.selectedAssets;
+  const [selectedLocationIds, setSelectedLocationIds] = useState<Set<string>>(new Set(savedAssets?.locationIds || []));
+  const [selectedPropIds, setSelectedPropIds] = useState<Set<string>>(new Set(savedAssets?.propIds || []));
   const [availableMusic, setAvailableMusic] = useState<Array<{ id: string; name: string; blobUrl: string; durationSec?: number }>>([]);
-  const [selectedMusicId, setSelectedMusicId] = useState<string | null>(null);
+  const [selectedMusicId, setSelectedMusicId] = useState<string | null>(savedAssets?.musicId || null);
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showPropPicker, setShowPropPicker] = useState(false);
@@ -811,7 +814,7 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
     setResult(null);
     const tid = toast.loading("Drehbuch wird erstellt...");
 
-    // Save style settings first
+    // Save style settings + selected assets
     await fetch(`/api/studio/projects/${project.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -819,6 +822,11 @@ function ScreenplayTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         directingStyle,
         atmosphere: atmosphere === "custom" ? `custom:${customAtmo}` : atmosphere,
         stylePrompt: resolvedStylePrompt,
+        selectedAssets: {
+          locationIds: Array.from(selectedLocationIds),
+          propIds: Array.from(selectedPropIds),
+          musicId: selectedMusicId,
+        },
       }),
     });
 

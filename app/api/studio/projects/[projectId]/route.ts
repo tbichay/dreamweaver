@@ -49,6 +49,7 @@ export async function PUT(
     format?: string;
     targetDurationSec?: number;
     status?: string;
+    selectedAssets?: { locationIds?: string[]; propIds?: string[]; musicId?: string | null };
   };
 
   const project = await prisma.studioProject.findFirst({
@@ -70,6 +71,7 @@ export async function PUT(
       ...(body.format !== undefined && { format: body.format }),
       ...(body.targetDurationSec !== undefined && { targetDurationSec: body.targetDurationSec }),
       ...(body.status !== undefined && { status: body.status }),
+      ...(body.selectedAssets !== undefined && { selectedAssets: JSON.parse(JSON.stringify(body.selectedAssets)) }),
     },
     include: {
       characters: { select: { id: true, name: true, emoji: true, role: true } },

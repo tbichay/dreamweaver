@@ -279,6 +279,9 @@ model StudioProject {
   videoUrl        String?           // Final assembled film (MP4)
   audioDauerSek   Float?
 
+  // Selected Library Assets (persisted across sessions)
+  selectedAssets  Json?             // { locationIds: string[], propIds: string[], musicId: string | null }
+
   // Budget
   budgetLimitCents Int?             // Max budget in cents (null = unlimited)
   currentCostCents Int              @default(0)
