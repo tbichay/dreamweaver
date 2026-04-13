@@ -100,6 +100,11 @@ export async function POST(
 
   const quality = body.quality || scene.quality || "standard";
 
+  // Validate Runway API key if Runway is requested
+  if (body.provider === "runway" && !process.env.RUNWAY_API_KEY) {
+    return Response.json({ error: "RUNWAY_API_KEY nicht konfiguriert. Bitte in den Vercel Environment Variables setzen." }, { status: 400 });
+  }
+
   // SSE streaming
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -364,8 +369,9 @@ export async function POST(
                   });
                 }
               } catch (runwayErr) {
-                console.warn("[Clip] Runway dialog failed, falling back to Kling:", runwayErr);
-                send({ progress: "Runway fehlgeschlagen, Fallback: Kling..." });
+                const errMsg = (runwayErr as Error).message?.slice(0, 200) || "unknown";
+                console.error("[Clip] RUNWAY FAILED:", errMsg);
+                send({ progress: `RUNWAY FEHLER: ${errMsg.slice(0, 80)}. Fallback: Kling...` });
               }
             }
 
@@ -491,7 +497,9 @@ export async function POST(
                 referenceImages: charRefs.length > 0 ? charRefs.slice(0, 3) : undefined,
               });
             } catch (runwayErr) {
-              console.warn("[Clip] Runway failed, falling back to Kling:", runwayErr);
+              const lsErr = (runwayErr as Error).message?.slice(0, 200) || "unknown";
+              console.error("[Clip] RUNWAY LANDSCAPE FAILED:", lsErr);
+              send({ progress: `RUNWAY FEHLER: ${lsErr.slice(0, 80)}. Fallback: Kling...` });
               send({ progress: "Runway fehlgeschlagen, Fallback: Kling..." });
             }
           }
