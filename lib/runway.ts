@@ -274,6 +274,21 @@ export function bufferToDataUri(buffer: Buffer, mimeType = "image/png"): string 
 }
 
 /**
+ * Upload buffer to Vercel Blob (public) and return URL.
+ * Runway prefers URLs over data URIs (size limits).
+ */
+export async function uploadForRunway(buffer: Buffer, filename: string, contentType: string): Promise<string> {
+  const { put } = await import("@vercel/blob");
+  const blob = await put(`runway-temp/${filename}-${Date.now()}`, buffer, {
+    access: "public",
+    contentType,
+    addRandomSuffix: true,
+  });
+  console.log(`[Runway] Uploaded ${filename} → ${blob.url.slice(-40)}`);
+  return blob.url;
+}
+
+/**
  * Map our cameraMotion values to Runway's numeric camera parameters.
  * Our values: "static", "pan-left", "pan-right", "tilt-up", "dolly-forward", etc.
  * Runway values: numeric -10 to +10 per axis.

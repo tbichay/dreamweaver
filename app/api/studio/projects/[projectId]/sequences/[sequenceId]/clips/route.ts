@@ -336,12 +336,12 @@ export async function POST(
             if (useRunwayForDialog) {
               // ── RUNWAY LIP-SYNC: Portrait + Audio → Talking Video ──
               try {
-                const { runwayLipSync, runwayI2V, bufferToDataUri, mapCameraMotion } = await import("@/lib/runway");
-                const speakerDataUri = bufferToDataUri(speakerImage, "image/png");
+                const { runwayLipSync, runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
+                const speakerDataUri = await uploadForRunway(speakerImage, "speaker.png", "image/png");
 
                 if (audioSegment.byteLength > 100) {
                   // Has audio → use Lip-Sync endpoint
-                  const audioDataUri = bufferToDataUri(audioSegment, "audio/mpeg");
+                  const audioDataUri = await uploadForRunway(audioSegment, "audio.mp3", "audio/mpeg");
                   send({ progress: `Runway Lip-Sync: ${character?.name}...` });
                   videoUrl = await runwayLipSync({
                     imageUrl: speakerDataUri,
@@ -352,14 +352,14 @@ export async function POST(
                   // No audio → use I2V with camera + references
                   const runwayStartImage = prevFrame || landscapeBuffer || speakerImage;
                   const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
-                  const charRefs = characterRefs.map((ref) => ({ uri: bufferToDataUri(ref, "image/png"), tag: charTag }));
+                  const charRefs = await Promise.all(characterRefs.map(async (ref) => ({ uri: await uploadForRunway(ref, "ref.png", "image/png"), tag: charTag })));
                   const charDesc = actorDataForPrompt
                     ? `@${charTag} "${character?.name}": ${(character as any)?.description || ""}. ${actorDataForPrompt.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                     : "";
 
                   send({ progress: `Runway I2V: ${character?.name}...` });
                   videoUrl = await runwayI2V({
-                    imageUrl: bufferToDataUri(runwayStartImage, "image/png"),
+                    imageUrl: await uploadForRunway(runwayStartImage, "start.png", "image/png"),
                     prompt: `${charDesc} ${prompt}. @${charTag} speaking, expressive face, in action.`,
                     duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                     ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
@@ -408,17 +408,17 @@ export async function POST(
 
             if (useRunwayForDialog) {
               try {
-                const { runwayI2V, bufferToDataUri, mapCameraMotion } = await import("@/lib/runway");
+                const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
                 const runwayGroupImage = prevFrame || groupImage;
                 const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
                 const charDesc = character
                   ? `@${charTag} "${character.name}" (${(character as any)?.description || ""}) is in the scene. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                   : "";
-                const charRefs = characterRefs.map((ref) => ({ uri: bufferToDataUri(ref, "image/png"), tag: charTag }));
+                const charRefs = await Promise.all(characterRefs.map(async (ref) => ({ uri: await uploadForRunway(ref, "ref.png", "image/png"), tag: charTag })));
 
                 send({ progress: `Runway: ${camera} mit ${character?.name}...` });
                 videoUrl = await runwayI2V({
-                  imageUrl: bufferToDataUri(runwayGroupImage, "image/png"),
+                  imageUrl: await uploadForRunway(runwayGroupImage, "group.png", "image/png"),
                   prompt: `${charDesc} ${prompt}`,
                   duration: Math.min(10, Math.ceil(segDur)) as 5 | 10,
                   ratio: aspectRatio === "9:16" ? "720:1280" : "1280:720",
@@ -476,13 +476,13 @@ export async function POST(
           // ── RUNWAY PATH ──
           if (useRunway) {
             try {
-              const { runwayI2V, bufferToDataUri, mapCameraMotion } = await import("@/lib/runway");
-              const imageDataUri = bufferToDataUri(imageSource, "image/png");
+              const { runwayI2V, uploadForRunway, mapCameraMotion } = await import("@/lib/runway");
+              const imageDataUri = await uploadForRunway(imageSource, "scene.png", "image/png");
               const charTag = character?.name?.toLowerCase().replace(/\s+/g, "_") || "character";
               const charDesc = character
                 ? `@${charTag} "${character.name}" is in this scene. ${(character as any)?.description || ""}. ${actorDataForPrompt?.outfit ? `Wearing: ${actorDataForPrompt.outfit}.` : ""}`
                 : "";
-              const charRefs = allElements.map((ref) => ({ uri: bufferToDataUri(ref, "image/png"), tag: charTag }));
+              const charRefs = await Promise.all(allElements.map(async (ref) => ({ uri: await uploadForRunway(ref, "ref.png", "image/png"), tag: charTag })));
 
               send({ progress: `Runway: Szene${scene.cameraMotion ? ` (${scene.cameraMotion})` : ""}...` });
               await task.progress("Runway...", 30);
