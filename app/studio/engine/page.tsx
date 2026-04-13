@@ -3171,17 +3171,29 @@ function SequenceCard({
             </p>
           )}
 
-          {/* Audio Timeline Preview */}
-          {sequence.scenes && sequence.scenes.some((s) => s.dialogAudioUrl) && !isGenerating && (
-            <AudioTimelinePlayer
-              projectId={projectId}
-              sequenceId={sequence.id}
-              scenes={sequence.scenes}
-              ambienceUrl={sequence.audioUrl}
-              musicUrl={musicUrl}
-              musicVolume={musicVolume}
-              blobProxy={(url) => url.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(url)}` : url}
-            />
+          {/* Audio Preview — shows for ANY sequence with audio (dialog OR ambience) */}
+          {!isGenerating && (sequence.scenes?.some((s) => s.dialogAudioUrl) || sequence.audioUrl) && (
+            sequence.scenes?.some((s) => s.dialogAudioUrl) ? (
+              <AudioTimelinePlayer
+                projectId={projectId}
+                sequenceId={sequence.id}
+                scenes={sequence.scenes!}
+                ambienceUrl={sequence.audioUrl}
+                musicUrl={musicUrl}
+                musicVolume={musicVolume}
+                blobProxy={(url) => url.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(url)}` : url}
+              />
+            ) : (
+              /* Ambience-only player for landscape sequences */
+              <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3 mb-3">
+                <p className="text-[10px] text-white/35 mb-2">Ambience (keine Dialoge)</p>
+                <audio
+                  src={sequence.audioUrl!.includes(".blob.vercel-storage.com") ? `/api/studio/blob?url=${encodeURIComponent(sequence.audioUrl!)}` : sequence.audioUrl!}
+                  controls
+                  className="w-full h-8 opacity-60"
+                />
+              </div>
+            )
           )}
 
           {/* Sequence Preview Player — play all clips in order */}
