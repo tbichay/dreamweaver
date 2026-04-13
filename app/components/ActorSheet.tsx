@@ -65,6 +65,8 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
   const [style, setStyle] = useState(initial?.style || "realistic");
   const [outfit, setOutfit] = useState(initial?.outfit || "");
   const [traits, setTraits] = useState(initial?.traits || "");
+  const [tags, setTags] = useState<string[]>((initial as { tags?: string[] })?.tags || []);
+  const [newTag, setNewTag] = useState("");
 
   // Voice state
   const [voiceId, setVoiceId] = useState(initial?.voiceId);
@@ -102,7 +104,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
       const res = await fetch("/api/studio/actors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim(), voiceDescription: voiceDescription.trim() || undefined, style, outfit: outfit.trim() || undefined, traits: traits.trim() || undefined, tags: [] }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim(), voiceDescription: voiceDescription.trim() || undefined, style, outfit: outfit.trim() || undefined, traits: traits.trim() || undefined, tags }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error); return null; }
@@ -214,6 +216,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
             style,
             outfit: outfit.trim() || null,
             traits: traits.trim() || null,
+            tags,
             voiceSettings,
           },
         }),
@@ -271,6 +274,48 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy }: Acto
         <Field label="Eigenschaften" hint="Bleibende Merkmale in jeder Rolle">
           <TextInput value={traits} onChange={setTraits} placeholder="z.B. Traegt Brille, Narbe, markantes Kinn" />
         </Field>
+      </Section>
+
+      {/* Tags */}
+      <Section title="Tags">
+        <div className="flex flex-wrap gap-1 mb-2">
+          {tags.map((tag) => (
+            <span key={tag} className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 bg-white/10 rounded text-white/50">
+              {tag}
+              <button onClick={() => setTags(tags.filter((t) => t !== tag))} className="text-white/25 hover:text-red-300">&times;</button>
+            </span>
+          ))}
+          {tags.length === 0 && <span className="text-[9px] text-white/15">Keine Tags</span>}
+        </div>
+        <div className="flex gap-1.5">
+          <input
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newTag.trim()) {
+                e.preventDefault();
+                const t = newTag.trim().toLowerCase();
+                if (!tags.includes(t)) setTags([...tags, t]);
+                setNewTag("");
+              }
+            }}
+            placeholder="Tag hinzufuegen (Enter)"
+            className="flex-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-[9px] text-white/50 focus:outline-none focus:border-[#d4a853]/30 placeholder:text-white/15"
+          />
+          {/* Quick tag suggestions */}
+          {!newTag && tags.length < 3 && (
+            <div className="flex gap-0.5">
+              {["maennlich", "weiblich", "kind", "deutsch", "englisch", "held", "boesewicht", "erzaehler"]
+                .filter((t) => !tags.includes(t))
+                .slice(0, 3)
+                .map((t) => (
+                  <button key={t} onClick={() => setTags([...tags, t])} className="text-[8px] px-1.5 py-0.5 bg-white/5 rounded text-white/15 hover:text-white/30">
+                    +{t}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
       </Section>
 
       {/* Character Sheet — 3 Poses */}

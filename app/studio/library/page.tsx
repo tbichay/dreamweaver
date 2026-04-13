@@ -2284,8 +2284,15 @@ export default function LibraryPage() {
       items = items.filter((a) => a.tags.includes(`project:${projectFilter}`));
     }
     if (genderFilter !== "all") {
-      const tag = genderFilter === "male" ? "gender:male" : "gender:female";
-      items = items.filter((a) => a.tags.includes(tag));
+      // Support both old format (gender:male) and new (maennlich)
+      items = items.filter((a) => {
+        if (genderFilter === "male") return a.tags.some((t) => t === "gender:male" || t === "maennlich");
+        if (genderFilter === "female") return a.tags.some((t) => t === "gender:female" || t === "weiblich");
+        return true;
+      });
+    }
+    if (tagFilter !== "all") {
+      items = items.filter((a) => a.tags.includes(tagFilter));
     }
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
@@ -2296,7 +2303,20 @@ export default function LibraryPage() {
       );
     }
     return items;
-  }, [actors, projectFilter, genderFilter, searchText]);
+  }, [actors, projectFilter, genderFilter, tagFilter, searchText]);
+
+  // Collect actor tags for filter
+  const actorTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const a of actors) {
+      for (const t of a.tags) {
+        if (!t.startsWith("project:") && !t.startsWith("gender:")) {
+          counts.set(t, (counts.get(t) || 0) + 1);
+        }
+      }
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([tag, count]) => ({ tag, count }));
+  }, [actors]);
 
   const displayItems = category === "actors" ? filteredActors : filteredAssets;
   const selectedActor = selectedActorId ? actors.find((a) => a.id === selectedActorId) || null : null;
@@ -2494,6 +2514,18 @@ export default function LibraryPage() {
       {/* ── Actors View ────────────────────────────────────────── */}
       {category === "actors" && (
         <>
+          {/* Actor Tag Filters */}
+          {actorTags.length > 0 && !showNewActorForm && !selectedActorId && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              <button onClick={() => setTagFilter("all")} className={`text-[9px] px-2 py-0.5 rounded transition-all ${tagFilter === "all" ? "bg-white/15 text-white/50" : "bg-white/5 text-white/20 hover:text-white/40"}`}>Alle</button>
+              {actorTags.map(({ tag, count }) => (
+                <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? "all" : tag)} className={`text-[9px] px-2 py-0.5 rounded transition-all ${tagFilter === tag ? "bg-[#d4a853]/20 text-[#d4a853]" : "bg-white/5 text-white/20 hover:text-white/40"}`}>
+                  {tag} <span className="text-white/10">{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* New Actor Button */}
           {!showNewActorForm && (
             <button

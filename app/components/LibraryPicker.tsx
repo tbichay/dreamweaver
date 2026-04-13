@@ -85,6 +85,7 @@ export default function LibraryPicker({ type, onSelect, onClose, blobProxy }: Li
   const [items, setItems] = useState<PickerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [activeTag, setActiveTag] = useState<string>("all");
 
   useEffect(() => {
     setLoading(true);
@@ -106,14 +107,31 @@ export default function LibraryPicker({ type, onSelect, onClose, blobProxy }: Li
       .finally(() => setLoading(false));
   }, [config.apiUrl]);
 
-  const filtered = search.trim()
-    ? items.filter((item) => {
-        const q = search.toLowerCase();
-        return (item.name?.toLowerCase().includes(q)) ||
-               (item.category?.toLowerCase().includes(q)) ||
-               (item.tags?.some((t) => t.toLowerCase().includes(q)));
-      })
-    : items;
+  // Collect unique tags for filter chips
+  const availableTags = (() => {
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      for (const t of (item.tags || [])) {
+        if (!t.startsWith("project:") && !t.startsWith("style:")) {
+          counts.set(t, (counts.get(t) || 0) + 1);
+        }
+      }
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([tag, count]) => ({ tag, count }));
+  })();
+
+  let filtered = items;
+  if (activeTag !== "all") {
+    filtered = filtered.filter((item) => item.tags?.includes(activeTag));
+  }
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter((item) =>
+      (item.name?.toLowerCase().includes(q)) ||
+      (item.category?.toLowerCase().includes(q)) ||
+      (item.tags?.some((t) => t.toLowerCase().includes(q)))
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
@@ -149,6 +167,27 @@ export default function LibraryPicker({ type, onSelect, onClose, blobProxy }: Li
             + {config.createLabel}
           </a>
         </div>
+
+        {/* Tag Filter Chips */}
+        {availableTags.length > 0 && (
+          <div className="px-5 py-2 border-b border-white/5 flex flex-wrap gap-1">
+            <button
+              onClick={() => setActiveTag("all")}
+              className={`text-[9px] px-2 py-0.5 rounded transition-all ${activeTag === "all" ? "bg-white/15 text-white/50" : "bg-white/5 text-white/20 hover:text-white/40"}`}
+            >
+              Alle
+            </button>
+            {availableTags.map(({ tag, count }) => (
+              <button
+                key={tag}
+                onClick={() => setActiveTag(activeTag === tag ? "all" : tag)}
+                className={`text-[9px] px-2 py-0.5 rounded transition-all ${activeTag === tag ? "bg-[#d4a853]/20 text-[#d4a853]" : "bg-white/5 text-white/20 hover:text-white/40"}`}
+              >
+                {tag} <span className="text-white/10">{count}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Grid */}
         <div className="flex-1 overflow-y-auto p-5">
