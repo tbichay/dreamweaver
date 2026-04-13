@@ -191,7 +191,7 @@ export async function uploadForRunway(buffer: Buffer, filename: string, contentT
   for (const [key, value] of Object.entries(fields)) {
     formData.append(key, value as string);
   }
-  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  formData.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), filename);
 
   const uploadRes = await fetch(uploadUrl, {
     method: "POST",
