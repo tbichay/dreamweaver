@@ -89,6 +89,12 @@ export interface StudioScene {
   status: "pending" | "generating" | "done" | "error";
   quality?: "standard" | "premium";
 
+  // Start image override (for hard-cut / fade-to-black)
+  startImageOverride?: {
+    type: "location" | "portrait" | "custom";
+    url?: string;
+  };
+
   // Clip versions
   versions?: ClipVersion[];
   activeVersionIdx?: number;

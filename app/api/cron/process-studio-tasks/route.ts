@@ -405,7 +405,18 @@ async function processClipTask(
   });
 
   // Choose start image
-  const imageSource = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
+  let imageSource: Buffer | undefined = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
+
+  // Handle startImageOverride for hard-cut/fade
+  if (scene.startImageOverride && (transition === "hard-cut" || transition === "fade-to-black")) {
+    if (scene.startImageOverride.type === "portrait" && portraitBuffer) {
+      imageSource = portraitBuffer;
+    } else if (scene.startImageOverride.type === "custom" && scene.startImageOverride.url) {
+      imageSource = await loadBlobBuffer(scene.startImageOverride.url);
+    }
+    // "location" is already the default (landscapeBuffer)
+  }
+
   if (!imageSource) throw new Error(`Szene ${sceneIndex}: Kein Bild verfuegbar`);
 
   const durSec = isDialog

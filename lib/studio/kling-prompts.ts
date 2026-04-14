@@ -66,9 +66,11 @@ export function buildO3Prompt(options: {
 }): string {
   const parts: string[] = [];
 
-  // 1. TRANSITION CONTEXT (if seamless continuation)
+  // 1. TRANSITION CONTEXT
   if (options.clipTransition === "seamless" && options.prevSceneHint) {
     parts.push(`Continuing seamlessly from previous shot: ${options.prevSceneHint.slice(0, 100)}.`);
+  } else if (options.clipTransition === "match-cut" && options.prevSceneHint) {
+    parts.push(`MATCH CUT — dramatic camera angle change from previous shot. Same scene, same lighting, same environment. New perspective:`);
   }
 
   // 2. CAMERA (cinematic language, not just a label)
@@ -77,7 +79,12 @@ export function buildO3Prompt(options: {
     : options.camera
       ? CAMERA_KEYWORDS[options.camera] || options.camera
       : "";
-  if (cameraDesc) parts.push(cameraDesc + ".");
+  if (options.clipTransition === "match-cut" && cameraDesc) {
+    // Make camera description more prominent for match-cuts
+    parts.push(`Camera: ${cameraDesc}.`);
+  } else if (cameraDesc) {
+    parts.push(cameraDesc + ".");
+  }
 
   // 3. CHARACTER (anchor early — define who we see)
   if (options.characterName) {

@@ -58,6 +58,7 @@ interface Sequence {
     camera?: string;
     cameraMotion?: string;
     clipTransition?: string;
+    startImageOverride?: { type: "location" | "portrait" | "custom"; url?: string };
     emotion?: string;
     mood?: string;
     durationHint?: number;
@@ -2504,6 +2505,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                 <div className="py-1">
                   <TransitionConnector
                     transition={seq.scenes?.[0]?.clipTransition || "hard-cut"}
+                    startImageOverride={seq.scenes?.[0]?.startImageOverride}
                     onChange={async (transition) => {
                       // Update the FIRST scene of this sequence
                       const updatedScenes = [...(seq.scenes || [])];
@@ -2514,8 +2516,21 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ scenes: updatedScenes }),
                         });
-                        const labels: Record<string, string> = { seamless: "Nahtlos", "hard-cut": "Harter Schnitt", "fade-to-black": "Schwarzblende", "match-cut": "Match Cut" };
+                        const labels: Record<string, string> = { seamless: "Nahtlos", "hard-cut": "Harter Schnitt", "fade-to-black": "Schwarzblende", "match-cut": "Kamera-Schnitt" };
                         toast.info(`Sequenz-Übergang: ${labels[transition] || transition}`);
+                        onUpdate(project.id);
+                      }
+                    }}
+                    onStartImageChange={async (override) => {
+                      const updatedScenes = [...(seq.scenes || [])];
+                      if (updatedScenes.length > 0) {
+                        updatedScenes[0] = { ...updatedScenes[0], startImageOverride: override };
+                        await fetch(`/api/studio/projects/${project.id}/sequences/${seq.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ scenes: updatedScenes }),
+                        });
+                        toast.info(`Startbild: ${override.type === "portrait" ? "Actor Portrait" : "Location"}`);
                         onUpdate(project.id);
                       }
                     }}
@@ -2531,6 +2546,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                 onUpdate={() => onUpdate(project.id)}
                 musicUrl={selectedMusicUrl || undefined}
                 musicVolume={selectedMusicUrl ? musicVolume / 100 : undefined}
+                isFirstSequence={i === 0}
               />
             </div>
           ))}
@@ -2841,6 +2857,7 @@ function SequenceCard({
   onUpdate,
   musicUrl,
   musicVolume,
+  isFirstSequence,
 }: {
   sequence: Sequence;
   index: number;
@@ -2850,6 +2867,7 @@ function SequenceCard({
   onUpdate: () => void;
   musicUrl?: string;
   musicVolume?: number;
+  isFirstSequence?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
@@ -3189,9 +3207,16 @@ function SequenceCard({
               <div className="space-y-0">
                 {sequence.scenes.map((scene, si) => (
                   <div key={scene.id || si}>
+                    {si === 0 && isFirstSequence && (
+                      <div className="mx-2 my-1 px-3 py-1.5 rounded-lg bg-blue-500/8 border border-blue-500/20 flex items-center gap-2">
+                        <span className="text-sm text-blue-300/60">{"\uD83C\uDFAC"}</span>
+                        <span className="text-[10px] text-blue-300/60 font-medium">Film-Start</span>
+                      </div>
+                    )}
                     {si > 0 && (
                       <TransitionConnector
                         transition={scene.clipTransition}
+                        startImageOverride={scene.startImageOverride}
                         onChange={async (transition) => {
                           const updatedScenes = [...(sequence.scenes || [])];
                           updatedScenes[si] = { ...updatedScenes[si], clipTransition: transition };
@@ -3200,8 +3225,19 @@ function SequenceCard({
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ scenes: updatedScenes }),
                           });
-                          const labels: Record<string, string> = { seamless: "Nahtlos", "hard-cut": "Harter Schnitt", "fade-to-black": "Schwarzblende", "match-cut": "Match Cut" };
+                          const labels: Record<string, string> = { seamless: "Nahtlos", "hard-cut": "Harter Schnitt", "fade-to-black": "Schwarzblende", "match-cut": "Kamera-Schnitt" };
                           toast.info(`Uebergang geaendert: ${labels[transition] || transition}`);
+                          onUpdate();
+                        }}
+                        onStartImageChange={async (override) => {
+                          const updatedScenes = [...(sequence.scenes || [])];
+                          updatedScenes[si] = { ...updatedScenes[si], startImageOverride: override };
+                          await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ scenes: updatedScenes }),
+                          });
+                          toast.info(`Startbild: ${override.type === "portrait" ? "Actor Portrait" : "Location"}`);
                           onUpdate();
                         }}
                       />
@@ -3244,31 +3280,56 @@ function SequenceCard({
 
 // ── Transition Connector (between scenes) ─────────────────────────
 
-function TransitionConnector({ transition, onChange }: {
+function TransitionConnector({ transition, onChange, onStartImageChange, startImageOverride }: {
   transition?: string;
   onChange: (transition: string) => void;
+  onStartImageChange?: (override: { type: "location" | "portrait" | "custom" }) => void;
+  startImageOverride?: { type: "location" | "portrait" | "custom"; url?: string };
 }) {
-  const colors: Record<string, string> = {
-    seamless: "border-green-500/40",
-    "hard-cut": "border-red-500/40 border-dashed",
-    "fade-to-black": "border-white/20",
-    "match-cut": "border-orange-500/40",
+  const t = transition || "seamless";
+
+  const styles: Record<string, { bg: string; border: string; text: string; icon: string; label: string }> = {
+    seamless: { bg: "bg-green-500/8", border: "border-green-500/20", text: "text-green-300/60", icon: "\u2197", label: "Nahtlos" },
+    "match-cut": { bg: "bg-orange-500/8", border: "border-orange-500/20", text: "text-orange-300/60", icon: "\u2194", label: "Kamera-Schnitt" },
+    "hard-cut": { bg: "bg-red-500/8", border: "border-red-500/20", text: "text-red-300/60", icon: "\u2702", label: "Harter Schnitt" },
+    "fade-to-black": { bg: "bg-white/[0.03]", border: "border-white/10", text: "text-white/40", icon: "\u25FC", label: "Schwarzblende" },
   };
 
+  const s = styles[t] || styles.seamless;
+  const [justChanged, setJustChanged] = useState(false);
+
   return (
-    <div className="flex items-center gap-2 py-1 px-4">
-      <div className={`flex-1 border-t-2 ${colors[transition || "seamless"] || colors.seamless}`} />
-      <select
-        value={transition || "seamless"}
-        onChange={(e) => onChange(e.target.value)}
-        className="text-[9px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white/40"
-      >
-        <option value="seamless">Nahtlos</option>
-        <option value="hard-cut">Harter Schnitt</option>
-        <option value="fade-to-black">Schwarzblende</option>
-        <option value="match-cut">Match Cut</option>
-      </select>
-      <div className={`flex-1 border-t-2 ${colors[transition || "seamless"] || colors.seamless}`} />
+    <div>
+      <div className={`mx-2 my-1 px-3 py-1.5 rounded-lg ${s.bg} border ${s.border} flex items-center gap-2`}>
+        <span className={`text-sm ${s.text}`}>{s.icon}</span>
+        <span className={`text-[10px] ${s.text} font-medium flex-1`}>{s.label}</span>
+        <select
+          value={t}
+          onChange={(e) => { onChange(e.target.value); setJustChanged(true); setTimeout(() => setJustChanged(false), 10000); }}
+          className={`text-[9px] px-2 py-0.5 rounded ${s.bg} border ${s.border} ${s.text} cursor-pointer`}
+        >
+          <option value="seamless">{"\u2197"} Nahtlos</option>
+          <option value="match-cut">{"\u2194"} Kamera-Schnitt</option>
+          <option value="hard-cut">{"\u2702"} Harter Schnitt</option>
+          <option value="fade-to-black">{"\u25FC"} Schwarzblende</option>
+        </select>
+        {justChanged && (
+          <span className="text-[9px] text-amber-400/60">{"\u26A0"} Clip neu generieren</span>
+        )}
+      </div>
+      {(t === "hard-cut" || t === "fade-to-black") && onStartImageChange && (
+        <div className="mx-2 mb-1 px-3 py-1 rounded bg-white/[0.02] text-[9px] text-white/30 flex items-center gap-2">
+          <span>Startbild:</span>
+          <select
+            value={startImageOverride?.type || "location"}
+            onChange={(e) => onStartImageChange({ type: e.target.value as "location" | "portrait" | "custom" })}
+            className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/40 text-[9px]"
+          >
+            <option value="location">{"\uD83D\uDCCD"} Location</option>
+            <option value="portrait">{"\uD83D\uDC64"} Actor Portrait</option>
+          </select>
+        </div>
+      )}
     </div>
   );
 }
