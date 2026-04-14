@@ -366,12 +366,35 @@ async function processClipTask(
       const prevSequence = await prisma.studioSequence.findFirst({
         where: { projectId, orderIndex: { lt: sequence.orderIndex } },
         orderBy: { orderIndex: "desc" },
-        select: { id: true, sceneCount: true },
+        select: { id: true, sceneCount: true, scenes: true },
       });
       if (prevSequence?.sceneCount) {
         const lastSceneIdx = prevSequence.sceneCount - 1;
         const prevFramePath = `studio/${projectId}/sequences/${prevSequence.id}/frames/frame-${String(lastSceneIdx).padStart(3, "0")}.png`;
         prevFrame = await loadFrameFromBlob(prevFramePath);
+
+        // Fallback: if no saved frame, extract from last clip's video
+        if (!prevFrame) {
+          const prevScenes = (prevSequence.scenes as unknown as Array<{ videoUrl?: string; status?: string }>) || [];
+          const lastScene = prevScenes[lastSceneIdx];
+          if (lastScene?.videoUrl && lastScene.status === "done") {
+            console.log(`[Clip] No saved frame — extracting from previous sequence's last clip`);
+            try {
+              const prevVideoBuffer = await loadBlobBuffer(lastScene.videoUrl);
+              if (prevVideoBuffer) {
+                const { uploadToFal, extractLastFrame } = await import("@/lib/fal");
+                const uploadedUrl = await uploadToFal(prevVideoBuffer, "prev-clip.mp4", "video/mp4");
+                const frameBuffer = await extractLastFrame(uploadedUrl);
+                prevFrame = frameBuffer;
+                // Save for next time
+                await put(prevFramePath, frameBuffer, { access: "private", contentType: "image/png" });
+                console.log(`[Clip] Cross-sequence frame extracted and saved for future use`);
+              }
+            } catch (extractErr) {
+              console.error(`[Clip] Cross-sequence frame extraction failed:`, extractErr instanceof Error ? extractErr.message : extractErr);
+            }
+          }
+        }
         console.log(`[Clip] Cross-sequence prevFrame from seq ${prevSequence.id} scene ${lastSceneIdx}: ${prevFrame ? "loaded" : "not found"}`);
       }
     }
