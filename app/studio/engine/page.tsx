@@ -1556,6 +1556,24 @@ function CharacterCard({ character, projectId, onUpdate, visualStyle }: { charac
               <button onClick={() => setShowVersions(!showVersions)} className="text-[11px] text-white/30 hover:text-white/50" title="Versionen">&#x23F3;</button>
             )}
             <button onClick={() => { setShowCastMenu(!showCastMenu); if (!showCastMenu && actors.length === 0) loadActors(); }} className="text-[11px] text-white/30 hover:text-white/50" title="Anderen Actor waehlen">&#x270E;</button>
+            <button
+              onClick={async () => {
+                if (!character.actorId) return;
+                const style = prompt("Style fuer Duplikat? (z.B. pixar-3d, realistic, anime) oder leer fuer Kopie:");
+                const t = toast.loading("Actor wird dupliziert...");
+                try {
+                  const res = await fetch("/api/studio/actors/duplicate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ actorId: character.actorId, newStyle: style || undefined }),
+                  });
+                  const data = await res.json();
+                  toast.success(data.message || "Dupliziert!", t);
+                } catch { toast.error("Fehler", t); }
+              }}
+              className="text-[11px] text-white/30 hover:text-white/50"
+              title="Actor duplizieren (neuer Stil)"
+            >&#x2398;</button>
           </div>
           {showVersions && character.castHistory && (
             <div className="mt-1 bg-[#1a2e1a] border border-white/10 rounded-lg p-1.5 text-left">
@@ -2066,7 +2084,9 @@ function SceneDetailRow({ scene, index, character, onSceneUpdate, sequenceId, pr
 // ── Characters Tab ─────────────────────────────────────────────────
 
 function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id: string) => void }) {
+  const toast = useToast();
   const [extracting, setExtracting] = useState(false);
+  const [seedingDefaults, setSeedingDefaults] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
   const [addMarker, setAddMarker] = useState("");
@@ -2124,6 +2144,23 @@ function CharactersTab({ project, onUpdate }: { project: Project; onUpdate: (id:
               {extracting ? "Extrahiere..." : "🔍 Aus Geschichte extrahieren"}
             </button>
           )}
+          <button
+            onClick={async () => {
+              setSeedingDefaults(true);
+              const t = toast.loading("KoalaTree-Familie wird erstellt...");
+              try {
+                const res = await fetch("/api/studio/actors/seed-defaults", { method: "POST" });
+                const data = await res.json();
+                toast.success(data.message || "Fertig!", t);
+                onUpdate(project.id);
+              } catch { toast.error("Fehler", t); }
+              setSeedingDefaults(false);
+            }}
+            disabled={seedingDefaults}
+            className="text-[10px] px-3 py-1.5 bg-[#a8d5b8]/15 text-[#a8d5b8] hover:bg-[#a8d5b8]/25 rounded-lg disabled:opacity-50"
+          >
+            {seedingDefaults ? "Erstelle..." : "🐨 KoalaTree-Familie"}
+          </button>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="text-[10px] px-3 py-1.5 bg-white/5 text-white/40 hover:text-white/70 rounded-lg"
