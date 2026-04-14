@@ -3361,17 +3361,17 @@ function TransitionConnector({ transition, onChange, onStartImageChange, startIm
 }) {
   const t = transition || "seamless";
 
-  const styles: Record<string, { stripeColor: string; border: string; text: string; icon: string; label: string }> = {
-    seamless: { stripeColor: "rgba(34,197,94,0.12)", border: "border-green-500/25", text: "text-green-300/70", icon: "\u2197", label: "Nahtlos" },
-    "match-cut": { stripeColor: "rgba(249,115,22,0.12)", border: "border-orange-500/25", text: "text-orange-300/70", icon: "\u2194", label: "Kamera-Schnitt" },
-    "hard-cut": { stripeColor: "rgba(239,68,68,0.12)", border: "border-red-500/25", text: "text-red-300/70", icon: "\u2702", label: "Harter Schnitt" },
-    "fade-to-black": { stripeColor: "rgba(255,255,255,0.05)", border: "border-white/15", text: "text-white/50", icon: "\u25FC", label: "Schwarzblende" },
+  const styles: Record<string, { stripeA: string; stripeB: string; border: string; text: string; icon: string; label: string }> = {
+    seamless: { stripeA: "rgba(34,197,94,0.06)", stripeB: "rgba(34,197,94,0.18)", border: "border-green-500/25", text: "text-green-300/70", icon: "\u2197", label: "Nahtlos" },
+    "match-cut": { stripeA: "rgba(249,115,22,0.06)", stripeB: "rgba(249,115,22,0.18)", border: "border-orange-500/25", text: "text-orange-300/70", icon: "\u2194", label: "Kamera-Schnitt" },
+    "hard-cut": { stripeA: "rgba(239,68,68,0.06)", stripeB: "rgba(239,68,68,0.18)", border: "border-red-500/25", text: "text-red-300/70", icon: "\u2702", label: "Harter Schnitt" },
+    "fade-to-black": { stripeA: "rgba(255,255,255,0.02)", stripeB: "rgba(255,255,255,0.08)", border: "border-white/15", text: "text-white/50", icon: "\u25FC", label: "Schwarzblende" },
   };
 
   const s = styles[t] || styles.seamless;
   const [justChanged, setJustChanged] = useState(false);
 
-  const stripesBg = `repeating-linear-gradient(135deg, transparent, transparent 4px, ${s.stripeColor} 4px, ${s.stripeColor} 8px)`;
+  const stripesBg = `repeating-linear-gradient(135deg, ${s.stripeA} 0px, ${s.stripeA} 6px, ${s.stripeB} 6px, ${s.stripeB} 12px)`;
 
   return (
     <div className="my-2">
