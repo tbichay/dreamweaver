@@ -103,7 +103,35 @@ Daher MUSS jede sceneDescription ALLE visuellen Details enthalten:
    - RICHTIG: "Following the crash from the previous shot, the red F1 car lies upside down, smoke rising"
    - FALSCH: "The car is crashed"
 
-### Laenge: Minimum 3-5 Saetze pro sceneDescription. Mehr Detail = besseres Video.
+### KRITISCH: HAENDE, GESICHTER, PHYSIK — das vergisst die Video-AI sonst!
+
+Die Video-AI generiert EXAKT was beschrieben wird — und NICHTS was fehlt.
+Wenn du "ein Auto faehrt" schreibst, generiert sie ein Auto OHNE FAHRER.
+Wenn du "jemand kocht" schreibst, fehlen die HAENDE am Topf.
+
+REGEL: Beschreibe IMMER was Haende, Gesicht und Koerper tun:
+
+**Haende/Finger (IMMER beschreiben wenn Charakter etwas benutzt):**
+- RICHTIG: "Lia grips the surfboard with her right hand, fingers wrapped tightly around the edge, left hand trailing in the water"
+- FALSCH: "Lia holds her surfboard"
+
+**Gesicht/Augen (IMMER wenn der Charakter im Bild ist):**
+- RICHTIG: "Lia's eyes widen with excitement, her mouth breaks into a broad grin, wind pushing her wet hair across her face"
+- FALSCH: "Lia looks excited"
+
+**Koerper/Gewicht/Physik (IMMER beschreiben wie sich der Koerper verhaelt):**
+- RICHTIG: "Lia shifts her weight forward on the board, knees bent, arms extended for balance, water spraying around her ankles"
+- FALSCH: "Lia surfs"
+
+**Fahrzeuge/Maschinen (FAHRER/BEDIENER MUSS SICHTBAR SEIN):**
+- RICHTIG: "A vintage VW T2 bus drives along the coastal road, the driver visible through the windshield with both hands on the steering wheel, sun-bronzed arm resting on the open window"
+- FALSCH: "A VW bus drives down the road" → generiert ein fahrerloses Auto!
+
+**Umgebungs-Interaktion (Charakter reagiert auf Umgebung):**
+- RICHTIG: "Sand shifts under Lia's bare feet with each step, leaving deep footprints, ocean spray mists her sun-kissed skin, her loose cotton shirt flutters in the salty breeze"
+- FALSCH: "Lia walks on the beach"
+
+### Laenge: Minimum 4-6 Saetze pro sceneDescription. Mehr Detail = besseres Video.
 
 ## EMOTIONEN IM DIALOG (Audio-Tags) — EXTREM WICHTIG!
 Baue Emotionen DIREKT und INTENSIV in den spokenText ein.
@@ -181,14 +209,16 @@ Die Kamera darf bei seamless NICHT ploetzlich die Richtung aendern.
 
 ## BEWEGUNGS-DETAILS in sceneDescription (EXTREM WICHTIG!)
 
-Jede sceneDescription MUSS diese 5 Elemente enthalten:
+Jede sceneDescription MUSS diese 7 Elemente enthalten:
 1. LICHT: Wie faellt das Licht? (Gegenlicht, Seitenlicht, golden hour glow, rim lighting)
 2. BEWEGUNG: Wie bewegt sich der Character? (confident stride, hesitant steps, explosive sprint)
-3. PHYSISCHE DETAILS: Haare, Kleidung, Wasser, Sand — was bewegt sich im Wind/Wasser?
-4. ATMOSPHAERE: Wind, Wasserspritzer, Staub, Lichtreflexe, Partikel
-5. NEGATIVE MOTION: Fuege hinzu: "Natural fluid motion, not static, not frozen, not robotic"
+3. HAENDE: Was tun die Haende? (gripping, reaching, resting, gesturing, holding)
+4. GESICHT: Welcher Ausdruck? Wohin schaut der Blick? (eyes scanning, mouth slightly open, brow furrowed)
+5. PHYSISCHE DETAILS: Haare, Kleidung, Wasser, Sand — was bewegt sich im Wind/Wasser?
+6. ATMOSPHAERE: Wind, Wasserspritzer, Staub, Lichtreflexe, Partikel
+7. NEGATIVE MOTION: Fuege IMMER hinzu: "Natural fluid motion, not static, not frozen, not robotic"
 
-Beispiel RICHTIG: "Character walks confidently toward the turquoise water, sun-kissed skin glistening, dark hair tousled by ocean breeze, sand between toes, surfboard tucked under right arm, morning light casting long shadow behind. Natural fluid motion, not static."
+Beispiel RICHTIG: "Tracking shot follows Lia as she walks confidently toward the turquoise water, sun-kissed skin glistening, dark hair tousled by ocean breeze. Her right hand grips the surfboard edge firmly, left arm swings naturally at her side. Her eyes scan the waves ahead, a slight smile forming on her lips. Sand shifts under her bare feet leaving deep prints, morning light casting a long golden shadow behind her. Natural fluid motion, not static."
 Beispiel FALSCH: "Character walks to the water."
 
 ## Regeln
