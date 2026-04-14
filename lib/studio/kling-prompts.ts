@@ -36,16 +36,18 @@ export const CAMERA_KEYWORDS: Record<string, string> = {
 // ── Emotion to Acting Direction ──
 
 export const EMOTION_ACTING: Record<string, string> = {
-  "neutral": "natural, relaxed expression",
-  "excited": "eyes wide with excitement, animated gestures, leaning forward",
-  "happy": "warm genuine smile, eyes crinkling, relaxed shoulders",
-  "sad": "downcast eyes, slight frown, shoulders slumped",
-  "angry": "jaw clenched, intense stare, fists tightened",
-  "scared": "wide eyes darting around, tense posture, shallow breathing",
-  "dramatic": "intense gaze, deliberate movements, heightened presence",
-  "tense": "rigid posture, controlled breathing, scanning the environment",
-  "calm": "serene expression, slow deliberate movements, peaceful demeanor",
-  "joyful": "full laughter, head tilted back, whole body shaking with joy",
+  "neutral": "natural relaxed expression, soft gaze, hands at rest",
+  "excited": "eyes wide with excitement, animated gestures, leaning forward eagerly, hands gesturing expressively",
+  "happy": "warm genuine smile, eyes crinkling at corners, relaxed shoulders, gentle head tilt",
+  "sad": "downcast eyes glistening, slight frown, shoulders slumped inward, hands limp at sides",
+  "angry": "jaw clenched tight, intense piercing stare, fists tightened, nostrils flared, body rigid",
+  "scared": "wide eyes darting around, tense hunched posture, shallow rapid breathing, hands trembling",
+  "dramatic": "intense focused gaze, deliberate slow movements, chin raised, heightened commanding presence",
+  "tense": "rigid upright posture, controlled measured breathing, eyes scanning environment, muscles visible in jaw",
+  "calm": "serene peaceful expression, slow deliberate movements, deep even breathing, hands resting openly",
+  "joyful": "full uninhibited laughter, head tilted back, whole body shaking with joy, eyes squeezed shut from laughing",
+  "whisper": "leaning in close, hand cupped near mouth, eyes darting sideways conspiratorially, hunched posture",
+  "laughing": "mouth wide open laughing, eyes crinkled shut, shoulders bouncing, one hand on chest or stomach",
 };
 
 // ── Build an O3-optimized prompt ──
@@ -69,7 +71,7 @@ export function buildO3Prompt(options: {
 
   // 1. TRANSITION CONTEXT
   if (options.clipTransition === "seamless" && options.prevSceneHint) {
-    parts.push(`Continuing seamlessly from previous shot: ${options.prevSceneHint.slice(0, 100)}.`);
+    parts.push(`Continuing seamlessly from previous shot: ${options.prevSceneHint.slice(0, 300)}.`);
   } else if (options.clipTransition === "match-cut" && options.prevSceneHint) {
     parts.push(`MATCH CUT — dramatic camera angle change from previous shot. Same scene, same lighting, same environment. New perspective:`);
   }

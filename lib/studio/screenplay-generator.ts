@@ -74,7 +74,11 @@ Wenn die ganze Geschichte am selben Ort spielt → eine einzige Sequenz.
 
 ## Szenen-Typen
 
-- **landscape**: Establishing Shot, Kameraschwenk, Umgebung. Kein Dialog, kein spokenText.
+- **landscape**: Visuelle Szene OHNE gesprochenen Dialog. Kein spokenText.
+  WICHTIG: Landscape-Szenen KOENNEN und SOLLEN Charaktere zeigen die NICHT sprechen!
+  Beispiele: Charakter kommt an und steigt aus Auto, laeuft am Strand, schaut aufs Meer.
+  Setze characterId wenn ein Charakter SICHTBAR ist (auch ohne Dialog).
+  NUR wenn KEIN Charakter im Bild ist → characterId: null.
 - **dialog**: Charakter spricht. Lip-Sync wird generiert. Close-Up oder Medium.
 - **transition**: Uebergang zwischen Szenen. Kurz (2-4s).
 
@@ -273,19 +277,16 @@ Antworte mit einem JSON-Objekt:
         {
           "beatIds": ["beat-0", "beat-1"],
           "type": "landscape" | "dialog" | "transition",
-          "characterId": "char-0" | null,
-          "spokenText": "[laughing] Dialog-Text MIT Audio-Tags fuer Emotionen (max 120 Zeichen, in Story-Sprache)",
-          "sceneDescription": "DETAILED English description: 3-5 sentences with ALL visual details, colors, positions, weather, camera movement, character appearance, body language",
-          "emotion": "tense" | "dramatic" | "calm" | "excited" | "neutral",
-          "sfx": "English SFX description",
-          "ambience": "English ambience description",
+          "characterId": "char-0" | null (bei landscape: setzen wenn Charakter SICHTBAR, null wenn nur Umgebung),
+          "spokenText": "[laughing] Dialog-Text MIT Audio-Tags (max 120 Zeichen, in Story-Sprache). NUR bei dialog-Szenen, bei landscape: null",
+          "sceneDescription": "DETAILED English description: 4-6 sentences with ALL visual details including HANDS, FACE, BODY POSITION, colors, weather, camera, character appearance",
           "camera": "close-up" | "medium" | "wide" | "slow-pan" | "zoom-in" | "zoom-out",
-          "clipTransition": "seamless" | "hard-cut" | "fade-to-black" | "match-cut",
           "cameraMotion": "static" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "zoom-in" | "zoom-out" | "dolly-forward" | "dolly-back" | "tracking" | "rotation",
+          "clipTransition": "seamless" | "hard-cut" | "fade-to-black" | "match-cut",
           "transitionTo": "cut" | "flow" | "zoom-to-character",
           "emotion": "neutral" | "tense" | "dramatic" | "calm" | "excited" | "sad" | "angry" | "joyful",
-          "sfx": "Short SFX description in English for sound effect generation",
-          "ambience": "Background atmosphere description in English",
+          "sfx": "Short English SFX description (environment sounds only, NOT character sounds)",
+          "ambience": "Background atmosphere in English",
           "durationHint": 5
         }
       ]
@@ -418,7 +419,7 @@ ${targetDurationSec ? `\n## ZIEL-FILMLAENGE: ${targetDurationSec} Sekunden (~${M
       instructions: `WICHTIG: Dies ist ein KINOFILM. Es gibt KEINEN Erzaehler. KEINE Off-Stimme. KEIN Voiceover.
 
 Die Geschichte wird NUR durch Bilder, Dialoge der Charaktere und Soundeffekte erzaehlt.
-- landscape-Szenen: KEIN spokenText, KEIN characterId. Nur visuelle Szene + SFX/Ambience.
+- landscape-Szenen: KEIN spokenText. characterId setzen wenn Charakter SICHTBAR ist (auch stumm). Visuelle Szene + SFX/Ambience.
 - dialog-Szenen: NUR echte gesprochene Saetze des Charakters. KEINE Beschreibung was passiert.
   Beispiel RICHTIG: spokenText = "Verdammt, die Bremsen reagieren nicht!"
   Beispiel FALSCH: spokenText = "Max kaempft mit dem Lenkrad waehrend der Regen auf die Scheibe prasselt"

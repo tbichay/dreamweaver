@@ -453,8 +453,18 @@ async function processClipTask(
     directorNote,
   });
 
-  // Choose start image
-  let imageSource: Buffer | undefined = prevFrame || landscapeBuffer || portraitBuffer || characterRefs[0];
+  // Choose start image based on scene type + transition
+  // Priority: prevFrame (seamless) > scene-type-appropriate > fallback
+  let imageSource: Buffer | undefined;
+  if (prevFrame) {
+    imageSource = prevFrame; // Seamless/match-cut: always use previous frame
+  } else if (isDialog && portraitBuffer) {
+    imageSource = portraitBuffer; // Dialog scenes: character portrait
+  } else if (!isDialog && landscapeBuffer) {
+    imageSource = landscapeBuffer; // Landscape scenes: location image
+  } else {
+    imageSource = landscapeBuffer || portraitBuffer || characterRefs[0]; // Fallback chain
+  }
 
   // Handle startImageOverride for hard-cut/fade
   if (scene.startImageOverride && (transition === "hard-cut" || transition === "fade-to-black")) {

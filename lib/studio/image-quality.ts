@@ -150,6 +150,79 @@ Rules:
   };
 }
 
+// ── Scene Description Enhancement ─────────────────────────────
+
+/**
+ * Enhance/correct a scene description for video generation using Claude.
+ * User provides a correction in any language, AI rewrites the full description.
+ */
+export async function enhanceSceneDescription(options: {
+  currentDescription: string;
+  userCorrection: string;
+  sceneType: "landscape" | "dialog" | "transition";
+  characterName?: string;
+  characterDescription?: string;
+  location?: string;
+  previousSceneDescription?: string;
+}): Promise<{ description: string; changes: string }> {
+  const context = [
+    options.characterName ? `Character: ${options.characterName}` : "",
+    options.characterDescription ? `Appearance: ${options.characterDescription}` : "",
+    options.location ? `Location: ${options.location}` : "",
+    options.previousSceneDescription ? `Previous scene: ${options.previousSceneDescription.slice(0, 200)}` : "",
+  ].filter(Boolean).join("\n");
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 600,
+    messages: [{
+      role: "user",
+      content: `Du bist ein Film-Regisseur der Szenen-Beschreibungen fuer Video-KI (Kling AI) optimiert.
+
+AKTUELLE BESCHREIBUNG:
+"${options.currentDescription}"
+
+USER-KORREKTUR:
+"${options.userCorrection}"
+
+${context ? `KONTEXT:\n${context}\n` : ""}
+SCHREIBE die Beschreibung NEU — integriere die Korrektur natuerlich in den bestehenden Text.
+
+PFLICHT-REGELN:
+- Auf ENGLISCH schreiben (Video-AI versteht Englisch am besten)
+- 4-6 Saetze, MAXIMUM 700 Zeichen
+- HAENDE beschreiben: Was tun sie? Wie fest greifen sie? Welche Hand?
+- GESICHT beschreiben: Augen, Mund, Blickrichtung, Ausdruck
+- KOERPER beschreiben: Haltung, Gewicht, Balance, Bewegungsrichtung
+- UMGEBUNG: Wie reagiert Kleidung/Haar auf Wind/Wasser?
+- LICHT: Woher kommt es? Wie faellt es auf den Charakter?
+- Ende mit: "Natural fluid motion, not static, not frozen."
+- Wenn ein FAHRZEUG vorkommt: Fahrer/Beifahrer MUESSEN sichtbar sein
+- Wenn jemand EIN/AUSSTEIGT: Schritt fuer Schritt beschreiben
+
+Antworte als JSON:
+{
+  "description": "Die neue, verbesserte Beschreibung auf Englisch",
+  "changes": "Kurze Zusammenfassung was geaendert wurde (auf Deutsch, 1 Satz)"
+}`,
+    }],
+  });
+
+  try {
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        description: parsed.description || options.currentDescription,
+        changes: parsed.changes || "Beschreibung aktualisiert",
+      };
+    }
+  } catch { /* fallback */ }
+
+  return { description: options.currentDescription, changes: "Konnte nicht verbessert werden" };
+}
+
 // ── Image Validation ───────────────────────────────────────────
 
 /**

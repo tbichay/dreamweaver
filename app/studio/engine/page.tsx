@@ -1726,6 +1726,8 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
               key={scene.id || si}
               scene={scene}
               index={si}
+              sequenceId={sequence.id}
+              projectId={projectId || ""}
               character={scene.characterId ? charMap.get(scene.characterId) : undefined}
               onSceneUpdate={projectId ? async (sceneIndex, updates) => {
                 // Update scene in sequence's scenes JSON via API
@@ -1750,6 +1752,127 @@ function SequencePreview({ sequence, index, characters, projectId, onUpdate }: {
 
 // ── Scene Detail Row (expandable) ─────────────────────────────────
 
+// ── Scene Description Editor (manual + AI correction) ────────
+
+function SceneDescriptionEditor({ description, sceneIndex, sequenceId, projectId, onSave }: {
+  description: string;
+  sceneIndex: number;
+  sequenceId: string;
+  projectId: string;
+  onSave: (newDesc: string) => void;
+}) {
+  const [mode, setMode] = useState<"view" | "edit" | "ai">("view");
+  const [editText, setEditText] = useState(description);
+  const [correction, setCorrection] = useState("");
+  const [aiResult, setAiResult] = useState<{ description: string; changes: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+
+  const handleAiCorrection = async () => {
+    if (!correction.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/studio/projects/${projectId}/sequences/${sequenceId}/enhance-scene`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sceneIndex, correction: correction.trim() }),
+      });
+      if (!res.ok) { toast.error("AI-Korrektur fehlgeschlagen"); setLoading(false); return; }
+      const data = await res.json();
+      setAiResult(data);
+    } catch { toast.error("Netzwerkfehler"); }
+    setLoading(false);
+  };
+
+  if (mode === "view") {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] text-white/35 uppercase">Szenen-Beschreibung:</span>
+          <div className="flex gap-1">
+            <button onClick={() => { setEditText(description); setMode("edit"); }} className="text-[9px] text-white/25 hover:text-white/50 px-1.5 py-0.5 rounded hover:bg-white/5">
+              Bearbeiten
+            </button>
+            <button onClick={() => setMode("ai")} className="text-[9px] text-[#d4a853]/50 hover:text-[#d4a853] px-1.5 py-0.5 rounded hover:bg-[#d4a853]/10">
+              AI-Korrektur
+            </button>
+          </div>
+        </div>
+        <p className="text-[10px] text-white/40">{description}</p>
+        <p className="text-[8px] text-white/15 mt-0.5">{description.length} Zeichen</p>
+      </div>
+    );
+  }
+
+  if (mode === "edit") {
+    return (
+      <div>
+        <span className="text-[10px] text-white/35 uppercase block mb-1">Szenen-Beschreibung bearbeiten:</span>
+        <textarea
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          rows={4}
+          className="w-full px-2.5 py-2 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/60 resize-none font-mono"
+        />
+        <div className="flex items-center justify-between mt-1">
+          <span className={`text-[8px] ${editText.length > 700 ? "text-red-400" : "text-white/20"}`}>{editText.length}/700 Zeichen</span>
+          <div className="flex gap-1">
+            <button onClick={() => setMode("view")} className="text-[9px] text-white/30 px-2 py-1 rounded hover:bg-white/5">Abbrechen</button>
+            <button onClick={() => { onSave(editText); setMode("view"); toast.success("Beschreibung gespeichert"); }} className="text-[9px] text-[#a8d5b8] px-2 py-1 rounded bg-[#a8d5b8]/10 hover:bg-[#a8d5b8]/20">Speichern</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // AI correction mode
+  return (
+    <div>
+      <span className="text-[10px] text-white/35 uppercase block mb-1">AI-Korrektur:</span>
+      <p className="text-[10px] text-white/30 mb-2">{description}</p>
+      {!aiResult ? (
+        <>
+          <textarea
+            value={correction}
+            onChange={(e) => setCorrection(e.target.value)}
+            placeholder="z.B. Der Fahrer muss im VW Bus sichtbar sein, mit Haenden am Lenkrad..."
+            rows={2}
+            className="w-full px-2.5 py-2 rounded-lg bg-[#d4a853]/5 border border-[#d4a853]/15 text-[10px] text-white/60 placeholder:text-white/20 resize-none"
+          />
+          <div className="flex items-center justify-between mt-1">
+            <button onClick={() => { setMode("view"); setCorrection(""); }} className="text-[9px] text-white/30 px-2 py-1 rounded hover:bg-white/5">Abbrechen</button>
+            <button
+              onClick={handleAiCorrection}
+              disabled={loading || !correction.trim()}
+              className="text-[9px] text-[#d4a853] px-3 py-1 rounded bg-[#d4a853]/10 hover:bg-[#d4a853]/20 disabled:opacity-30"
+            >
+              {loading ? "Generiert..." : "Vorschau generieren"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-2">
+          <div className="px-3 py-2 rounded-lg bg-[#a8d5b8]/5 border border-[#a8d5b8]/15">
+            <p className="text-[9px] text-[#a8d5b8]/50 mb-1">Neue Beschreibung:</p>
+            <p className="text-[10px] text-white/50">{aiResult.description}</p>
+            <p className="text-[8px] text-white/20 mt-1">{aiResult.changes} · {aiResult.description.length} Zeichen</p>
+          </div>
+          <div className="flex items-center justify-end gap-1">
+            <button onClick={() => { setAiResult(null); }} className="text-[9px] text-white/30 px-2 py-1 rounded hover:bg-white/5">Nochmal</button>
+            <button onClick={() => { setAiResult(null); setCorrection(""); setMode("view"); }} className="text-[9px] text-white/30 px-2 py-1 rounded hover:bg-white/5">Verwerfen</button>
+            <button
+              onClick={() => { onSave(aiResult.description); setAiResult(null); setCorrection(""); setMode("view"); toast.success("Beschreibung aktualisiert"); }}
+              className="text-[9px] text-[#a8d5b8] px-3 py-1 rounded bg-[#a8d5b8]/10 hover:bg-[#a8d5b8]/20 font-medium"
+            >
+              Uebernehmen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CAMERA_MOTIONS = [
   { value: "", label: "Auto (AI entscheidet)" },
   { value: "static", label: "Statisch" },
@@ -1765,11 +1888,13 @@ const CAMERA_MOTIONS = [
   { value: "rotation", label: "Rotation" },
 ];
 
-function SceneDetailRow({ scene, index, character, onSceneUpdate }: {
+function SceneDetailRow({ scene, index, character, onSceneUpdate, sequenceId, projectId }: {
   scene: NonNullable<Sequence["scenes"]>[number];
   index: number;
   character?: Character;
   onSceneUpdate?: (sceneIndex: number, updates: Record<string, unknown>) => void;
+  sequenceId: string;
+  projectId: string;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -1810,11 +1935,14 @@ function SceneDetailRow({ scene, index, character, onSceneUpdate }: {
             </div>
           )}
 
-          {/* Scene description (full) */}
-          <div>
-            <span className="text-[10px] text-white/35 uppercase">Szenen-Beschreibung:</span>
-            <p className="text-[10px] text-white/40 mt-0.5">{scene.sceneDescription}</p>
-          </div>
+          {/* Scene description (editable + AI correction) */}
+          <SceneDescriptionEditor
+            description={scene.sceneDescription}
+            sceneIndex={index}
+            sequenceId={sequenceId}
+            projectId={projectId}
+            onSave={(newDesc) => onSceneUpdate?.(index, { sceneDescription: newDesc })}
+          />
 
           {/* Technical details + Camera Motion */}
           <div className="flex flex-wrap gap-3 text-[9px] items-center">
