@@ -2493,22 +2493,46 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
         </div>
       </div>
 
-      {/* Sequence Cards */}
-      <div className="space-y-3">
+      {/* Sequence Cards with Transitions */}
+      <div className="space-y-0">
         {project.sequences
           .sort((a, b) => a.orderIndex - b.orderIndex)
-          .map((seq, i) => (
-            <SequenceCard
-              key={seq.id}
-              sequence={seq}
-              index={i}
-              projectId={project.id}
-              projectStyle={project.stylePrompt}
-              hasActorsCast={project.characters?.some((c: Character) => c.actorId) || false}
-              onUpdate={() => onUpdate(project.id)}
-              musicUrl={selectedMusicUrl || undefined}
-              musicVolume={selectedMusicUrl ? musicVolume / 100 : undefined}
-            />
+          .map((seq, i, sortedSeqs) => (
+            <div key={seq.id}>
+              {/* Transition between sequences */}
+              {i > 0 && (
+                <div className="py-1">
+                  <TransitionConnector
+                    transition={seq.scenes?.[0]?.clipTransition || "hard-cut"}
+                    onChange={async (transition) => {
+                      // Update the FIRST scene of this sequence
+                      const updatedScenes = [...(seq.scenes || [])];
+                      if (updatedScenes.length > 0) {
+                        updatedScenes[0] = { ...updatedScenes[0], clipTransition: transition };
+                        await fetch(`/api/studio/projects/${project.id}/sequences/${seq.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ scenes: updatedScenes }),
+                        });
+                        const labels: Record<string, string> = { seamless: "Nahtlos", "hard-cut": "Harter Schnitt", "fade-to-black": "Schwarzblende", "match-cut": "Match Cut" };
+                        toast.info(`Sequenz-Übergang: ${labels[transition] || transition}`);
+                        onUpdate(project.id);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              <SequenceCard
+                sequence={seq}
+                index={i}
+                projectId={project.id}
+                projectStyle={project.stylePrompt}
+                hasActorsCast={project.characters?.some((c: Character) => c.actorId) || false}
+                onUpdate={() => onUpdate(project.id)}
+                musicUrl={selectedMusicUrl || undefined}
+                musicVolume={selectedMusicUrl ? musicVolume / 100 : undefined}
+              />
+            </div>
           ))}
       </div>
 
