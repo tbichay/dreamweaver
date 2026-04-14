@@ -3108,7 +3108,17 @@ function SequenceCard({
           {/* Landscape Image */}
           <LandscapeSection sequence={sequence} projectId={projectId} onUpdate={onUpdate} />
 
-          {/* Cost Confirmation */}
+          {/* Info box: how transitions & regeneration work */}
+          {canGenerateClips && !isGenerating && (
+            <div className="mb-2 px-3 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
+              <p className="text-[10px] text-blue-300/50">
+                Clips werden sequentiell generiert — jeder Clip nutzt den letzten Frame des vorherigen als Startbild.
+                Bei &quot;Nahtlos&quot; fliessen Szenen ineinander. Bei &quot;Harter Schnitt&quot; startet die Szene frisch.
+                Du kannst einzelne Clips ueber &quot;Neu generieren&quot; neu erstellen — alle nachfolgenden nahtlosen Clips sollten dann auch neu generiert werden.
+              </p>
+            </div>
+          )}
+
           {/* Cost info (shown inline, no separate dialog) */}
           {canGenerateClips && !isGenerating && (
             <p className="text-[9px] text-white/35">
@@ -3152,19 +3162,37 @@ function SequenceCard({
                 {sequence.scenes.filter((s) => s.status === "done").length > 0 &&
                   ` · ${sequence.scenes.filter((s) => s.status === "done").length} Clips fertig`}
               </p>
-              <div className="space-y-2">
+              <div className="space-y-0">
                 {sequence.scenes.map((scene, si) => (
-                  <SceneClipCard
-                    key={scene.id || si}
-                    scene={scene}
-                    sceneIndex={si}
-                    sequenceId={sequence.id}
-                    projectId={projectId}
-                    isGenerating={generatingSceneIdx === si}
-                    canGenerate={canGenerateClips && !isGenerating}
-                    onGenerate={() => generateSingleClip(si)}
-                    onUpdate={onUpdate}
-                  />
+                  <div key={scene.id || si}>
+                    {si > 0 && (
+                      <TransitionConnector
+                        transition={scene.clipTransition}
+                        onChange={async (transition) => {
+                          const updatedScenes = [...(sequence.scenes || [])];
+                          updatedScenes[si] = { ...updatedScenes[si], clipTransition: transition };
+                          await fetch(`/api/studio/projects/${projectId}/sequences/${sequence.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ scenes: updatedScenes }),
+                          });
+                          const labels: Record<string, string> = { seamless: "Nahtlos", "hard-cut": "Harter Schnitt", "fade-to-black": "Schwarzblende", "match-cut": "Match Cut" };
+                          toast.info(`Uebergang geaendert: ${labels[transition] || transition}`);
+                          onUpdate();
+                        }}
+                      />
+                    )}
+                    <SceneClipCard
+                      scene={scene}
+                      sceneIndex={si}
+                      sequenceId={sequence.id}
+                      projectId={projectId}
+                      isGenerating={generatingSceneIdx === si}
+                      canGenerate={canGenerateClips && !isGenerating}
+                      onGenerate={() => generateSingleClip(si)}
+                      onUpdate={onUpdate}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -3186,6 +3214,37 @@ function SequenceCard({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Transition Connector (between scenes) ─────────────────────────
+
+function TransitionConnector({ transition, onChange }: {
+  transition?: string;
+  onChange: (transition: string) => void;
+}) {
+  const colors: Record<string, string> = {
+    seamless: "border-green-500/40",
+    "hard-cut": "border-red-500/40 border-dashed",
+    "fade-to-black": "border-white/20",
+    "match-cut": "border-orange-500/40",
+  };
+
+  return (
+    <div className="flex items-center gap-2 py-1 px-4">
+      <div className={`flex-1 border-t-2 ${colors[transition || "seamless"] || colors.seamless}`} />
+      <select
+        value={transition || "seamless"}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-[9px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white/40"
+      >
+        <option value="seamless">Nahtlos</option>
+        <option value="hard-cut">Harter Schnitt</option>
+        <option value="fade-to-black">Schwarzblende</option>
+        <option value="match-cut">Match Cut</option>
+      </select>
+      <div className={`flex-1 border-t-2 ${colors[transition || "seamless"] || colors.seamless}`} />
     </div>
   );
 }
