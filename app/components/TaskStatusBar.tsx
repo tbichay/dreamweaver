@@ -39,7 +39,8 @@ export default function TaskStatusBar({ projectId }: { projectId?: string }) {
 
   const loadTasks = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ status: "running" });
+      // Show both pending (queued) and running tasks
+      const params = new URLSearchParams({ status: "pending,running" });
       if (projectId) params.set("projectId", projectId);
       const res = await fetch(`/api/studio/tasks?${params}`);
       const data = await res.json();
@@ -68,16 +69,22 @@ export default function TaskStatusBar({ projectId }: { projectId?: string }) {
   return (
     <div className="space-y-1.5 mb-3">
       {tasks.map((task) => (
-        <div key={task.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#d4a853]/10 border border-[#d4a853]/20">
-          <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+        <div key={task.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+          task.status === "pending" ? "bg-blue-500/10 border-blue-500/20" : "bg-[#d4a853]/10 border-[#d4a853]/20"
+        }`}>
+          {task.status === "pending" ? (
+            <div className="w-3 h-3 rounded-full bg-blue-500/40 flex-shrink-0" />
+          ) : (
+            <div className="w-3 h-3 border-2 border-[#d4a853] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-[#d4a853] font-medium">
+              <span className={`text-[11px] font-medium ${task.status === "pending" ? "text-blue-300" : "text-[#d4a853]"}`}>
                 {TYPE_LABELS[task.type] || task.type}
               </span>
-              {task.progress && (
-                <span className="text-[10px] text-white/40 truncate">{task.progress}</span>
-              )}
+              <span className="text-[10px] text-white/30">
+                {task.status === "pending" ? "In Warteschlange" : task.progress || "Generiert..."}
+              </span>
             </div>
             {task.progressPct !== null && task.progressPct !== undefined && task.progressPct > 0 && (
               <div className="mt-1 h-1 bg-white/5 rounded-full overflow-hidden">
@@ -107,7 +114,7 @@ export function TaskBadge() {
 
   useEffect(() => {
     const load = () => {
-      fetch("/api/studio/tasks?status=running")
+      fetch("/api/studio/tasks?status=pending,running")
         .then((r) => r.json())
         .then((d) => setCount(d.tasks?.length || 0))
         .catch(() => {});

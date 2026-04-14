@@ -20,7 +20,14 @@ export async function GET(request: Request) {
 
   const where: Record<string, unknown> = { userId: session.user.id };
   if (projectId) where.projectId = projectId;
-  if (status) where.status = status;
+  if (status) {
+    // Support comma-separated: "pending,running"
+    if (status.includes(",")) {
+      where.status = { in: status.split(",") };
+    } else {
+      where.status = status;
+    }
+  }
   if (type) where.type = type;
 
   const tasks = await prisma.studioTask.findMany({
