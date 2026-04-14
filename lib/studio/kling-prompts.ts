@@ -76,12 +76,7 @@ export function buildO3Prompt(options: {
     parts.push(`MATCH CUT — dramatic camera angle change from previous shot. Same scene, same lighting, same environment. New perspective:`);
   }
 
-  // 2. DIRECTOR'S NOTE (PRIORITY — placed early so Kling weighs it heavily)
-  if (options.directorNote) {
-    parts.push(`IMPORTANT: ${options.directorNote}.`);
-  }
-
-  // 3. CAMERA (cinematic language, not just a label)
+  // 2. CAMERA (cinematic language, not just a label)
   const cameraDesc = options.cameraMotion
     ? CAMERA_KEYWORDS[options.cameraMotion] || options.cameraMotion
     : options.camera

@@ -435,10 +435,33 @@ async function processClipTask(
   const costumesJson = (sequence as unknown as { costumes?: Record<string, { description: string }> }).costumes;
   const costumeOverride = scene.characterId && costumesJson ? costumesJson[scene.characterId] : undefined;
 
-  // Build O3 prompt (with optional director's note and camera override)
+  // If director's note: rewrite sceneDescription with AI before building prompt
+  let effectiveDescription = scene.sceneDescription;
+  if (directorNote) {
+    await updateProgress(`Clip Szene ${sceneIndex + 1}: Integriere Regie-Anweisung...`, 25);
+    try {
+      const { enhanceSceneDescription } = await import("@/lib/studio/image-quality");
+      const enhanced = await enhanceSceneDescription({
+        currentDescription: scene.sceneDescription,
+        userCorrection: directorNote,
+        sceneType: scene.type as "landscape" | "dialog" | "transition",
+        characterName: character?.name,
+        characterDescription: (character as any)?.description,
+        location: scene.location || (sequence.location as string | undefined),
+        previousSceneDescription: scenes[sceneIndex - 1]?.sceneDescription,
+      });
+      effectiveDescription = enhanced.description;
+      console.log(`[Clip] Director's note integrated: "${directorNote}" → ${effectiveDescription.length} chars`);
+    } catch (enhErr) {
+      console.warn("[Clip] Scene enhancement failed, using directorNote as fallback:", enhErr);
+      // Fallback: keep directorNote in prompt directly
+    }
+  }
+
+  // Build O3 prompt
   const { buildO3Prompt } = await import("@/lib/studio/kling-prompts");
   const prompt = buildO3Prompt({
-    sceneDescription: scene.sceneDescription,
+    sceneDescription: effectiveDescription,
     camera: cameraOverride || scene.camera,
     cameraMotion: scene.cameraMotion,
     emotion: scene.emotion,
@@ -450,7 +473,6 @@ async function processClipTask(
     mood: scene.mood || (sequence.atmosphereText as string | undefined),
     prevSceneHint: scenes[sceneIndex - 1]?.sceneDescription,
     clipTransition: scene.clipTransition,
-    directorNote,
   });
 
   // Choose start image based on scene type + transition
