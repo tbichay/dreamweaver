@@ -758,6 +758,7 @@ function ActorDetailView({ actor, portraitMap, blobProxy, onClose, onUpdate, onD
                 <option value="disney-2d">Disney 2D</option>
                 <option value="pixar-3d">Pixar 3D</option>
                 <option value="ghibli">Ghibli</option>
+                <option value="koalatree">KoalaTree Magic</option>
               </select>
               <input
                 type="text"
@@ -2754,6 +2755,7 @@ export default function LibraryPage() {
                 <option value="disney-2d">Disney 2D</option>
                 <option value="pixar-3d">Pixar 3D</option>
                 <option value="ghibli">Ghibli</option>
+                <option value="koalatree">KoalaTree Magic</option>
               </select>
             </div>
           </div>
