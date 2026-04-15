@@ -43,7 +43,9 @@ export async function POST(request: Request) {
           ? "Pixar 3D animation style, smooth CGI rendering"
           : style === "ghibli"
             ? "Studio Ghibli anime style, soft pastel colors"
-            : "High quality";
+            : style === "koalatree"
+              ? "Warm animated cinematic style, rich digital painting, golden hour lighting, expressive detail, magical atmosphere with gentle particles, Puss in Boots The Last Wish inspired"
+              : "High quality";
 
   let prompt: string = "";
   let enhancedData: { reasoning: string; warnings: string[] } | undefined;
