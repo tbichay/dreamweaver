@@ -97,13 +97,14 @@ export async function POST(request: Request) {
   }
 
   // Build consistency-focused prompt when reference image exists
+  // NOTE: Expression/emotion from traits OVERRIDES the reference — user may want a friendlier look
   const consistencyPrompt = imageInputs.length > 0
-    ? `CRITICAL: This is the SAME character as in the reference image. You MUST maintain EXACT visual consistency:
-- SAME face shape, SAME nose, SAME eyes, SAME mouth
-- SAME hair color, SAME hair style, SAME facial hair (beard/mustache)
-- SAME skin tone, SAME age appearance
+    ? `This is the SAME character as in the reference image. Maintain visual consistency:
+- SAME species, SAME body proportions, SAME coloring/markings
 - SAME clothing and accessories
 - SAME art style and rendering quality
+BUT: The EXPRESSION and MOOD should match the description below, NOT the reference image.
+If the description says "friendly, laughing, warm" — make the character look FRIENDLY even if the reference looks angry.
 
 ${prompt}`
     : prompt;

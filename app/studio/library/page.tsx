@@ -2150,6 +2150,7 @@ function VoicesView({ voices, blobProxy, onImport }: { voices: Voice[]; blobProx
 // ── Main Library Page ───────────────────────────────────────────
 
 export default function LibraryPage() {
+  const toast = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [actors, setActors] = useState<DigitalActor[]>([]);
   const [voices, setVoices] = useState<Voice[]>([]);
@@ -2607,6 +2608,12 @@ export default function LibraryPage() {
               }}
               onClose={() => { setShowNewActorForm(false); setSelectedActorId(null); }}
               blobProxy={blobProxy}
+              onNotify={(type, message) => {
+                if (type === "loading") toast.loading(message);
+                else if (type === "success") toast.success(message);
+                else if (type === "error") toast.error(message);
+                else toast.info(message);
+              }}
             />
           )}
 
