@@ -28,9 +28,9 @@ export async function POST(request: Request) {
   if (!source) return Response.json({ error: "Actor nicht gefunden" }, { status: 404 });
 
   // Build new name
-  const styleSuffix = body.newStyle
-    ? ` (${body.newStyle === "pixar-3d" ? "Pixar 3D" : body.newStyle === "realistic" ? "Realistisch" : body.newStyle === "anime" ? "Anime" : body.newStyle})`
-    : " (Kopie)";
+  const { VISUAL_STYLES: styles } = await import("@/lib/studio/visual-styles");
+  const styleLabel = body.newStyle ? (styles.find((s) => s.id === body.newStyle)?.label || body.newStyle) : null;
+  const styleSuffix = styleLabel ? ` (${styleLabel})` : " (Kopie)";
   const newName = body.newName || `${source.name}${styleSuffix}`;
 
   // Create duplicate

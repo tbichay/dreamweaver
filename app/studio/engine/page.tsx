@@ -266,14 +266,8 @@ export default function StudioV2Page() {
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-/** Resolve portrait URL — use blob proxy for private Vercel Blob URLs */
-function portraitSrc(url?: string): string | undefined {
-  if (!url) return undefined;
-  if (url.includes(".blob.vercel-storage.com")) {
-    return `/api/studio/blob?url=${encodeURIComponent(url)}`;
-  }
-  return url; // Public URL (e.g. /koda-portrait.png)
-}
+import { blobProxyOpt as portraitSrc, blobProxy } from "@/lib/studio/blob-proxy";
+import { TRANSITIONS, getTransitionLabel } from "@/lib/studio/transitions";
 
 // ── Visual Style Presets ───────────────────────────────────────────
 
@@ -3586,8 +3580,7 @@ function SequenceCard({
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ scenes: updatedScenes }),
                           });
-                          const labels: Record<string, string> = { seamless: "Nahtlos", "hard-cut": "Harter Schnitt", "fade-to-black": "Schwarzblende", "match-cut": "Kamera-Schnitt" };
-                          toast.info(`Uebergang geaendert: ${labels[transition] || transition}`);
+                            toast.info(`Uebergang geaendert: ${getTransitionLabel(transition)}`);
                           onUpdate();
                         }}
                         onStartImageChange={async (override) => {
@@ -3649,15 +3642,7 @@ function TransitionConnector({ transition, onChange, onStartImageChange, startIm
   startImageOverride?: { type: "location" | "portrait" | "custom"; url?: string };
 }) {
   const t = transition || "seamless";
-
-  const styles: Record<string, { stripeA: string; stripeB: string; border: string; text: string; icon: string; label: string }> = {
-    seamless: { stripeA: "rgba(34,197,94,0.06)", stripeB: "rgba(34,197,94,0.18)", border: "border-green-500/25", text: "text-green-300/70", icon: "\u2197", label: "Nahtlos" },
-    "match-cut": { stripeA: "rgba(249,115,22,0.06)", stripeB: "rgba(249,115,22,0.18)", border: "border-orange-500/25", text: "text-orange-300/70", icon: "\u2194", label: "Kamera-Schnitt" },
-    "hard-cut": { stripeA: "rgba(239,68,68,0.06)", stripeB: "rgba(239,68,68,0.18)", border: "border-red-500/25", text: "text-red-300/70", icon: "\u2702", label: "Harter Schnitt" },
-    "fade-to-black": { stripeA: "rgba(255,255,255,0.02)", stripeB: "rgba(255,255,255,0.08)", border: "border-white/15", text: "text-white/50", icon: "\u25FC", label: "Schwarzblende" },
-  };
-
-  const s = styles[t] || styles.seamless;
+  const s = TRANSITIONS[t] || TRANSITIONS.seamless;
   const [justChanged, setJustChanged] = useState(false);
 
   const stripesBg = `repeating-linear-gradient(135deg, ${s.stripeA} 0px, ${s.stripeA} 6px, ${s.stripeB} 6px, ${s.stripeB} 12px)`;
@@ -3675,10 +3660,9 @@ function TransitionConnector({ transition, onChange, onStartImageChange, startIm
           onChange={(e) => { onChange(e.target.value); setJustChanged(true); setTimeout(() => setJustChanged(false), 10000); }}
           className={`text-[9px] px-2 py-1 rounded bg-black/20 border ${s.border} ${s.text} cursor-pointer`}
         >
-          <option value="seamless">{"\u2197"} Nahtlos</option>
-          <option value="match-cut">{"\u2194"} Kamera-Schnitt</option>
-          <option value="hard-cut">{"\u2702"} Harter Schnitt</option>
-          <option value="fade-to-black">{"\u25FC"} Schwarzblende</option>
+          {Object.values(TRANSITIONS).map((tr) => (
+            <option key={tr.id} value={tr.id}>{tr.icon} {tr.label}</option>
+          ))}
         </select>
         {justChanged && (
           <span className="text-[9px] text-amber-400/70 font-medium">{"\u26A0"} Clip neu generieren</span>

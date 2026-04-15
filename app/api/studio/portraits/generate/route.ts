@@ -21,15 +21,8 @@ export async function POST(request: Request) {
   const openai = new OpenAI();
 
   // Build portrait prompt from character description + style
-  const styleHint = style === "realistic"
-    ? "Photorealistic portrait, cinematic lighting, shallow depth of field, professional photography style"
-    : style === "disney-2d"
-    ? "2D Disney animation style portrait, vibrant colors, hand-drawn feel"
-    : style === "pixar-3d"
-    ? "Pixar 3D animation style portrait, smooth CGI rendering"
-    : style === "ghibli"
-    ? "Studio Ghibli anime style portrait, soft pastel colors"
-    : "High quality portrait";
+  const { getStyleHint } = await import("@/lib/studio/visual-styles");
+  const styleHint = getStyleHint(style || "realistic");
 
   const portraitPrompt = customPrompt
     || `${styleHint}. Character: ${description || character.description || character.name}. ${character.species ? `Species: ${character.species}.` : ""} Head and shoulders portrait, looking slightly to the side, expressive eyes. No text, no watermarks, no logos.`;
