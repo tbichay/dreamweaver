@@ -44,7 +44,11 @@ export async function POST(request: Request) {
 
   const styleHint = style === "realistic"
     ? "Photorealistic portrait, cinematic lighting"
-    : style === "pixar-3d" ? "Pixar 3D animation style" : "High quality";
+    : style === "pixar-3d" ? "Pixar 3D animation style"
+    : style === "koalatree" ? "Warm animated cinematic style, rich digital painting, golden hour lighting, expressive anthropomorphic animal with big emotive eyes and detailed fur, magical atmosphere, Puss in Boots The Last Wish inspired"
+    : style === "disney-2d" ? "2D Disney animation style, vibrant colors"
+    : style === "ghibli" ? "Studio Ghibli anime style, soft pastel colors"
+    : "High quality";
 
   let portraitPrompt = `${styleHint}. Character: ${rawDescription} No text, no watermarks.`;
   try {

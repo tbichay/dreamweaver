@@ -290,6 +290,7 @@ function NewActorForm({ onCreated, onCancel, blobProxy }: NewActorFormProps) {
             <option value="disney-2d">Disney 2D</option>
             <option value="pixar-3d">Pixar 3D</option>
             <option value="ghibli">Ghibli</option>
+            <option value="koalatree">KoalaTree Magic</option>
           </select>
         </div>
 
@@ -980,6 +981,7 @@ const LANDSCAPE_STYLES = [
   { value: "ghibli", label: "Ghibli" },
   { value: "realistic", label: "Realistisch" },
   { value: "storybook", label: "Bilderbuch" },
+  { value: "koalatree", label: "KoalaTree Magic" },
 ];
 
 const LANDSCAPE_MOODS = [
