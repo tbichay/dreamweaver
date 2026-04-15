@@ -377,9 +377,15 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
       <Section title="Stimme" action={
         voiceId ? <Badge color="green">Stimme zugewiesen</Badge> : undefined
       }>
-        {voicePreviewUrl && (
-          <div className="mb-2">
-            <AudioPreview url={voicePreviewUrl} blobProxy={blobProxy} label="Aktuelle Stimme" />
+        {voiceId && (
+          <div className="mb-2 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+              <span className="text-[11px] text-white/60 font-medium">{voiceDescription || voiceId.slice(0, 12) + "..."}</span>
+            </div>
+            {voicePreviewUrl && (
+              <AudioPreview url={voicePreviewUrl} blobProxy={blobProxy} label="Anhoeren" />
+            )}
           </div>
         )}
         <ActionButton onClick={() => setShowVoicePicker(true)} variant={voiceId ? "secondary" : "primary"}>
@@ -397,10 +403,11 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
             </div>
             <div className="flex-1 overflow-y-auto p-5">
               <VoicePickerGrid
-                onSelect={async (selectedVoiceId, selectedPreviewUrl) => {
-                  console.log("[ActorSheet] Voice selected:", selectedVoiceId, selectedPreviewUrl);
+                onSelect={async (selectedVoiceId, selectedPreviewUrl, selectedVoiceName) => {
+                  console.log("[ActorSheet] Voice selected:", selectedVoiceId, selectedVoiceName);
                   setVoiceId(selectedVoiceId);
                   if (selectedPreviewUrl) setVoicePreviewUrl(selectedPreviewUrl);
+                  if (selectedVoiceName) setVoiceDescription(selectedVoiceName);
                   setShowVoicePicker(false);
 
                   // Auto-save: create actor first if needed, then update voice
@@ -409,6 +416,7 @@ export default function ActorSheet({ initial, onSave, onClose, blobProxy, onNoti
                     try {
                       const updates: Record<string, unknown> = { voiceId: selectedVoiceId };
                       if (selectedPreviewUrl) updates.voicePreviewUrl = selectedPreviewUrl;
+                      if (selectedVoiceName) updates.voiceDescription = selectedVoiceName;
                       const res = await fetch("/api/studio/actors", {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
@@ -473,7 +481,7 @@ function matchesVoiceFilter(v: VoiceItem, filterId: string): boolean {
   return v.category === filterId || v.tags.some((t) => t.toLowerCase() === filterId.toLowerCase());
 }
 
-function VoicePickerGrid({ onSelect, blobProxy }: { onSelect: (voiceId: string, previewUrl?: string) => void; blobProxy: (u: string) => string }) {
+function VoicePickerGrid({ onSelect, blobProxy }: { onSelect: (voiceId: string, previewUrl?: string, voiceName?: string) => void; blobProxy: (u: string) => string }) {
   const [voices, setVoices] = useState<VoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
@@ -558,7 +566,7 @@ function VoicePickerGrid({ onSelect, blobProxy }: { onSelect: (voiceId: string, 
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs font-medium text-[#f5eed6]">{voice.name}</p>
                 <button
-                  onClick={() => onSelect(voice.voiceId, voice.previewUrl)}
+                  onClick={() => onSelect(voice.voiceId, voice.previewUrl, voice.name)}
                   className="text-[9px] px-2.5 py-1 bg-[#d4a853]/20 text-[#d4a853] rounded-lg hover:bg-[#d4a853]/30 font-medium flex-shrink-0"
                 >
                   Waehlen
