@@ -691,3 +691,154 @@ export async function downloadVideo(url: string): Promise<Buffer> {
   if (!res.ok) throw new Error(`Failed to download: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
+
+// ── Sync Labs sync-3 ($0.133/s) ────────────────────────────────────
+
+interface SyncV3Result {
+  video: { url: string; content_type?: string; file_size?: number };
+}
+
+/**
+ * Sync Labs sync-3 — global-context lip-sync post-processing.
+ * Unlike chunk-based inpainters (Kling LipSync, Wav2Lip), sync-3 builds a
+ * shot-wide identity prior and generates all frames jointly → no chunk flicker.
+ * 4K native, handles profile angles and partial occlusions.
+ *
+ * Model: fal-ai/sync-lipsync/v3
+ * Cost: $0.133/s
+ */
+export async function syncLipsyncV3(
+  videoBuffer: Buffer,
+  audioBuffer: Buffer,
+  syncMode: "cut_off" | "loop" | "bounce" | "silence" | "remap" = "cut_off",
+): Promise<string> {
+  console.log("[fal.ai] Sync v3: uploading video + audio...");
+
+  const videoUrl = await uploadToFal(videoBuffer, "scene.mp4", "video/mp4");
+  const audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+
+  const result = await runFal<SyncV3Result>(
+    "fal-ai/sync-lipsync/v3",
+    { video_url: videoUrl, audio_url: audioUrl, sync_mode: syncMode },
+  );
+
+  console.log(`[fal.ai] Sync v3 done: ${result.video.url}`);
+  return result.video.url;
+}
+
+// ── ByteDance OmniHuman 1.5 ($0.16/s, talking head from portrait + audio) ──
+
+interface OmniHumanResult {
+  video: { url: string };
+  duration?: number;
+}
+
+/**
+ * ByteDance OmniHuman 1.5 — portrait + audio → full talking head video.
+ * Regenerates the entire face coherently per shot (Camp B), no chunk flicker.
+ * Up to 30s @1080p, 60s @720p. Handles body + gesture + lip-sync.
+ *
+ * Model: fal-ai/bytedance/omnihuman/v1.5
+ */
+export async function omniHuman15(options: {
+  imageBuffer: Buffer;
+  audioBuffer: Buffer;
+  prompt?: string;
+  resolution?: "720p" | "1080p";
+  turboMode?: boolean;
+}): Promise<string> {
+  const { imageBuffer, audioBuffer, prompt, resolution = "1080p", turboMode } = options;
+
+  console.log(`[fal.ai] OmniHuman 1.5: uploading portrait + audio (${resolution})...`);
+
+  const imageUrl = await uploadToFal(imageBuffer, "portrait.png", "image/png");
+  const audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+
+  const input: Record<string, unknown> = {
+    image_url: imageUrl,
+    audio_url: audioUrl,
+    resolution,
+  };
+  if (prompt) input.prompt = prompt;
+  if (turboMode) input.turbo_mode = true;
+
+  const result = await runFal<OmniHumanResult>("fal-ai/bytedance/omnihuman/v1.5", input);
+  console.log(`[fal.ai] OmniHuman 1.5 done: ${result.video.url}`);
+  return result.video.url;
+}
+
+// ── Seedance 2.0 Reference-to-Video (multimodal: images + audio + prompt) ──
+
+interface Seedance2Result {
+  video: { url: string; content_type?: string; file_size?: number };
+  seed?: number;
+}
+
+/**
+ * ByteDance Seedance 2.0 Reference-to-Video — one-call multimodal generator.
+ * Accepts up to 9 reference images + 3 reference audio clips + prompt.
+ * References are addressed in prompt as @Image1, @Image2, @Audio1 etc.
+ * Native audio output with lip-sync, cinematic camera control, multi-shot.
+ *
+ * Model: fal-ai/bytedance/seedance-2.0/reference-to-video
+ * Constraints: images up to 30MB each, audio max 15s combined (15MB each),
+ *              max 15s output duration.
+ */
+export async function seedance2RefToVideo(options: {
+  prompt: string;
+  imageBuffers?: Buffer[];
+  audioBuffers?: Buffer[];
+  videoBuffers?: Buffer[];
+  resolution?: "480p" | "720p";
+  duration?: number | "auto";
+  aspectRatio?: "auto" | "21:9" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
+  generateAudio?: boolean;
+  seed?: number;
+}): Promise<string> {
+  const {
+    prompt,
+    imageBuffers = [],
+    audioBuffers = [],
+    videoBuffers = [],
+    resolution = "720p",
+    duration = "auto",
+    aspectRatio = "auto",
+    generateAudio = true,
+    seed,
+  } = options;
+
+  if (imageBuffers.length > 9) throw new Error("Seedance 2.0: max 9 images");
+  if (audioBuffers.length > 3) throw new Error("Seedance 2.0: max 3 audio clips");
+  if (videoBuffers.length > 3) throw new Error("Seedance 2.0: max 3 video clips");
+
+  console.log(`[fal.ai] Seedance 2.0 ref-to-video: uploading ${imageBuffers.length} imgs + ${audioBuffers.length} audio + ${videoBuffers.length} vids...`);
+
+  const imageUrls = await Promise.all(
+    imageBuffers.map((buf, i) => uploadToFal(buf, `ref-image-${i}.png`, "image/png")),
+  );
+  const audioUrls = await Promise.all(
+    audioBuffers.map((buf, i) => uploadToFal(buf, `ref-audio-${i}.mp3`, "audio/mpeg")),
+  );
+  const videoUrls = await Promise.all(
+    videoBuffers.map((buf, i) => uploadToFal(buf, `ref-video-${i}.mp4`, "video/mp4")),
+  );
+
+  const input: Record<string, unknown> = {
+    prompt,
+    resolution,
+    duration,
+    aspect_ratio: aspectRatio,
+    generate_audio: generateAudio,
+  };
+  if (imageUrls.length) input.image_urls = imageUrls;
+  if (audioUrls.length) input.audio_urls = audioUrls;
+  if (videoUrls.length) input.video_urls = videoUrls;
+  if (seed !== undefined) input.seed = seed;
+
+  const result = await runFal<Seedance2Result>(
+    "fal-ai/bytedance/seedance-2.0/reference-to-video",
+    input,
+  );
+  console.log(`[fal.ai] Seedance 2.0 done: ${result.video.url}`);
+  return result.video.url;
+}
