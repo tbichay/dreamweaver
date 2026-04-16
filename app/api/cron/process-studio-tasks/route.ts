@@ -337,8 +337,15 @@ async function processClipTask(
   const portraitUrl = resolvePortraitUrl(portraitChar);
   if (portraitUrl) {
     portraitBuffer = await loadBlobBuffer(portraitUrl);
-    if (portraitBuffer) console.log(`[Clip] Portrait loaded for ${portraitChar?.name}`);
   }
+  // Detailed logging for character → actor → image chain
+  const actorObj = (character as unknown as { actor?: { id?: string; name?: string; characterSheet?: Record<string, string> } })?.actor;
+  console.log(`[Clip] Scene ${sceneIndex} character chain:`,
+    `char="${character?.name}" (${character?.id?.slice(-6)})`,
+    `→ actor="${actorObj?.name || "NONE"}" (${actorObj?.id?.slice(-6) || "—"})`,
+    `→ portrait=${portraitBuffer ? "loaded" : "MISSING"}`,
+    `→ sheet=${actorObj?.characterSheet ? Object.keys(actorObj.characterSheet).filter(k => actorObj.characterSheet![k]).join(",") || "empty" : "NONE"}`,
+  );
 
   // Load previous frame for continuity
   let prevFrame: Buffer | undefined;
@@ -417,6 +424,7 @@ async function processClipTask(
     }
   }
   if (characterRefs.length === 0 && portraitBuffer) characterRefs.push(portraitBuffer);
+  console.log(`[Clip] Scene ${sceneIndex}: ${characterRefs.length} character refs loaded (${characterRefs.length >= 3 ? "full sheet" : characterRefs.length === 1 ? "portrait only" : "NONE"})`);
 
   // Load location image
   let landscapeBuffer: Buffer | undefined;

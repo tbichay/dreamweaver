@@ -157,6 +157,7 @@ export async function PUT(
         voiceId: actor.voiceId,
         voiceSettings: actor.voiceSettings,
         portraitUrl,
+        characterSheet: actor.characterSheet || null, // Freeze character sheet at cast time
         description: actor.description,
         outfit: actor.outfit,
         traits: actor.traits,
