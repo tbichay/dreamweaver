@@ -2586,6 +2586,37 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
   // Export format override
   const [exportFormat, setExportFormat] = useState<string>(project.format || "portrait");
 
+  // Single task poll for ALL sequences (instead of per-sequence polling)
+  const [allTasks, setAllTasks] = useState<Record<string, Record<number, { status: string; progress?: string }>>>({});
+  const prevTaskCountRef = useRef(0);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/studio/tasks?projectId=${project.id}&type=clip&status=pending,running&limit=50`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const bySeq: Record<string, Record<number, { status: string; progress?: string }>> = {};
+        for (const t of data.tasks || []) {
+          const inp = t.input as { sequenceId?: string; sceneIndex?: number };
+          if (inp.sequenceId && inp.sceneIndex !== undefined) {
+            if (!bySeq[inp.sequenceId]) bySeq[inp.sequenceId] = {};
+            bySeq[inp.sequenceId][inp.sceneIndex] = { status: t.status, progress: t.progress || undefined };
+          }
+        }
+        const totalTasks = Object.values(bySeq).reduce((sum, m) => sum + Object.keys(m).length, 0);
+        if (prevTaskCountRef.current > 0 && totalTasks < prevTaskCountRef.current) {
+          onUpdate(project.id); // Tasks completed — refresh
+        }
+        prevTaskCountRef.current = totalTasks;
+        if (!cancelled) setAllTasks(bySeq);
+      } catch (e) { console.warn("[Studio] Task poll:", e); }
+    };
+    poll();
+    const iv = setInterval(poll, 8000); // 8s instead of 4s — less pressure
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [project.id, onUpdate]);
+
   // Load music assets from Library
   useEffect(() => {
     if (musicLoaded) return;
@@ -2787,6 +2818,7 @@ function ProductionTab({ project, onUpdate }: { project: Project; onUpdate: (id:
                 musicVolume={selectedMusicUrl ? musicVolume / 100 : undefined}
                 isFirstSequence={i === 0}
                 isLastSequence={i === sortedSeqs.length - 1}
+                tasksByScene={allTasks[seq.id] || {}}
               />
             </div>
           ))}
@@ -3109,6 +3141,7 @@ function SequenceCard({
   musicVolume,
   isFirstSequence,
   isLastSequence,
+  tasksByScene,
 }: {
   sequence: Sequence;
   index: number;
@@ -3120,11 +3153,13 @@ function SequenceCard({
   musicVolume?: number;
   isFirstSequence?: boolean;
   isLastSequence?: boolean;
+  tasksByScene: Record<number, { status: string; progress?: string }>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [audioGenerating, setAudioGenerating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const clipGenerating = false; // Clips are now background tasks — never blocks UI
+  const sceneTasks = tasksByScene; // From parent's single poll — no per-card polling!
 
   const moveSequence = async (direction: "up" | "down") => {
     try {
@@ -3148,36 +3183,6 @@ function SequenceCard({
       onUpdate();
     } catch { toast.error("Netzwerkfehler", tid); }
   };
-  // Poll for active clip tasks in this sequence + auto-refresh when tasks complete
-  const [sceneTasks, setSceneTasks] = useState<Record<number, { status: string; progress?: string }>>({});
-  const prevTaskCountRef = useRef(0);
-  useEffect(() => {
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/studio/tasks?projectId=${projectId}&type=clip&status=pending,running&limit=50`);
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        const map: Record<number, { status: string; progress?: string }> = {};
-        for (const t of data.tasks || []) {
-          const inp = t.input as { sequenceId?: string; sceneIndex?: number };
-          if (inp.sequenceId === sequence.id && inp.sceneIndex !== undefined) {
-            map[inp.sceneIndex] = { status: t.status, progress: t.progress || undefined };
-          }
-        }
-        const newCount = Object.keys(map).length;
-        // If tasks disappeared (completed), refresh sequence data
-        if (prevTaskCountRef.current > 0 && newCount < prevTaskCountRef.current) {
-          onUpdate();
-        }
-        prevTaskCountRef.current = newCount;
-        if (!cancelled) setSceneTasks(map);
-      } catch (e) { console.warn("[Studio]", e); }
-    };
-    poll();
-    const iv = setInterval(poll, 4000);
-    return () => { cancelled = true; clearInterval(iv); };
-  }, [projectId, sequence.id, onUpdate]);
   const [clipQualityState, setClipQualityState] = useState<"standard" | "premium">("standard");
   const clipQuality = clipQualityState;
   const [videoProvider, setVideoProvider] = useState<"kling" | "runway">("kling");

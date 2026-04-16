@@ -117,7 +117,13 @@ export function buildO3Prompt(options: {
   if (options.location) parts.push(`Setting: ${options.location}.`);
   if (options.mood) parts.push(`Mood: ${options.mood}.`);
 
-  // 7. QUALITY ANCHORS (always)
+  // 7. MOTION ANCHORS (prevent AI from animating static objects)
+  if (!options.characterName) {
+    // Landscape scene — specify what moves and what doesn't
+    parts.push("Gentle motion in leaves, water, light rays, and wind only. Tree trunks, roots, rocks, and ground remain completely still and solid.");
+  }
+
+  // 8. QUALITY ANCHORS (always)
   parts.push("Cinematic quality, natural lighting, no text overlays, no watermarks.");
 
   return parts.join(" ");
