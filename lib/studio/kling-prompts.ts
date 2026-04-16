@@ -119,8 +119,8 @@ export function buildO3Prompt(options: {
 
   // 7. MOTION ANCHORS (prevent AI from animating static objects)
   if (!options.characterName) {
-    // Landscape scene — specify what moves and what doesn't
-    parts.push("Gentle motion in leaves, water, light rays, and wind only. Tree trunks, roots, rocks, and ground remain completely still and solid.");
+    // Landscape scene — NO characters, NO faces on objects
+    parts.push("Pure landscape scene — NO characters, NO faces, NO anthropomorphic features on trees or objects. Gentle motion in leaves, water, light rays, and wind only. Trees, roots, rocks, and ground are INANIMATE objects — they do NOT have eyes, mouths, hands, or faces.");
   }
 
   // 8. QUALITY ANCHORS (always)

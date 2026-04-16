@@ -585,7 +585,7 @@ export async function klingO3(options: KlingO3Options): Promise<string> {
   const input: Record<string, unknown> = {
     image_url: imageUrl,
     prompt,
-    negative_prompt: negativePrompt || "text, subtitles, captions, titles, words, letters, writing, watermark, logo, text overlay, speech bubble, extra fingers, deformed hands, duplicate limbs, blurry, low quality, static frozen pose, morphing tree roots, moving rocks, melting structures",
+    negative_prompt: negativePrompt || "text, subtitles, captions, titles, words, letters, writing, watermark, logo, text overlay, speech bubble, extra fingers, deformed hands, duplicate limbs, blurry, low quality, static frozen pose, morphing tree roots, moving rocks, melting structures, face on tree, anthropomorphic tree, tree with eyes, tree with hands",
     duration: Math.min(15, Math.max(3, durationSeconds)),
     generate_audio: generateAudio,
   };
