@@ -3228,7 +3228,11 @@ function SequenceCard({
         const needsDialog = !!scene.spokenText; // Any scene with text needs audio (characterId fallback in API)
         const needsSfx = scene.sfx;
 
-        if (!needsDialog && !needsSfx) continue;
+        if (!needsDialog && !needsSfx) {
+          console.log(`[Audio] Scene ${i + 1} skipped: type=${scene.type}, hasText=${!!scene.spokenText}, charId=${scene.characterId || "none"}`);
+          continue;
+        }
+        console.log(`[Audio] Scene ${i + 1} processing: type=${scene.type}, charId=${scene.characterId || "fallback"}, text="${scene.spokenText?.slice(0, 40)}..."`);
 
         if (needsDialog) {
           dialogsDone++;
@@ -3251,7 +3255,8 @@ function SequenceCard({
         const data = await res.json();
         if (!res.ok) {
           const errMsg = data.error || `HTTP ${res.status}`;
-          console.error(`[Audio] Scene ${i + 1} failed:`, errMsg);
+          console.error(`[Audio] Scene ${i + 1} FAILED:`, errMsg, `text="${scene.spokenText?.slice(0, 50)}"`);
+          toast.error(`Szene ${i + 1}: ${errMsg}`);
           setError(`Szene ${i + 1}: ${errMsg}`);
           // Don't stop — try remaining scenes
           continue;
@@ -3289,9 +3294,21 @@ function SequenceCard({
         });
       } catch (e) { console.warn("[Studio]", e); }
 
-      const msg = dialogsDone > 0 ? `${dialogsDone} Dialoge + Ambience` : "Ambience generiert (keine Dialoge)";
+      // Validate: check if any dialog scenes were skipped
+      const missedDialogs = scenes.filter((s, i) => s.spokenText && !s.dialogAudioUrl && s.type === "dialog");
+      if (missedDialogs.length > 0) {
+        console.warn(`[Audio] ${missedDialogs.length} dialog scenes have spokenText but no audio!`, missedDialogs.map((s) => ({ type: s.type, charId: s.characterId, text: s.spokenText?.slice(0, 50) })));
+      }
+
+      // Re-fetch to get updated scene data with audio URLs
+      onUpdate();
+
+      const msg = dialogsDone > 0
+        ? `${dialogsDone} Dialoge + Ambience${missedDialogs.length > 0 ? ` (${missedDialogs.length} fehlen!)` : ""}`
+        : "Ambience generiert (keine Dialoge)";
       setProgress(msg);
-      toast.success(msg, tid);
+      if (missedDialogs.length > 0) toast.error(`${missedDialogs.length} Dialoge fehlen! Prüfe die Szenen.`, tid);
+      else toast.success(msg, tid);
       onUpdate();
     } catch (err) {
       setError((err as Error).message);
