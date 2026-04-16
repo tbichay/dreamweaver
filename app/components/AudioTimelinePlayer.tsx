@@ -41,6 +41,7 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, musicUrl, mus
   const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const startTimeRef = useRef(0);
   const animRef = useRef<number>(0);
+  const actualDurationRef = useRef(0); // Actual cumulative audio duration (may exceed DB timing)
 
   const dialogScenes = scenes.filter((s) => s.dialogAudioUrl);
   const sfxScenes = scenes.filter((s) => s.sfxAudioUrl);
@@ -126,6 +127,11 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, musicUrl, mus
         sceneStartSec.set(sceneIdx, cumSec);
         cumSec += buffer.duration + 0.2; // 200ms gap between dialogs
       }
+      // Track actual cumulative duration — may exceed DB timing
+      actualDurationRef.current = cumSec * 1000;
+      if (actualDurationRef.current > totalDuration) {
+        console.log(`[AudioTimeline] Actual audio (${(actualDurationRef.current/1000).toFixed(1)}s) exceeds DB timing (${(totalDuration/1000).toFixed(1)}s) — using actual for playback`);
+      }
 
       // Schedule dialogs
       for (const { sceneIdx, buffer } of loadedDialogs) {
@@ -199,7 +205,8 @@ export default function AudioTimelinePlayer({ scenes, ambienceUrl, musicUrl, mus
         const elapsed = (audioCtxRef.current.currentTime - startTimeRef.current) * 1000;
         setCurrentTime(elapsed);
 
-        if (elapsed < totalDuration + 1000) {
+        const effectiveDuration = Math.max(totalDuration, actualDurationRef.current);
+        if (elapsed < effectiveDuration + 1000) {
           animRef.current = requestAnimationFrame(updateTime);
         } else {
           stopAll();
