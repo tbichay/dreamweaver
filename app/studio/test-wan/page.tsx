@@ -32,10 +32,18 @@ interface CharacterLite {
   castSnapshot?: { portraitUrl?: string; voiceId?: string } | null;
 }
 
+interface ProjectSequenceLite {
+  id: string;
+  name: string;
+  location?: string | null;
+  landscapeRefUrl?: string | null;
+}
+
 interface ProjectLite {
   id: string;
   name: string;
   characters: CharacterLite[];
+  sequences?: ProjectSequenceLite[];
 }
 
 interface CharacterOption {
@@ -303,7 +311,16 @@ function TestWanPageInner() {
     [variants],
   );
 
-  // Landscape-Assets fuer das gewaehlte Projekt laden (fuer Variante G)
+  // Landscape-Sources fuer das gewaehlte Projekt laden (fuer Variante G).
+  //
+  // Locations leben an ZWEI Stellen im System:
+  // 1) Asset-Library (type=landscape) — nur automatisch gespeichert bei
+  //    GPT-generierten Landschaften, NICHT bei Uploads.
+  // 2) StudioSequence.landscapeRefUrl — IMMER dort, wenn eine Sequenz
+  //    eine Location zugewiesen hat (Upload oder Generation).
+  //
+  // Wir mergen beide, dedupen per URL. Sequence-Quelle ist "closer to prod"
+  // (das ist, was der User tatsaechlich als Location seiner Szene sieht).
   useEffect(() => {
     if (!selectedChar) {
       setLocationAssets([]);
@@ -314,16 +331,42 @@ function TestWanPageInner() {
     setLoadingLocations(true);
     (async () => {
       try {
+        // Asset-Library Query (kann leer sein bei aelteren Projekten/Uploads)
         const res = await fetch(
           `/api/studio/assets?type=landscape&projectId=${encodeURIComponent(selectedChar.projectId)}`,
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as { assets: LocationAsset[] };
         if (cancelled) return;
-        setLocationAssets(data.assets || []);
-        // Auto-select first location if only one available
-        if ((data.assets || []).length === 1) {
-          setSelectedLocationId(data.assets[0].id);
+
+        const assetLocations = data.assets || [];
+
+        // Sequenz-Locations aus dem bereits geladenen projects-State ziehen
+        const proj = projects?.find((p) => p.id === selectedChar.projectId);
+        const sequenceLocations: LocationAsset[] = (proj?.sequences || [])
+          .filter((s) => !!s.landscapeRefUrl)
+          .map((s) => ({
+            id: `seq:${s.id}`,
+            name: `${s.name}${s.location ? ` — ${s.location}` : ""}`,
+            blobUrl: s.landscapeRefUrl!,
+            tags: ["sequenz"],
+          }));
+
+        // Dedup per URL — wenn ein AI-generiertes Landschaftsbild auch als
+        // Asset gespeichert wurde, zeigen wir's nur einmal (Sequenz-Variante
+        // hat Prioritaet, weil sie den aussagekraeftigeren Namen hat).
+        const seenUrls = new Set<string>();
+        const merged: LocationAsset[] = [];
+        for (const loc of [...sequenceLocations, ...assetLocations]) {
+          if (seenUrls.has(loc.blobUrl)) continue;
+          seenUrls.add(loc.blobUrl);
+          merged.push(loc);
+        }
+
+        setLocationAssets(merged);
+        // Auto-select wenn nur eine Location vorhanden
+        if (merged.length === 1) {
+          setSelectedLocationId(merged[0].id);
         } else {
           setSelectedLocationId("");
         }
@@ -335,7 +378,7 @@ function TestWanPageInner() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChar?.projectId]);
+  }, [selectedChar?.projectId, projects]);
 
   const selectedLocation = useMemo(
     () => locationAssets.find((a) => a.id === selectedLocationId),
