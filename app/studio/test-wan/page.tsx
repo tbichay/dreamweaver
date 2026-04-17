@@ -639,6 +639,7 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
   const variants = ALL_VARIANTS.filter((v) => result.results[v]);
   const urlA = result.results.A?.url;
   const urlB = result.results.B?.url;
+  const urlF = result.results.F?.url;
   return (
     <div>
       <div className="mb-3 flex items-baseline justify-between flex-wrap gap-2">
@@ -664,6 +665,23 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
             <div className="text-[10px] text-[#a8d5b8]/70 font-mono">H4, H2, H2b, W5c</div>
           </div>
           <SeamlessPlayer urlA={urlA} urlB={urlB} />
+        </div>
+      )}
+
+      {/* Location-Compare A↔F — Wald-Treue pruefen (H2b, W5b) */}
+      {urlA && urlF && (
+        <div className="card p-4 mb-4 border border-[#C8A97E]/30 bg-[#C8A97E]/5">
+          <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
+            <div>
+              <div className="text-sm font-medium text-[#f5eed6]">Location-Compare A ↔ F</div>
+              <div className="text-[11px] text-white/50 mt-0.5">
+                Synchron-Play + Pause zum Frame-Vergleich. Prueft: Baum-Struktur, Licht, Boden, Laub-Farbe.
+                Wan hat keine Bild-Referenz zwischen Clips — sieht der Wald trotzdem so aus wie in A?
+              </div>
+            </div>
+            <div className="text-[10px] text-[#C8A97E]/70 font-mono">H2b, W5b, W5d</div>
+          </div>
+          <LocationCompareViewer urlA={urlA} urlF={urlF} />
         </div>
       )}
 
@@ -879,6 +897,143 @@ function SeamlessPlayer({ urlA, urlB }: { urlA: string; urlB: string }) {
             ⏹ Stop
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Location-Compare (H2b / W5b-Check) ─────────────────────────
+//
+// A und F nebeneinander, gemeinsamer Play/Pause. Beim Pause kann der
+// User Frame-by-Frame vergleichen, ob Wan dieselbe Wald-Clearing
+// rekonstruiert hat oder sich eine aehnliche ausgedacht hat.
+//
+// Wichtig: Der Vergleich ist "fair" nur, wenn beide Clips laufen — A
+// ist statische Kamera mit Dialog, F ist 180° Orbit. Der User sucht
+// visuelle Signaturen (Baum-Silhouetten, Lichtfarbe, Boden-Textur),
+// die in beiden auftauchen sollten, wenn Wan konsistent ist.
+
+function LocationCompareViewer({ urlA, urlF }: { urlA: string; urlF: string }) {
+  const videoARef = useRef<HTMLVideoElement>(null);
+  const videoFRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+
+  // Reset on URL change
+  useEffect(() => {
+    setPlaying(false);
+    const a = videoARef.current;
+    const f = videoFRef.current;
+    if (a) { a.pause(); a.currentTime = 0; }
+    if (f) { f.pause(); f.currentTime = 0; }
+  }, [urlA, urlF]);
+
+  function togglePlay() {
+    const a = videoARef.current;
+    const f = videoFRef.current;
+    if (!a || !f) return;
+    if (playing) {
+      a.pause();
+      f.pause();
+      setPlaying(false);
+    } else {
+      setPlaying(true);
+      Promise.all([
+        a.play().catch((err) => console.warn("[LocationCompare] A play:", err)),
+        f.play().catch((err) => console.warn("[LocationCompare] F play:", err)),
+      ]);
+    }
+  }
+
+  function restart() {
+    const a = videoARef.current;
+    const f = videoFRef.current;
+    if (!a || !f) return;
+    a.currentTime = 0;
+    f.currentTime = 0;
+    setPlaying(true);
+    Promise.all([a.play().catch(() => {}), f.play().catch(() => {})]);
+  }
+
+  function stepFrame(delta: number) {
+    // Heuristik: Wan-Clips sind 30fps → 1 Frame ≈ 0.033s
+    const step = delta * (1 / 30);
+    const a = videoARef.current;
+    const f = videoFRef.current;
+    if (!a || !f) return;
+    a.pause();
+    f.pause();
+    a.currentTime = Math.max(0, Math.min(a.duration || 0, a.currentTime + step));
+    f.currentTime = Math.max(0, Math.min(f.duration || 0, f.currentTime + step));
+    setPlaying(false);
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-[10px] text-white/40 mb-1 text-center">A — Dialog (statisch)</div>
+          <video
+            ref={videoARef}
+            src={blobProxy(urlA)}
+            playsInline
+            preload="auto"
+            muted
+            onPause={() => setPlaying(false)}
+            onEnded={() => setPlaying(false)}
+            className="w-full rounded-lg bg-black"
+            style={{ aspectRatio: "9/16", maxHeight: "380px" }}
+          />
+        </div>
+        <div>
+          <div className="text-[10px] text-white/40 mb-1 text-center">F — 180° Orbit</div>
+          <video
+            ref={videoFRef}
+            src={blobProxy(urlF)}
+            playsInline
+            preload="auto"
+            muted
+            onPause={() => setPlaying(false)}
+            onEnded={() => setPlaying(false)}
+            className="w-full rounded-lg bg-black"
+            style={{ aspectRatio: "9/16", maxHeight: "380px" }}
+          />
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+        <button
+          type="button"
+          onClick={() => stepFrame(-1)}
+          className="px-2 py-1.5 rounded text-xs border border-[#2A2A2A] text-white/70 hover:text-[#f5eed6] hover:border-[#C8A97E]/40"
+          title="Frame rueckwaerts"
+        >
+          ◀ Frame
+        </button>
+        <button
+          type="button"
+          onClick={togglePlay}
+          className="px-4 py-1.5 rounded text-sm bg-[#C8A97E] text-[#1a1a1a] hover:bg-[#d4b890] font-medium"
+        >
+          {playing ? "⏸ Pause" : "▶ Synchron Play"}
+        </button>
+        <button
+          type="button"
+          onClick={() => stepFrame(1)}
+          className="px-2 py-1.5 rounded text-xs border border-[#2A2A2A] text-white/70 hover:text-[#f5eed6] hover:border-[#C8A97E]/40"
+          title="Frame vorwaerts"
+        >
+          Frame ▶
+        </button>
+        <button
+          type="button"
+          onClick={restart}
+          className="px-2 py-1.5 rounded text-xs border border-[#2A2A2A] text-white/60 hover:text-[#f5eed6]"
+        >
+          ⟲ Neustart
+        </button>
+      </div>
+      <div className="text-[10px] text-white/40 mt-2 text-center">
+        Tipp: Pausiere und vergleiche Baum-Silhouetten, Lichtfarbe, Boden-Textur.
+        Wenn A und F sich "wie ein anderer Wald" anfuehlen → Wan hat keine Bild-Referenz, nur Prompt-Aehnlichkeit.
       </div>
     </div>
   );

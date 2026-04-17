@@ -309,7 +309,16 @@ Drei parallele Research-Agenten: 17 Provider gegen Checkliste gemappt.
 **Tooling-Fix waehrend Review:**
 Um H4 verbindlich zu beurteilen, reicht Side-by-Side nicht — ein Cut ist nur am Cut pruefbar. Eingebaut: `SeamlessPlayer` auf der `/studio/test-wan`-Seite, zwei gestackte `<video>`-Tags mit Preload, Opacity-Swap bei `onEnded` A → B. Kein src-Swap-Flash dazwischen. Die bereits generierten A+B-Clips liegen als private Vercel-Blobs und werden ueber `localStorage` beim naechsten Seitenladen wieder angezeigt — der SeamlessPlayer springt automatisch an, ohne neuen Run.
 
-**Variante F nachgezogen (Location-Fidelity):** Neu im Preset — silent, 8s, 180° Kamera-Orbit um denselben Character in derselben Wald-Clearing-Location wie A. Prueft W4 (Kamera-Bewegung), W5b (Location aus neuem Winkel), W5d (Spatial Awareness, keine Durchdringungen), H2b (Location-Treue zu A). Kosten: ~$0.80. Noch nicht gelaufen.
+**Variante F (Location-Orbit) — Ergebnis + Befund zur H2b-Architektur:**
+Gelaufen (silent, 8s, 180° Orbit). User-Feedback: "war auf jeden fall in einem aehnlich aussehenden wald wie unsere location, aber keine ahnung ob unsere location hier genutzt wurde, ich konnte ja nur den character wählen."
+
+Das ist nicht Wan's Fehler — das ist **per Design so**, und zwar ein wichtiger Befund fuer H2b:
+- F hat **keine Bild-Referenz** zu A's Location. Der Prompt sagt "exact same forest clearing as in the previous dialog scene", aber Wan hat zwischen zwei unabhaengigen Runs kein Gedaechtnis. Also produziert Wan einen prompt-semantisch aehnlichen Wald — nicht pixel-gleichen.
+- **Konsequenz fuer H2b:** Wan kann Location-Consistency nur so stark halten, wie der Prompt spezifisch ist. Ohne expliziten Location-Anker (z.B. `image_url = A.lastFrame`) bleibt es bei prompt-semantic similarity. Das ist der normale Zustand bei einem prompt-only-Workflow.
+- **Fuer Koala-Welcome-Film unkritisch:** Welcome-Intros sind kurz, stand-alone; zwischen-Clip-Location-Fidelity ist nicht die Haupt-Anforderung. H2b im Sinne von "genau derselbe Baum an derselben Stelle" wird nur relevant, wenn wir mehrere Clips in derselben Szene haben.
+- **Fuer spaeter:** Wenn echte Multi-Clip-Szenen am selben Ort entstehen sollen, brauchen wir entweder (a) einen Location-Reference-Image-Slot (wie `fal-ai/kling-video/v1.6/standard/elements`) oder (b) einen Seamless-Chain (B-Pfad mit `end_image_url` ueber N Clips).
+
+**Tooling-Fix fuer den Vergleich:** Eingebaut ist `LocationCompareViewer` — A und F nebeneinander, synchron Play/Pause, Frame-Step ±1 fuer Standbild-Vergleich von Baum-Silhouetten / Lichtfarbe / Boden-Textur. Damit kann der User die Frage "selbe Location oder nur aehnliche?" ohne Ratespiel beantworten.
 
 **SFX-Thema:** Nicht im Wan-Spike. Wan 2.7 generiert kein Audio aus Prompt (Teil 2a, Bedeutung A ≠ unsere Welt); `audio_url` ist Lip-Sync-Input. SFX (Wind, Schritte, Natur-Ambiance) gehoeren in Remotion-Mux + Sound-Library oder ElevenLabs-SFX-API, orthogonal zur Video-Provider-Wahl.
 
