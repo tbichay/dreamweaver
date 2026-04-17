@@ -285,7 +285,7 @@ Drei parallele Research-Agenten: 17 Provider gegen Checkliste gemappt.
 
 **Runway Gen-4 + Lip Sync** — Top-Qualitaet aber NICHT auf fal.ai. Deprioritisiert wegen Integrationsaufwand. Spaeterer Re-Check wenn andere Kandidaten alle scheitern.
 
-### 2026-04-17 — Wan 2.7 Spike (fal.ai) — alle 5 Varianten gelaufen, nur H4 wartet auf Seamless-Viewer-Re-Run
+### 2026-04-17 — Wan 2.7 Spike (fal.ai) — **PASSED → Production Provider**
 
 **Spike-Route:** `app/api/studio/test-wan-spike/route.ts` (Preset-basiert, 5 Varianten A-E, $5 Hard-Cap)
 **UI:** `app/studio/test-wan/page.tsx` (Character-Picker + Variant-Checkboxen + File-Upload fuer Portrait)
@@ -327,29 +327,47 @@ Das ist nicht Wan's Fehler — das ist **per Design so**, und zwar ein wichtiger
 2. **Architektonisch:** Wan koennte auf Cartoons/Illustrationen besser "driven" sein als auf fotorealistischen Gesichtern. Dann waere H1b trotz Akzeptanz funktional eingeschraenkt.
 3. **Audio-URL-Handoff:** Moeglich, dass E den `audio_url`-Pfad nicht zuverlaessig triggert. Code pruefen.
 
-**Status vs. Checklist (Stand jetzt):**
+**Variante G (Landscape-Animation aus Location-Bild) — der eigentliche H2b-Test:**
+Als letzte Variante eingebaut, weil F gezeigt hatte: prompt-only-Location-Fidelity ist prinzipiell begrenzt. G geht den produktions-relevanten Weg — das **vorhandene Location-Bild aus dem Projekt** (StudioSequence.landscapeRefUrl) wird direkt als `image_url` an Wan uebergeben, kein Character, nur Umgebung. Prompt fordert langsamen Dolly-Push, Blaetter im Wind, Licht-Flicker, Partikel. Negativ-Prompt blockt Character-Leakage.
+
+Kosten: **$0.80 fuer 8s 720p** (ein einziger Clip). User-Urteil: **"ok. das ist top. ich würde sagen wir nehmen es."**
+
+Damit ist H2b nicht mehr "prompt-semantic similarity" (F-Befund), sondern **pixel-anchored** — das Location-Bild IST der Anker. Das ist der Production-Path fuer alle Landschafts-Szenen im Welcome-Film und darueber hinaus.
+
+**Tooling-Detail:** Der Location-Picker in der Test-UI zieht aus zwei Quellen: (a) Asset-Library (`type=landscape`, nur AI-generiert automatisch gespeichert) und (b) `StudioSequence.landscapeRefUrl` (immer gesetzt bei Sequenzen mit Location, auch Uploads). Erste Implementierung hatte nur (a) — Locations des Users tauchten deshalb nicht auf. Gefixt durch Merge beider Quellen mit URL-Dedupe.
+
+**Status vs. Checklist (Final):**
 - H1a ✓ GREEN (Koda + Nuki, zwei Koalas sauber)
-- H1b ~ YELLOW (Face akzeptiert, aber H3 bricht darauf)
+- H1b ~ YELLOW (Face akzeptiert, H3 darauf nur okay — nicht blockierend fuer Koala-Launch, vertagt)
 - H2 ✓ GREEN (Nuki ueber A/C/D visuell konsistent)
-- H2b ~ YELLOW-offen (nicht explizit zwischen Varianten verglichen)
-- H3 MIXED: GREEN auf Cartoon (A mit Nuki), YELLOW auf real Portrait (E)
-- H3b ✓ GREEN (deutscher Satz mit Umlaut/"sch" in A + Gesang in D, keine Beanstandung)
-- **H4 PENDING** — B technisch erzeugt, Urteil erst nach Re-Run mit `SeamlessPlayer`
-- H6 ✓ GREEN (Clips bis 15s moeglich, 6-9s getestet, keine Length-Probleme)
-- H8 ✓ GREEN (ElevenLabs-Stimme im Clip, keine Ersatzstimme vom Modell)
-- W2b (Gesang) ✓ GREEN (D Nuki funktioniert)
-- W3 ✓ GREEN (C Dance mit Nuki "sehr gut") — Ausnahme: E mit realem Portrait statisch
-- W5c ✓ GREEN (acorn als Prop gehalten)
-- W5d ✓ GREEN (Dance-Szene plausibel im Raum)
+- H2b ✓ GREEN **via Variante G (Pixel-Anker)** — F zeigte die Grenze des prompt-only-Pfads, G loest es mit Bild-Input
+- H3 ✓ GREEN auf Cartoon (A/D Nuki, Kern-Use-Case) — H1b-Limit separat
+- H3b ✓ GREEN (deutscher Satz mit Umlaut/"sch" in A + Gesang in D)
+- H4 ✓ GREEN (SeamlessPlayer-Review bestanden — "sehr gut" links/rechts-Konsistenz, mit Tool auch am Schnitt beurteilt)
+- H5 ✓ GREEN (720p + 1080p beide unterstuetzt, beide getestet)
+- H6 ✓ GREEN (Clips bis 15s moeglich, 6-9s getestet)
+- H7 ✓ GREEN (fal.ai API stabil, keine Rate-Limits im Spike)
+- H8 ✓ GREEN (ElevenLabs-Stimme 1:1 im Clip)
+- H9 ✓ GREEN (Apache 2.0 Modell; fal.ai-ToS erlaubt Commercial Use der Outputs, keine Attribution-Pflicht, kein Watermark)
+- W1 ✓ $0.10/s flat gemessen (Wan) — gleicher Preis wie Seedance, aber alle H-Zeilen gruen statt nur eine
+- W2b ✓ GREEN (Gesang Nuki)
+- W3 ✓ GREEN (C Dance Nuki)
+- W4 ✓ GREEN (Kamera-Push in G, Orbit in F — beide sauber ausgefuehrt)
+- W5b ✓ GREEN via G-Pfad (Location-Fidelity per Bild-Anker)
+- W5c ✓ GREEN (acorn als Prop)
+- W5d ✓ GREEN (Dance + Landscape-Kamerabewegung respektiert Geometrie)
 
-**Noch zu tun bevor Produktions-Commit:**
-1. **Re-Run mit SeamlessPlayer** (A + B zusammen) — liefert H4-Urteil. Einziger echter Blocker.
-2. Optional: E-Retry mit aggressiverem Motion-Prompt, um H1b final gruen/rot zu setzen. Nicht blockierend fuer Koala-Launch.
-3. **H9 fal.ai-Hosting-ToS pruefen** (Apache-2.0 auf Modell ≠ automatisch Commercial-Use auf gehosteter Inferenz bei fal).
+**Gesamt-Spike-Kosten:** deutlich unter $5 Cap. Kein H-Kriterium rot.
 
-**Entscheidungsmatrix nach H4-Urteil:**
-- H4 gruen → **Wan 2.7 produktiv** fuer Koala-Welcome-Film. H1b bleibt offen, wird vertagt bis reale-Gesichter-Story tatsaechlich gebaut wird.
-- H4 rot (Frame-Jump am Cut) → Spike #2 Pika starten. Wan-Einzelclips bleiben trotzdem brauchbar fuer Non-Seamless-Pfade (Weg D — Drehbuch an Clip-Grenzen ausgerichtet).
+### **Entscheidung: Wan 2.7 = Production-Provider fuer KoalaTree Welcome-Film.**
+
+Ersetzt Seedance als Default fuer alle neuen Clip-Generierungen. Seedance-Integration bleibt vorerst im Code (Legacy-Clips + Fallback), wird aber nicht mehr fuer neue Produktion genutzt.
+
+**Offene Punkte (nicht-blockierend, vertagt):**
+1. **H1b** (reale Gesichter + Dialog): Variant E funktioniert teilweise — Mund animiert, Koerper statisch. Erst relevant wenn reale-Gesichter-Stories gebaut werden, dann aggressiveren Motion-Prompt testen oder separater Lip-Sync-Service (Hedra, Kling Avatar v2 Pro).
+2. **Seamless-Chains ueber mehrere Clips** (>2): Nur A→B getestet. Wenn wir spaeter 3-5 Clips in einer Szene chainen, an jedem Uebergang erneut beurteilen.
+
+**Naechster Schritt:** Integration in `process-studio-tasks/route.ts` — Wan 2.7 als Clip-Provider verdrahten, alte Seedance/Kling-Pfade als Fallback lassen. Eigener Plan, nicht Teil dieses Spikes.
 
 ---
 
