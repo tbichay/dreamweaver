@@ -14,12 +14,13 @@
  *   C — Action / Dance (no audio)        (W3, W5d)
  *   D — Singing / Music setting          (W2 video, H3b)
  *   E — Real portrait (opt-in)           (H1b)
+ *   F — Location-Orbit (silent)          (W4, W5b, W5d, H2b)
  *
  * POST /api/studio/test-wan-spike
  * Body: {
  *   projectId: string,
  *   characterId: string,
- *   variants?: Array<"A"|"B"|"C"|"D"|"E">,
+ *   variants?: Array<"A"|"B"|"C"|"D"|"E"|"F">,
  *   realPortraitUrl?: string,           // only for E
  *   maxCostUsd?: number,                // default 5
  *   resolution?: "720p" | "1080p",      // default 720p
@@ -34,7 +35,7 @@ import type { CharacterVoiceSettings } from "@/lib/types";
 
 export const maxDuration = 800;
 
-type Variant = "A" | "B" | "C" | "D" | "E";
+type Variant = "A" | "B" | "C" | "D" | "E" | "F";
 
 interface Preset {
   label: string;
@@ -134,6 +135,28 @@ const PRESETS: Record<Variant, Preset> = {
     ].join(" "),
     negativePrompt: "text, subtitles, captions, watermark, cartoon, illustration, style change, different person, extra fingers, deformed face, animal features",
   },
+
+  // Location-Fidelity: zwingt Wan, dieselbe A-Location aus mehreren Winkeln
+  // zu zeigen. Weil die Kamera 180° um den Character dreht, wird sichtbar,
+  // ob das Modell einen konsistenten 3D-Raum halluziniert oder fuer jeden
+  // Frame eine neue Location improvisiert. Kein Audio → isoliert die
+  // Location-/Kamera-/Spatial-Dimensionen vom Lip-Sync-Thema.
+  F: {
+    label: "Location-Orbit (silent)",
+    requirements: "W4, W5b, W5d, H2b",
+    targetClipSec: 8,
+    buildPrompt: ({ characterName, characterDescription }) => [
+      `${characterName} (${characterDescription})`,
+      `stands calmly holding a small glowing golden acorn in one paw,`,
+      `located in a soft warm forest clearing with dappled sunlight — the exact same forest clearing as in the previous dialog scene,`,
+      `same trees, same ground, same time of day, same warm amber lighting.`,
+      `The camera performs a slow cinematic 180-degree dolly orbit around the character, smooth and continuous,`,
+      `revealing the surrounding trees, forest floor, and light rays from multiple angles.`,
+      `Natural parallax and depth — the camera moves around the scene and respects spatial geometry, never clipping through trees or the character.`,
+      `Single continuous take, no cuts. No text, no subtitles, no captions, no watermark.`,
+    ].join(" "),
+    negativePrompt: "text, subtitles, captions, watermark, hard cut, scene change, new location, character walking, character swap, jump cut, teleport, different time of day, different lighting",
+  },
 };
 
 interface VariantResult {
@@ -207,7 +230,7 @@ export async function POST(request: Request) {
   const resolution = body.resolution ?? "720p";
   const allVariants: Variant[] = body.variants && body.variants.length > 0
     ? body.variants
-    : ["A", "B", "C", "D"];
+    : ["A", "B", "C", "D", "F"];
 
   if (!projectId || !characterId) {
     return Response.json({ error: "projectId + characterId erforderlich" }, { status: 400 });
@@ -299,6 +322,7 @@ export async function POST(request: Request) {
     C: PRESETS.C.targetClipSec,
     D: PRESETS.D.targetClipSec,
     E: PRESETS.E.targetClipSec,
+    F: PRESETS.F.targetClipSec,
   };
   for (const v of variantsNeedingAudio) {
     const buf = audioByVariant[v];
@@ -420,6 +444,10 @@ export async function POST(request: Request) {
     audioBufferGetter: () => audioByVariant.E,
   });
 
+  const runVariantF = buildRunner("F", {
+    imageBufferGetter: () => portraitBuffer,
+  });
+
   // ── Variant B — special: extracts A's last frame, needs custom flow ──
   async function runVariantB(): Promise<VariantResult> {
     const start = Date.now();
@@ -466,6 +494,7 @@ export async function POST(request: Request) {
     C: runVariantC,
     D: runVariantD,
     E: runVariantE,
+    F: runVariantF,
   };
 
   // ── Execution: A/C/D/E parallel, B sequential after A ──

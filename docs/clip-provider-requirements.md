@@ -285,8 +285,62 @@ Drei parallele Research-Agenten: 17 Provider gegen Checkliste gemappt.
 
 **Runway Gen-4 + Lip Sync** — Top-Qualitaet aber NICHT auf fal.ai. Deprioritisiert wegen Integrationsaufwand. Spaeterer Re-Check wenn andere Kandidaten alle scheitern.
 
-### 2026-04-XX — Wan 2.7 Spike (geplant, noch nicht durchgefuehrt)
-[hier wird nach Durchfuehrung eingetragen]
+### 2026-04-17 — Wan 2.7 Spike (fal.ai) — alle 5 Varianten gelaufen, nur H4 wartet auf Seamless-Viewer-Re-Run
+
+**Spike-Route:** `app/api/studio/test-wan-spike/route.ts` (Preset-basiert, 5 Varianten A-E, $5 Hard-Cap)
+**UI:** `app/studio/test-wan/page.tsx` (Character-Picker + Variant-Checkboxen + File-Upload fuer Portrait)
+**Audio-Pfad:** ElevenLabs TTS → fal.storage public URL → Wan 2.7 `audio_url`
+**Bild-Pfad:** Character-Sheet (Koda front) bzw. hochgeladenes reales Portrait → fal.storage → Wan `image_url`
+
+**Lessons learned waehrend Implementation:**
+- fal.ai `duration` ist **Integer-Enum** (2..15), NICHT String. Erste Test-Runs scheiterten mit `Unprocessable Entity: Input should be 2, 3, ...` weil wir per Doku-Fehllesung `String(duration)` geschickt hatten. Fix: `duration: durClamped` als Int. Relevant fuer jede kuenftige fal.ai-Integration — Enum-Parameter sind dort **nicht** quotiert.
+- Real-Portrait-Upload: 20MB Client-Limit muss sichtbar in der UI stehen. User lief erst in einen stillen Fehler, weil sein Originalbild drueber war.
+
+**Getestete Varianten (Runs: Koda initial, dann Nuki):**
+
+| Variante | Test | Ergebnis | Mapping |
+|---|---|---|---|
+| **A** — Dialog + Prop + Audio (deutscher Satz mit Umlaut + "sch") | ✓ Koda + Nuki | Koda-Run: "beste ergebnis bisher". Nuki-Run: "sehr gut". Cartoon-Gesicht sauber, ElevenLabs-Stimme unveraendert, Prop gehalten. | H1a ✓, H3 ✓, H3b ✓, H8 ✓, W5c ✓ |
+| **B** — Seamless Continuation via `end_image_url` | ✓ generiert, aber **nicht am Schnitt beurteilbar** | User konnte A und B nur nebeneinander sehen, nicht am Schnitt. Links/rechts-Vergleich sah "ganz gut" aus — Character/Location plausibel konsistent, aber die H4-Kernfrage (sauberer Frame-A-Ende → Frame-B-Anfang) nicht entschieden. | H4 **NICHT VALIDIERT** — Tool-Gap, nicht Wan-Gap |
+| **C** — Dance silent (Expressive-Test) | ✓ Nuki | "sehr gut" | W3 ✓, W5d ✓ |
+| **D** — Singing (Musik-Video-Pfad W2b) | ✓ Nuki | "sehr gut" | W2b ✓ (Video), H3b ✓ (Gesang deutsch) |
+| **E** — Dialog auf realem Portrait-Foto (opt-in) | ✓ getestet (Koda-Run) | Mund-Bewegung "super natuerlich", aber Koerper statisch und Lippen nicht synchron zum Audio. Insgesamt "ganz gut". | H1b ~ (Face akzeptiert), **H3 GELB** (Sync off), W3 ROT (statischer Koerper) |
+
+**Tooling-Fix waehrend Review:**
+Um H4 verbindlich zu beurteilen, reicht Side-by-Side nicht — ein Cut ist nur am Cut pruefbar. Eingebaut: `SeamlessPlayer` auf der `/studio/test-wan`-Seite, zwei gestackte `<video>`-Tags mit Preload, Opacity-Swap bei `onEnded` A → B. Kein src-Swap-Flash dazwischen. Die bereits generierten A+B-Clips liegen als private Vercel-Blobs und werden ueber `localStorage` beim naechsten Seitenladen wieder angezeigt — der SeamlessPlayer springt automatisch an, ohne neuen Run.
+
+**Variante F nachgezogen (Location-Fidelity):** Neu im Preset — silent, 8s, 180° Kamera-Orbit um denselben Character in derselben Wald-Clearing-Location wie A. Prueft W4 (Kamera-Bewegung), W5b (Location aus neuem Winkel), W5d (Spatial Awareness, keine Durchdringungen), H2b (Location-Treue zu A). Kosten: ~$0.80. Noch nicht gelaufen.
+
+**SFX-Thema:** Nicht im Wan-Spike. Wan 2.7 generiert kein Audio aus Prompt (Teil 2a, Bedeutung A ≠ unsere Welt); `audio_url` ist Lip-Sync-Input. SFX (Wind, Schritte, Natur-Ambiance) gehoeren in Remotion-Mux + Sound-Library oder ElevenLabs-SFX-API, orthogonal zur Video-Provider-Wahl.
+
+**Hypothesen zum Variant-E-Issue ("nicht lippen synchron" + "rest statisch"):**
+1. **Preset-Prompt zu schwach:** Unser E-Prompt sagt "speaks warmly" aber ruft keine Koerperbewegung/Gestik auf. Wan 2.7 Image-to-Video tendiert bei konservativem Prompt zu Still-Standbild-Animation.
+2. **Architektonisch:** Wan koennte auf Cartoons/Illustrationen besser "driven" sein als auf fotorealistischen Gesichtern. Dann waere H1b trotz Akzeptanz funktional eingeschraenkt.
+3. **Audio-URL-Handoff:** Moeglich, dass E den `audio_url`-Pfad nicht zuverlaessig triggert. Code pruefen.
+
+**Status vs. Checklist (Stand jetzt):**
+- H1a ✓ GREEN (Koda + Nuki, zwei Koalas sauber)
+- H1b ~ YELLOW (Face akzeptiert, aber H3 bricht darauf)
+- H2 ✓ GREEN (Nuki ueber A/C/D visuell konsistent)
+- H2b ~ YELLOW-offen (nicht explizit zwischen Varianten verglichen)
+- H3 MIXED: GREEN auf Cartoon (A mit Nuki), YELLOW auf real Portrait (E)
+- H3b ✓ GREEN (deutscher Satz mit Umlaut/"sch" in A + Gesang in D, keine Beanstandung)
+- **H4 PENDING** — B technisch erzeugt, Urteil erst nach Re-Run mit `SeamlessPlayer`
+- H6 ✓ GREEN (Clips bis 15s moeglich, 6-9s getestet, keine Length-Probleme)
+- H8 ✓ GREEN (ElevenLabs-Stimme im Clip, keine Ersatzstimme vom Modell)
+- W2b (Gesang) ✓ GREEN (D Nuki funktioniert)
+- W3 ✓ GREEN (C Dance mit Nuki "sehr gut") — Ausnahme: E mit realem Portrait statisch
+- W5c ✓ GREEN (acorn als Prop gehalten)
+- W5d ✓ GREEN (Dance-Szene plausibel im Raum)
+
+**Noch zu tun bevor Produktions-Commit:**
+1. **Re-Run mit SeamlessPlayer** (A + B zusammen) — liefert H4-Urteil. Einziger echter Blocker.
+2. Optional: E-Retry mit aggressiverem Motion-Prompt, um H1b final gruen/rot zu setzen. Nicht blockierend fuer Koala-Launch.
+3. **H9 fal.ai-Hosting-ToS pruefen** (Apache-2.0 auf Modell ≠ automatisch Commercial-Use auf gehosteter Inferenz bei fal).
+
+**Entscheidungsmatrix nach H4-Urteil:**
+- H4 gruen → **Wan 2.7 produktiv** fuer Koala-Welcome-Film. H1b bleibt offen, wird vertagt bis reale-Gesichter-Story tatsaechlich gebaut wird.
+- H4 rot (Frame-Jump am Cut) → Spike #2 Pika starten. Wan-Einzelclips bleiben trotzdem brauchbar fuer Non-Seamless-Pfade (Weg D — Drehbuch an Clip-Grenzen ausgerichtet).
 
 ---
 

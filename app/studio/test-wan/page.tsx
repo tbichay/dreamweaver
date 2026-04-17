@@ -13,14 +13,14 @@
  *   E — Real portrait (opt-in)            (H1b)
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ToastProvider, useToast } from "@/app/components/Toasts";
 import { blobProxy } from "@/lib/studio/blob-proxy";
 
 // ── Types ──────────────────────────────────────────────────────
 
-type Variant = "A" | "B" | "C" | "D" | "E";
+type Variant = "A" | "B" | "C" | "D" | "E" | "F";
 
 interface CharacterLite {
   id: string;
@@ -82,7 +82,7 @@ interface SpikeResponse {
   results: Partial<Record<Variant, VariantResult>>;
 }
 
-const ALL_VARIANTS: Variant[] = ["A", "B", "C", "D", "E"];
+const ALL_VARIANTS: Variant[] = ["A", "B", "C", "D", "E", "F"];
 
 // Preset info — MUST stay in sync with PRESETS in the backend route.
 const PRESET_INFO: Record<Variant, {
@@ -131,6 +131,14 @@ const PRESET_INFO: Record<Variant, {
     needsAudio: true,
     targetSec: 7,
   },
+  F: {
+    title: "Location-Orbit (stumm, 180° Kamera)",
+    requirements: "W4, W5b, W5d, H2b",
+    promptSummary:
+      "Gleiche Wald-Clearing wie A, aber Kamera orbitiert 180° um den Character. Prüft Location-Treue aus neuem Winkel, Kamera-Bewegung, Spatial Awareness.",
+    needsAudio: false,
+    targetSec: 8,
+  },
 };
 
 // ── Inner page ─────────────────────────────────────────────────
@@ -141,7 +149,7 @@ function TestWanPageInner() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [selectedKey, setSelectedKey] = useState<string>("");
   const [variants, setVariants] = useState<Record<Variant, boolean>>({
-    A: true, B: true, C: true, D: true, E: false,
+    A: true, B: true, C: true, D: true, E: false, F: true,
   });
   const [realPortraitUrl, setRealPortraitUrl] = useState<string>("");
   const [uploadingPortrait, setUploadingPortrait] = useState(false);
@@ -629,6 +637,8 @@ function TestWanPageInner() {
 
 function ResultsGrid({ result }: { result: SpikeResponse }) {
   const variants = ALL_VARIANTS.filter((v) => result.results[v]);
+  const urlA = result.results.A?.url;
+  const urlB = result.results.B?.url;
   return (
     <div>
       <div className="mb-3 flex items-baseline justify-between flex-wrap gap-2">
@@ -640,6 +650,23 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
           <span>Run #{result.testRunId}</span>
         </div>
       </div>
+
+      {/* Seamless-Check A→B — direkt in der Naht pruefen (H4) */}
+      {urlA && urlB && (
+        <div className="card p-4 mb-4 border border-[#4a7c59]/30 bg-[#4a7c59]/5">
+          <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
+            <div>
+              <div className="text-sm font-medium text-[#f5eed6]">Seamless-Check A → B</div>
+              <div className="text-[11px] text-white/50 mt-0.5">
+                H4 — A laeuft durch, bei Ende wechselt's stumm auf B. Am Schnitt auf Flash/Sprung achten.
+              </div>
+            </div>
+            <div className="text-[10px] text-[#a8d5b8]/70 font-mono">H4, H2, H2b, W5c</div>
+          </div>
+          <SeamlessPlayer urlA={urlA} urlB={urlB} />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {variants.map((v) => {
           const r = result.results[v]!;
@@ -729,6 +756,129 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ── Seamless-Player (H4-Check) ─────────────────────────────────
+//
+// Zwei <video> Tags uebereinander, beide preloaded. A laeuft zuerst,
+// bei onEnded wird per opacity auf B umgeschaltet und B gestartet —
+// kein src-swap, kein Schwarz-Flash dazwischen. Damit sieht man am
+// Schnitt genau, ob der letzte Frame von A und erste Frame von B
+// zusammenpassen (Character, Location, Prop, Licht).
+//
+// Warum nicht <video> mit src-swap? Browser rendern zwischen
+// load()/canplay ein paar ms schwarzes Frame — das verfaelscht den
+// visuellen H4-Eindruck. Stacked + opacity ist der saubere Weg.
+
+function SeamlessPlayer({ urlA, urlB }: { urlA: string; urlB: string }) {
+  const videoARef = useRef<HTMLVideoElement>(null);
+  const videoBRef = useRef<HTMLVideoElement>(null);
+  const [active, setActive] = useState<"A" | "B" | "idle">("idle");
+  const [aDur, setADur] = useState<number>(0);
+  const [bDur, setBDur] = useState<number>(0);
+  const [aReady, setAReady] = useState(false);
+  const [bReady, setBReady] = useState(false);
+
+  // Reset when URLs change (neuer Run)
+  useEffect(() => {
+    setActive("idle");
+    setAReady(false);
+    setBReady(false);
+    const a = videoARef.current;
+    const b = videoBRef.current;
+    if (a) { a.pause(); a.currentTime = 0; }
+    if (b) { b.pause(); b.currentTime = 0; }
+  }, [urlA, urlB]);
+
+  function start() {
+    const a = videoARef.current;
+    const b = videoBRef.current;
+    if (!a || !b) return;
+    // B auf frame 0 parken, A starten
+    try { b.pause(); b.currentTime = 0; } catch {}
+    try { a.currentTime = 0; } catch {}
+    setActive("A");
+    a.play().catch((err) => console.warn("[SeamlessPlayer] A play failed:", err));
+  }
+
+  function onAEnded() {
+    const b = videoBRef.current;
+    if (!b) return;
+    setActive("B");
+    b.play().catch((err) => console.warn("[SeamlessPlayer] B play failed:", err));
+  }
+
+  function onBEnded() {
+    setActive("idle");
+  }
+
+  return (
+    <div>
+      <div
+        className="relative mx-auto bg-black rounded-lg overflow-hidden"
+        style={{ aspectRatio: "9/16", maxHeight: "480px", maxWidth: "270px" }}
+      >
+        <video
+          ref={videoARef}
+          src={blobProxy(urlA)}
+          playsInline
+          preload="auto"
+          onLoadedMetadata={(e) => setADur((e.target as HTMLVideoElement).duration)}
+          onCanPlayThrough={() => setAReady(true)}
+          onEnded={onAEnded}
+          className="absolute inset-0 w-full h-full transition-opacity duration-75"
+          style={{ opacity: active === "A" ? 1 : 0 }}
+        />
+        <video
+          ref={videoBRef}
+          src={blobProxy(urlB)}
+          playsInline
+          preload="auto"
+          onLoadedMetadata={(e) => setBDur((e.target as HTMLVideoElement).duration)}
+          onCanPlayThrough={() => setBReady(true)}
+          onEnded={onBEnded}
+          className="absolute inset-0 w-full h-full transition-opacity duration-75"
+          style={{ opacity: active === "B" ? 1 : 0 }}
+        />
+        {active === "idle" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <button
+              type="button"
+              onClick={start}
+              disabled={!aReady || !bReady}
+              className="px-4 py-2 rounded-lg text-sm bg-[#4a7c59] text-[#f5eed6] hover:bg-[#3d6b4a] transition-colors disabled:opacity-40 disabled:cursor-wait"
+            >
+              {aReady && bReady ? "▶ A → B abspielen" : "Lade Videos…"}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-between mt-2 text-[10px] text-white/40">
+        <div className="flex items-center gap-3">
+          <span className={active === "A" ? "text-[#a8d5b8]" : ""}>
+            A {aDur ? `(${aDur.toFixed(1)}s)` : ""}
+          </span>
+          <span>→</span>
+          <span className={active === "B" ? "text-[#a8d5b8]" : ""}>
+            B {bDur ? `(${bDur.toFixed(1)}s)` : ""}
+          </span>
+        </div>
+        {active !== "idle" && (
+          <button
+            type="button"
+            onClick={() => {
+              videoARef.current?.pause();
+              videoBRef.current?.pause();
+              setActive("idle");
+            }}
+            className="text-white/40 hover:text-white/70"
+          >
+            ⏹ Stop
+          </button>
+        )}
       </div>
     </div>
   );
