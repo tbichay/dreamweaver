@@ -3208,9 +3208,11 @@ function SequenceCard({
   const sceneCount = sequence.sceneCount || sequence.scenes?.length || 0;
   const dialogScenes = sequence.scenes?.filter((s) => s.type === "dialog").length || Math.ceil(sceneCount * 0.6);
   const landscapeScenes = sceneCount - dialogScenes;
-  // Dialog    → Seedance 2.0 Ref-to-Video ($0.16/s × ~6s = ~$0.96)
+  // Dialog    → Seedance 2.0 Ref-to-Video (measured ~$0.102/s × ~5s = ~$0.51)
   // Landscape → Kling O3 Standard         ($0.084/s × ~5s = ~$0.42)
-  const estimatedCost = dialogScenes * 0.96 + landscapeScenes * 0.42;
+  // Real cost is very close to the old Kling+LipSync combo (~$0.50) —
+  // fal.ai appears to price Seedance similar to Kling Standard internally.
+  const estimatedCost = dialogScenes * 0.51 + landscapeScenes * 0.42;
 
   // Task tracking is now server-side (each route creates its own StudioTask)
 

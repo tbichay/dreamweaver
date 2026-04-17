@@ -732,7 +732,7 @@ async function processClipTask(
     "kling-i2v-standard": 0.028,
     "kling-avatar-standard": 0.056,
     "kling-avatar-pro": 0.115,
-    "seedance-2.0-ref": 0.16, // test run: ~$0.96 for 6s @ 720p with lip-sync
+    "seedance-2.0-ref": 0.102, // measured 2026-04-17: $0.51 for 5s clip → ~$0.102/s
   };
   const providerName = usedProvider;
   const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;
