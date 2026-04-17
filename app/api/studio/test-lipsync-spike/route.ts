@@ -37,6 +37,26 @@ interface VariantResult {
   cost?: number;
   durationMs: number;
   error?: string;
+  /** Which step within the runner failed (for diagnostics) */
+  failedStep?: string;
+  /** Truncated stack for diagnostics */
+  errorStack?: string;
+}
+
+/** Wrap each step so the caller knows which one failed. */
+async function step<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const t = Date.now();
+  try {
+    const result = await fn();
+    console.log(`[Spike] ✓ ${label} (${Date.now() - t}ms)`);
+    return result;
+  } catch (err) {
+    console.error(`[Spike] ✗ ${label} (${Date.now() - t}ms):`, err);
+    const wrapped = new Error(`[step: ${label}] ${(err as Error).message}`);
+    (wrapped as { originalStack?: string }).originalStack = (err as Error).stack;
+    (wrapped as { failedStep?: string }).failedStep = label;
+    throw wrapped;
+  }
 }
 
 async function loadBlobBuffer(url: string): Promise<Buffer | undefined> {
@@ -183,115 +203,134 @@ export async function POST(request: Request) {
     return blob.url;
   }
 
+  function errorToResult(
+    label: string,
+    provider: string,
+    start: number,
+    err: unknown,
+  ): VariantResult {
+    const e = err as Error & { failedStep?: string; originalStack?: string };
+    return {
+      label,
+      provider,
+      error: e.message,
+      failedStep: e.failedStep,
+      errorStack: (e.originalStack || e.stack || "").split("\n").slice(0, 5).join("\n"),
+      durationMs: Date.now() - start,
+    };
+  }
+
   // ── Variant A: Kling O3 + Kling LipSync (current baseline) ──
   async function runVariantA(): Promise<VariantResult> {
     const start = Date.now();
+    const label = "Kling O3 + Kling LipSync (baseline)";
+    const provider = "kling-o3+kling-lipsync";
     try {
-      const { klingO3, klingLipSync } = await import("@/lib/fal");
-      const o3Url = await klingO3({
+      const { klingO3, klingLipSync } = await step("A:import fal", () => import("@/lib/fal"));
+      const o3Url = await step("A:klingO3", () => klingO3({
         imageBuffer: portraitBuffer!,
         prompt: sharedPrompt,
         durationSeconds: Math.ceil(Math.min(15, clipDurSec)),
         characterElements: characterRefs,
         generateAudio: false,
+      }));
+      const videoBuf = await step("A:fetch o3 video", async () => {
+        const r = await fetch(o3Url);
+        return Buffer.from(await r.arrayBuffer());
       });
-      const videoRes = await fetch(o3Url);
-      const videoBuf = Buffer.from(await videoRes.arrayBuffer());
-      const syncedUrl = await klingLipSync(videoBuf, audioBuffer!);
-      const syncedRes = await fetch(syncedUrl);
-      const syncedBuf = Buffer.from(await syncedRes.arrayBuffer());
-      const finalUrl = await saveVariant("A", syncedBuf);
+      const syncedUrl = await step("A:klingLipSync", () => klingLipSync(videoBuf, audioBuffer!));
+      const syncedBuf = await step("A:fetch synced video", async () => {
+        const r = await fetch(syncedUrl);
+        return Buffer.from(await r.arrayBuffer());
+      });
+      const finalUrl = await step("A:saveVariant", () => saveVariant("A", syncedBuf));
       return {
-        label: "Kling O3 + Kling LipSync (baseline)",
-        provider: "kling-o3+kling-lipsync",
+        label,
+        provider,
         url: finalUrl,
         cost: 0.084 * clipDurSec + 0.014 * clipDurSec,
         durationMs: Date.now() - start,
       };
     } catch (err) {
-      return {
-        label: "Kling O3 + Kling LipSync (baseline)",
-        provider: "kling-o3+kling-lipsync",
-        error: (err as Error).message,
-        durationMs: Date.now() - start,
-      };
+      return errorToResult(label, provider, start, err);
     }
   }
 
   // ── Variant B: Kling O3 + Sync v3 (post-proc upgrade) ──
   async function runVariantB(): Promise<VariantResult> {
     const start = Date.now();
+    const label = "Kling O3 + Sync v3 (post-proc upgrade)";
+    const provider = "kling-o3+sync-v3";
     try {
-      const { klingO3, syncLipsyncV3 } = await import("@/lib/fal");
-      const o3Url = await klingO3({
+      const { klingO3, syncLipsyncV3 } = await step("B:import fal", () => import("@/lib/fal"));
+      const o3Url = await step("B:klingO3", () => klingO3({
         imageBuffer: portraitBuffer!,
         prompt: sharedPrompt,
         durationSeconds: Math.ceil(Math.min(15, clipDurSec)),
         characterElements: characterRefs,
         generateAudio: false,
+      }));
+      const videoBuf = await step("B:fetch o3 video", async () => {
+        const r = await fetch(o3Url);
+        return Buffer.from(await r.arrayBuffer());
       });
-      const videoRes = await fetch(o3Url);
-      const videoBuf = Buffer.from(await videoRes.arrayBuffer());
-      const syncedUrl = await syncLipsyncV3(videoBuf, audioBuffer!);
-      const syncedRes = await fetch(syncedUrl);
-      const syncedBuf = Buffer.from(await syncedRes.arrayBuffer());
-      const finalUrl = await saveVariant("B", syncedBuf);
+      const syncedUrl = await step("B:syncLipsyncV3", () => syncLipsyncV3(videoBuf, audioBuffer!));
+      const syncedBuf = await step("B:fetch synced video", async () => {
+        const r = await fetch(syncedUrl);
+        return Buffer.from(await r.arrayBuffer());
+      });
+      const finalUrl = await step("B:saveVariant", () => saveVariant("B", syncedBuf));
       return {
-        label: "Kling O3 + Sync v3 (post-proc upgrade)",
-        provider: "kling-o3+sync-v3",
+        label,
+        provider,
         url: finalUrl,
         cost: 0.084 * clipDurSec + 0.133 * clipDurSec,
         durationMs: Date.now() - start,
       };
     } catch (err) {
-      return {
-        label: "Kling O3 + Sync v3 (post-proc upgrade)",
-        provider: "kling-o3+sync-v3",
-        error: (err as Error).message,
-        durationMs: Date.now() - start,
-      };
+      return errorToResult(label, provider, start, err);
     }
   }
 
   // ── Variant C: OmniHuman 1.5 (portrait + audio talking head) ──
   async function runVariantC(): Promise<VariantResult> {
     const start = Date.now();
+    const label = "OmniHuman 1.5 (portrait + audio talking head)";
+    const provider = "bytedance-omnihuman-1.5";
     try {
-      const { omniHuman15 } = await import("@/lib/fal");
-      const url = await omniHuman15({
+      const { omniHuman15 } = await step("C:import fal", () => import("@/lib/fal"));
+      const url = await step("C:omniHuman15", () => omniHuman15({
         imageBuffer: portraitBuffer!,
         audioBuffer: audioBuffer!,
         prompt: sharedPrompt,
         resolution: "1080p",
+      }));
+      const buf = await step("C:fetch video", async () => {
+        const r = await fetch(url);
+        return Buffer.from(await r.arrayBuffer());
       });
-      const res = await fetch(url);
-      const buf = Buffer.from(await res.arrayBuffer());
-      const finalUrl = await saveVariant("C", buf);
+      const finalUrl = await step("C:saveVariant", () => saveVariant("C", buf));
       return {
-        label: "OmniHuman 1.5 (portrait + audio talking head)",
-        provider: "bytedance-omnihuman-1.5",
+        label,
+        provider,
         url: finalUrl,
         cost: 0.16 * clipDurSec,
         durationMs: Date.now() - start,
       };
     } catch (err) {
-      return {
-        label: "OmniHuman 1.5 (portrait + audio talking head)",
-        provider: "bytedance-omnihuman-1.5",
-        error: (err as Error).message,
-        durationMs: Date.now() - start,
-      };
+      return errorToResult(label, provider, start, err);
     }
   }
 
   // ── Variant D: Seedance 2.0 Reference-to-Video (multimodal) ──
   async function runVariantD(): Promise<VariantResult> {
     const start = Date.now();
+    const label = "Seedance 2.0 Ref-to-Video (multimodal all-in-one)";
+    const provider = "bytedance-seedance-2.0-ref";
     try {
-      const { seedance2RefToVideo } = await import("@/lib/fal");
+      const { seedance2RefToVideo } = await step("D:import fal", () => import("@/lib/fal"));
       const imageBuffers: Buffer[] = [...characterRefs];
       if (landscapeBuffer) imageBuffers.push(landscapeBuffer);
-      // Seedance refs addressed as @Image1/@Audio1 — add guidance to prompt
       const seedancePrompt = [
         `Character @Image1 (${characterName})`,
         characterRefs.length > 1 ? `reference @Image2 / @Image3 for consistency` : null,
@@ -300,7 +339,7 @@ export async function POST(request: Request) {
         sharedPrompt,
       ].filter(Boolean).join(" ");
 
-      const url = await seedance2RefToVideo({
+      const url = await step("D:seedance2RefToVideo", () => seedance2RefToVideo({
         prompt: seedancePrompt,
         imageBuffers,
         audioBuffers: [audioBuffer!],
@@ -308,24 +347,21 @@ export async function POST(request: Request) {
         duration: Math.min(15, Math.max(4, clipDurSec)),
         aspectRatio: "16:9",
         generateAudio: true,
+      }));
+      const buf = await step("D:fetch video", async () => {
+        const r = await fetch(url);
+        return Buffer.from(await r.arrayBuffer());
       });
-      const res = await fetch(url);
-      const buf = Buffer.from(await res.arrayBuffer());
-      const finalUrl = await saveVariant("D", buf);
+      const finalUrl = await step("D:saveVariant", () => saveVariant("D", buf));
       return {
-        label: "Seedance 2.0 Ref-to-Video (multimodal all-in-one)",
-        provider: "bytedance-seedance-2.0-ref",
+        label,
+        provider,
         url: finalUrl,
         cost: 0,
         durationMs: Date.now() - start,
       };
     } catch (err) {
-      return {
-        label: "Seedance 2.0 Ref-to-Video (multimodal all-in-one)",
-        provider: "bytedance-seedance-2.0-ref",
-        error: (err as Error).message,
-        durationMs: Date.now() - start,
-      };
+      return errorToResult(label, provider, start, err);
     }
   }
 

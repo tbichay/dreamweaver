@@ -75,6 +75,16 @@ interface VariantResult {
   cost?: number;
   durationMs: number;
   error?: string;
+  failedStep?: string;
+  errorStack?: string;
+}
+
+interface HealthCheck {
+  name: string;
+  ok: boolean;
+  ms: number;
+  error?: string;
+  detail?: string;
 }
 
 interface SpikeResponse {
@@ -124,6 +134,8 @@ function TestLipSyncPageInner() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [result, setResult] = useState<SpikeResponse | null>(null);
+  const [health, setHealth] = useState<{ ok: boolean; checks: HealthCheck[] } | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
 
   // Load projects + restore last result on mount
   useEffect(() => {
@@ -140,19 +152,39 @@ function TestLipSyncPageInner() {
         setLoadingProjects(false);
       }
     })();
-    // Restore last result so refresh doesn't lose clips we already paid for
     try {
       const cached = localStorage.getItem("lipsync-last-result");
       if (cached) setResult(JSON.parse(cached));
     } catch {}
-  }, [toast]);
+    // Intentionally no deps — we only restore once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Persist result whenever it changes
+  // Persist result only when it contains at least one successful clip —
+  // otherwise a failed run would overwrite the clips we already paid for.
   useEffect(() => {
-    if (result) {
+    if (!result) return;
+    const hasSuccess = Object.values(result.results).some((r) => r?.url);
+    if (hasSuccess) {
       try { localStorage.setItem("lipsync-last-result", JSON.stringify(result)); } catch {}
     }
   }, [result]);
+
+  async function runHealthCheck() {
+    setCheckingHealth(true);
+    const tid = toast.loading("Pruefe FAL_KEY und Blob-Token…");
+    try {
+      const res = await fetch("/api/studio/test-lipsync-spike/health");
+      const data = await res.json() as { ok: boolean; checks: HealthCheck[] };
+      setHealth(data);
+      if (data.ok) toast.success("Alles OK — Test kann laufen", tid);
+      else toast.error(`${data.checks.filter((c) => !c.ok).length} Check(s) fehlgeschlagen`, tid);
+    } catch (err) {
+      toast.error(`Health-Check fehlgeschlagen: ${(err as Error).message}`, tid);
+    } finally {
+      setCheckingHealth(false);
+    }
+  }
 
   // Running timer
   useEffect(() => {
@@ -345,8 +377,8 @@ function TestLipSyncPageInner() {
               </div>
             </div>
 
-            {/* Run button */}
-            <div className="flex items-center gap-4 pt-2">
+            {/* Run + Health buttons */}
+            <div className="flex items-center gap-3 pt-2 flex-wrap">
               <button
                 type="button"
                 onClick={runTest}
@@ -359,12 +391,42 @@ function TestLipSyncPageInner() {
               >
                 {running ? `Laeuft seit ${elapsedSec}s…` : "Test starten"}
               </button>
+              <button
+                type="button"
+                onClick={runHealthCheck}
+                disabled={checkingHealth || running}
+                className="px-4 py-2.5 rounded-lg text-xs tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-[#2A2A2A] text-white/70 hover:text-[#f5eed6] hover:border-[#4a7c59]/50"
+              >
+                {checkingHealth ? "Pruefe…" : "Health-Check (FAL + Blob)"}
+              </button>
               {running && (
                 <span className="text-xs text-white/50">
                   Parallel-Run, kann 5-10 Min dauern — Seite offen lassen.
                 </span>
               )}
             </div>
+
+            {/* Health check output */}
+            {health && (
+              <div className={`rounded-lg p-3 text-xs border ${health.ok ? "border-[#3d6b4a]/40 bg-[#1a2e1a]/40" : "border-red-500/30 bg-[#2e1a1a]/40"}`}>
+                <div className={`font-medium mb-2 ${health.ok ? "text-[#a8d5b8]" : "text-red-300"}`}>
+                  {health.ok ? "✓ Alle Checks OK" : "✗ Mindestens ein Check hat Forbidden/Error"}
+                </div>
+                <div className="space-y-1">
+                  {health.checks.map((c, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className={c.ok ? "text-[#a8d5b8]" : "text-red-300"}>{c.ok ? "✓" : "✗"}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[#f5eed6]">{c.name}</span>
+                        <span className="text-white/40 ml-2">({c.ms}ms)</span>
+                        {c.error && <div className="text-red-300/80 mt-0.5 break-all">{c.error}</div>}
+                        {c.detail && <div className="text-white/30 mt-0.5 break-all text-[10px]">{c.detail}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -411,12 +473,20 @@ function ResultsGrid({ result }: { result: SpikeResponse }) {
               {r.error ? (
                 <div className="rounded-lg bg-[#3a1a1a] border border-[#5a2a2a] p-3 text-xs text-[#ff9a9a]">
                   <div className="font-medium mb-1">Fehler</div>
+                  {r.failedStep && (
+                    <div className="text-[10px] text-white/50 mb-1">
+                      <span className="text-white/30">Schritt:</span> {r.failedStep}
+                    </div>
+                  )}
                   <div className="text-white/80 mb-2">{parseFalError(r.error)}</div>
                   <details>
                     <summary className="cursor-pointer text-white/40 hover:text-white/60 text-[10px]">
-                      Raw
+                      Raw + Stack
                     </summary>
                     <div className="mt-1 text-white/40 break-all text-[10px]">{r.error}</div>
+                    {r.errorStack && (
+                      <pre className="mt-1 text-white/30 text-[10px] whitespace-pre-wrap">{r.errorStack}</pre>
+                    )}
                   </details>
                 </div>
               ) : r.url ? (
