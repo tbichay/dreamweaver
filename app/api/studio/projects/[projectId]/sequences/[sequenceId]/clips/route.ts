@@ -17,7 +17,11 @@ interface ClipRequest {
   stylePrompt?: string;
   mode?: "film" | "hoerspiel" | "audiobook";
   force?: boolean;
-  provider?: "kling" | "runway";
+  /**
+   * Optional per-task override. Wenn nicht gesetzt, entscheidet der Cron
+   * ueber den Provider (CLIP_PROVIDER_DEFAULT, Default: "wan-2.7").
+   */
+  provider?: "wan-2.7" | "seedance" | "kling" | "runway";
   directorNote?: string;
   cameraOverride?: string;
   durationOverride?: number;
@@ -62,7 +66,9 @@ export async function POST(
     quality: body.quality || "standard",
     stylePrompt: body.stylePrompt,
     mode: body.mode,
-    provider: body.provider || "kling",
+    // Wenn body.provider undefined, bleibt das Feld im Task-Input undefined —
+    // der Cron faellt dann auf CLIP_PROVIDER_DEFAULT zurueck (Wan 2.7).
+    provider: body.provider,
     directorNote: body.directorNote || undefined,
     cameraOverride: body.cameraOverride || undefined,
     durationOverride: body.durationOverride || undefined,

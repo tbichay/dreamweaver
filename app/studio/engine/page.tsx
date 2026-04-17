@@ -3188,10 +3188,11 @@ function SequenceCard({
   // clips use Kling O3 Standard regardless of this flag. Kept as a constant
   // because the POST body + task tracker still read it (priority hint only).
   const clipQuality: "standard" | "premium" = "standard";
-  // videoProvider is vestigial — the cron hardcodes Seedance for dialog
-  // and Kling O3 for landscape scenes regardless of what we send here.
-  // Kept in the POST body for forward-compatibility but has no effect.
-  const videoProvider: "kling" | "runway" = "kling";
+  // 2026-04-18: videoProvider wird NICHT mehr im POST-Body gesetzt.
+  // Vorher war es hardcoded auf "kling" und hat die serverseitige
+  // CLIP_PROVIDER_DEFAULT-Logik (Wan 2.7) ueberschrieben. Jetzt entscheidet
+  // der Cron ueber den Provider — manueller Override waere via neuem
+  // UI-Toggle einzubauen falls benoetigt.
   // Use project style as default — no need to ask again
   const defaultStyleId = projectStyle ? (VISUAL_STYLES.find((s) => s.prompt === projectStyle)?.id || "custom") : "disney-2d";
   const [visualStyle, setVisualStyle] = useState(defaultStyleId);
@@ -3343,7 +3344,7 @@ function SequenceCard({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true,
+            sceneIndex, quality: clipQuality, stylePrompt: resolvedStyle, force: true,
             directorNote: opts?.directorNote,
             cameraOverride: opts?.cameraOverride,
             durationOverride: opts?.durationOverride,
@@ -3373,7 +3374,7 @@ function SequenceCard({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle, provider: videoProvider, force: true }),
+            body: JSON.stringify({ sceneIndex: i, quality: clipQuality, stylePrompt: resolvedStyle, force: true }),
           },
         );
         const data = await res.json();
@@ -3866,8 +3867,21 @@ function SceneClipCard({ scene, sceneIndex, sequenceId, projectId, isGenerating,
                       muted
                       className="w-full h-16 object-cover bg-black/30"
                     />
-                    <span className={`absolute top-1 left-1 text-[8px] font-medium px-1 py-0.5 rounded bg-black/50 ${v.provider.includes("runway") ? "text-purple-300" : "text-[#d4a853]"}`}>
-                      {v.provider.includes("runway") ? "Runway" : v.provider.includes("o3") ? "O3" : v.provider.includes("pro") ? "Pro" : "Kling"}
+                    <span className={`absolute top-1 left-1 text-[8px] font-medium px-1 py-0.5 rounded bg-black/50 ${
+                      v.provider.includes("runway") ? "text-purple-300"
+                      : v.provider.includes("wan") ? "text-[#a8d5b8]"
+                      : v.provider.includes("seedance") ? "text-[#e8b4a8]"
+                      : "text-[#d4a853]"
+                    }`}>
+                      {v.provider.includes("runway") ? "Runway"
+                        : v.provider.includes("wan-fallback-seedance") ? "Wan→Sd"
+                        : v.provider.includes("wan-fallback-kling-o3") ? "Wan→O3"
+                        : v.provider.includes("wan-fallback") ? "Wan→Kl"
+                        : v.provider.includes("wan") ? "Wan"
+                        : v.provider.includes("seedance") ? "Seedance"
+                        : v.provider.includes("o3") ? "O3"
+                        : v.provider.includes("pro") ? "Pro"
+                        : "Kling"}
                     </span>
                     <span className="absolute top-1 right-1 text-[8px] font-medium px-1 py-0.5 rounded bg-black/50 text-white/70">
                       ${v.cost.toFixed(2)}
