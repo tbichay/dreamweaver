@@ -369,6 +369,63 @@ Ersetzt Seedance als Default fuer alle neuen Clip-Generierungen. Seedance-Integr
 
 **Naechster Schritt:** Integration in `process-studio-tasks/route.ts` — Wan 2.7 als Clip-Provider verdrahten, alte Seedance/Kling-Pfade als Fallback lassen. Eigener Plan, nicht Teil dieses Spikes.
 
+### 2026-04-18 — Pika 2.2 (fal.ai) — REJECTED vor Spike (Doku-Check Schritt 1)
+
+**Anlass:** Nach Wan-Integration stellte sich das Architektur-Problem Multi-Ref + Audio im selben Call. Pika war unser dokumentierter **#2 Spike-Kandidat** fuer genau diesen Fall (Pikaframes, Pikascenes, Pikaformance). Research vor Spike durchgefuehrt.
+
+**Kernbefund:** **Kein einziger Pika-Endpoint auf fal.ai akzeptiert `audio_url`.**
+
+| Endpoint | Multi-Ref | Audio | Seamless | Preis |
+|---|---|---|---|---|
+| `fal-ai/pika/v2.2/image-to-video` | 1 | ✗ | ✗ | $0.20/5s (720p) |
+| `fal-ai/pika/v2.2/pikascenes` | **Ja** (2–5 images, **kein Role-Tagging**) | ✗ | ✗ | $0.20/5s |
+| `fal-ai/pika/v2.2/pikaframes` | Keyframes | ✗ | **Ja** (2–5 Keyframes, bis 25s) | $0.04/s |
+| Pikaformance (audio-driven Lip-Sync, ElevenLabs-powered) | 1 | **Ja** | ✗ | **NICHT via API** — nur pika.art Web/App |
+
+- **H8 ROT** via API: Pikaformance (das Audio-Input-Modell) ist **nicht** auf fal.ai exponiert. Mehrere 2026-Reviews bestaetigen explizit: "Pikaffects, lip-sync and sound effects aren't exposed in the API yet."
+- **Pikascenes Multi-Ref:** Ohne Role-Tagging (character/location/prop) — schwaecher als Wan 2.7 Ref-to-Video.
+- **Pikaframes Seamless:** Bis zu 5 Keyframes, 25s — strukturell interessant, aber ohne Audio unbrauchbar fuer Dialog.
+
+**Strukturelle Gleichheit zu Wan 2.7:** Beide trennen Multi-Ref und Audio auf separate Endpoints. Pika ist sogar strenger: Audio existiert nicht in der API, also nicht mal ein zweistufiger Workflow (RefToVideo + Post-LipSync) moeglich.
+
+**Preise:** Pika 720p guenstiger ($0.04/s vs Wan $0.10/s), aber nutzt nichts solange Audio-Pipeline fehlt.
+
+**Entscheidung:** Rejected als single-step UND als two-step. Kein Spike. Bei Release von Pikaformance-API Re-Evaluation.
+
+**Quellen:**
+- https://fal.ai/models/fal-ai/pika/v2.2/image-to-video/api
+- https://fal.ai/models/fal-ai/pika/v2.2/pikascenes/api
+- https://fal.ai/models/fal-ai/pika/v2.2/pikaframes
+- https://blog.fal.ai/pika-api-is-now-powered-by-fal/
+- https://venturebeat.com/ai/ai-video-wars-heat-up-as-pika-adds-lip-sync-powered-by-elevenlabs
+
+### 2026-04-18 — Wan 2.7 Produktions-Fixes (Post-Spike-Iteration)
+
+Nach den ersten Produktions-Runs wurden drei Issues identifiziert und gefixt — alles bleibt im Wan 2.7 Universum, keine Provider-Wechsel.
+
+**Issue 1: Character-Drift ueber seamless-Chain**
+- Symptom: Landscape-Szene 2 zeigte leicht abweichenden Character, Dialog-Szene 3 erbte den Drift (seamless vom prevFrame) → schlechter Character.
+- Ursache: Wan I2V ist single-image-Model. Der prevFrame wird als einzige Identity-Referenz gelesen, kein Character-Sheet. Drift akkumuliert.
+- Fix: Dialog-Szenen ankern IMMER auf dem Portrait, nie auf prevFrame (`dialogForcesPortrait`). "Continuing seamlessly"-Prompt-Prefix wird bei Dialog unterdrueckt.
+- User-Feedback: "super Character und super Lip-Sync fuer den letzten Dialog".
+
+**Issue 2: Landscape+Character-Szenen driften bei reinem I2V**
+- Symptom: Silent Landscape-Szenen mit Character (z.B. Koda auf Ast) zeigten abweichenden Character.
+- Ursache: Wan I2V ohne Character-Sheet; prevFrame als einzige Identity-Quelle driftet ueber mehrere Szenen.
+- Fix: Silent-Szenen mit Character gehen jetzt durch `wan27RefToVideo` (bis 9 Refs) — prevFrame als Composition-Ref + Character-Sheet (front/profile/fullBody) als Identity-Lock + Location-Foto als Fallback. Duration-Cap 10s (RefToVideo-Limit) statt 15s. Tradeoff: kein echter Pixel-seamless-Startframe.
+- Provider-String: `wan-2.7-ref+character` oder `wan-2.7-ref+character+prev`.
+
+**Issue 3: Dialog zeigt Portrait-Hintergrund statt Location**
+- Symptom: Dialog-Clip zeigt Character im Studio-/Portrait-Hintergrund statt im Wald.
+- Ursache: Portrait-Anchor wird von Wan I2V als Ganzes uebernommen — inkl. Hintergrund. Wan bietet keinen Multi-Ref-Slot fuer Audio-Inputs.
+- Fix: Flux Kontext Pro Pre-Step rebaked das Portrait mit Location-Hintergrund ("close-up of [character] in [location]"). Identity bleibt gelockt (Flux Kontext ist dafuer gebaut), Hintergrund passt. Wan I2V laeuft dann auf dem rebaked Frame mit audio_url → nativer Lip-Sync bleibt erhalten.
+- Kosten: +$0.04 one-time pro Dialog-Clip.
+- Feature-Flag: `DIALOG_LOCATION_CONTEXT=false` deaktiviert den Pre-Step (Fallback auf reinen Portrait-Anchor), falls Flux driftet.
+- Provider-String: `wan-2.7-i2v+audio+flux-context`.
+
+**Architektur-Constraint (dauerhaft wichtig):**
+fal.ai Wan 2.7 trennt Audio und Multi-Ref strikt auf zwei Endpoints (`image-to-video` = 1 Bild + Audio; `reference-to-video` = 9 Bilder, kein Audio). Dialog mit Character + Location + Audio kann nur durch einen **Pre- oder Post-Pass** geloest werden, nicht in einem Call. Das ist nicht unser Code-Problem, sondern API-Design — bei Wan und (laut April-2026-Recherche) auch bei Pika so. Naechste Re-Evaluation sobald ein Provider native Audio+Multi-Ref anbietet (Veo 4? Sora 3?).
+
 ---
 
 ## Meta-Regel

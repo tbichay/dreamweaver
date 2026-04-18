@@ -33,6 +33,18 @@ const CLIP_PROVIDER_DEFAULT = (process.env.CLIP_PROVIDER_DEFAULT || "wan-2.7") a
 // Wan stabil laeuft und Fallbacks als Safety-Net gewuenscht sind.
 const CLIP_PROVIDER_STRICT = (process.env.CLIP_PROVIDER_STRICT || "true") === "true";
 
+// Dialog-Location-Context (Flux Kontext Pro Pre-Step):
+// Vor dem Wan-I2V-Dialog einen Flux-Kontext-Call der das Portrait in den
+// Szenen-Hintergrund "rebaked" (Close-Up des Characters in Location statt
+// Studio-Hintergrund vom Portrait). Der Character bleibt identisch (Flux
+// Kontext Pro ist fuer Identity-Preservation gebaut), nur der Hintergrund
+// passt zur Szene. Kostet +$0.04 pro Dialog-Clip (one-time, nicht per-Sek).
+//
+// Default: true (aktiviert). Wenn Flux den Character zu stark drifted oder
+// den Stil kippt (z.B. 3D-Cartoon → fotorealistisch), per Env auf "false"
+// setzen — dann faellt der Code zurueck auf reinen Portrait-Anchor.
+const DIALOG_LOCATION_CONTEXT = (process.env.DIALOG_LOCATION_CONTEXT || "true") === "true";
+
 // Verify cron secret or allow direct invocation in dev
 function verifyCron(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
@@ -502,6 +514,65 @@ async function processClipTask(
   const dialogForcesPortrait = isDialog && !!portraitBuffer;
   const effectiveTransition = dialogForcesPortrait ? undefined : scene.clipTransition;
 
+  // ── Dialog-Location-Context Pre-Step (Flux Kontext Pro) ──────────
+  // Problem (2026-04-18 entdeckt): Wan I2V ist single-image-model. Wenn
+  // wir das Portrait als Anchor nehmen, uebernimmt Wan auch den Portrait-
+  // Hintergrund (Studio/weiss) — passt nicht zur Location (Wald, etc.).
+  //
+  // Fix: Flux Kontext Pro rebaked das Portrait mit Location-Hintergrund.
+  // Flux Kontext ist fuer Identity-Preservation gebaut — derselbe Character
+  // in neuem Kontext. Ergebnis: Close-Up in Location. Dann Wan I2V wie
+  // gewohnt mit nativer Lip-Sync.
+  //
+  // Kosten: +$0.04 one-time pro Dialog-Clip. Per Env DIALOG_LOCATION_CONTEXT
+  // =false deaktivierbar (Fallback auf reinen Portrait-Anchor).
+  //
+  // Wan-Ref-to-Video + Audio waere der idealere Weg, aber fal.ai hat audio_url
+  // nur am I2V-Endpoint. Siehe docs/clip-provider-requirements.md Pika-Section.
+  let dialogContextFrame: Buffer | undefined;
+  let dialogContextExtraCost = 0;
+  const locationStr = (scene.location as string | undefined) || (sequence.location as string | undefined);
+  if (
+    dialogForcesPortrait
+    && DIALOG_LOCATION_CONTEXT
+    && clipProvider === "wan-2.7"
+    && (locationStr || landscapeBuffer)
+  ) {
+    const moodStr = (scene.mood as string | undefined) || (sequence.atmosphereText as string | undefined);
+    const charName = character?.name || "the character";
+    const fluxPrompt =
+      `Close-up portrait of ${charName} in ${locationStr || "a natural setting matching the scene"}` +
+      (moodStr ? `, ${moodStr}` : "") +
+      `. Looking directly at the camera, lips and mouth clearly visible, face fully front-facing. ` +
+      `Keep the exact same character identity as the reference: same face, same eyes, same fur, same outfit, same style. ` +
+      `Cinematic close-up framing from shoulders up, shallow depth of field, ` +
+      `location visible but softly out of focus behind the character.`;
+    await updateProgress(`Clip Szene ${sceneIndex + 1}: Dialog-Location-Context (Flux)...`, 30);
+    try {
+      const { fluxKontext, downloadVideo } = await import("@/lib/fal");
+      const res = await fluxKontext({
+        imageBuffer: portraitBuffer!,
+        prompt: fluxPrompt,
+        aspectRatio: "9:16",
+      });
+      const buf = await downloadVideo(res.url); // generic fetch → works for images too
+      if (buf && buf.byteLength > 0) {
+        dialogContextFrame = buf;
+        dialogContextExtraCost = 0.04;
+        console.log(
+          `[Clip] Scene ${sceneIndex}: Dialog-Context frame ready ` +
+          `(${buf.byteLength}B via Flux Kontext, +$0.04). Location="${locationStr || "n/a"}"`,
+        );
+      }
+    } catch (fluxErr) {
+      console.warn(
+        `[Clip] Scene ${sceneIndex}: Flux Kontext pre-step failed, falling back to raw portrait:`,
+        fluxErr instanceof Error ? fluxErr.message : fluxErr,
+      );
+      // dialogContextFrame stays undefined → imageSource uses portraitBuffer
+    }
+  }
+
   // Build prompts for BOTH paths — same input, different output syntax.
   // Wan-Path uses buildWanPrompt (no @Image/@Audio refs, Variant-G-aware
   // landscape anchor). O3/Seedance-Path still uses buildO3Prompt.
@@ -575,7 +646,9 @@ async function processClipTask(
   // Nur Dialog-Szenen brechen die Pixel-Kette zugunsten der Identity.
   let imageSource: Buffer | undefined;
   if (dialogForcesPortrait) {
-    imageSource = portraitBuffer; // Dialog: portrait über alles andere
+    // Dialog: Flux-Kontext-Frame bevorzugt (location-passender Hintergrund),
+    // sonst raw Portrait (Fallback wenn Flux fehlgeschlagen oder Flag off).
+    imageSource = dialogContextFrame || portraitBuffer;
   } else if (prevFrame) {
     imageSource = prevFrame; // Non-dialog seamless/match-cut
   } else if (!isDialog && landscapeBuffer) {
@@ -586,7 +659,7 @@ async function processClipTask(
   if (dialogForcesPortrait && prevFrame) {
     console.log(
       `[Clip] Scene ${sceneIndex}: Dialog — overriding prevFrame with ` +
-      `portrait anchor for character identity + lip-sync quality`,
+      `${dialogContextFrame ? "Flux-context frame" : "portrait anchor"} for character identity + lip-sync quality`,
     );
   }
 
@@ -677,7 +750,8 @@ async function processClipTask(
         enablePromptExpansion: false,
       });
       videoUrl = r.url;
-      usedProvider = prevFrame ? "wan-2.7-i2v+seamless" : "wan-2.7-i2v+audio";
+      const baseProvider = prevFrame ? "wan-2.7-i2v+seamless" : "wan-2.7-i2v+audio";
+      usedProvider = dialogContextFrame ? `${baseProvider}+flux-context` : baseProvider;
       usedDurSec = wanDurSec;
     } catch (wanErr) {
       // Wan-Fehler → in STRICT-Mode hart werfen, sonst chirurgischer
@@ -1123,6 +1197,11 @@ async function processClipTask(
     // Ref-to-Video: silent scenes MIT Character-Sheet (Identity-Lock)
     "wan-2.7-ref+character": 0.10,
     "wan-2.7-ref+character+prev": 0.10,
+    // Dialog + Flux-Kontext-Pre-Step (location-passender Hintergrund)
+    // Per-Sekunde weiterhin $0.10/s Wan — die $0.04 Flux-Einmalkosten
+    // werden ueber dialogContextExtraCost additiv auf estimatedCost draufaddiert.
+    "wan-2.7-i2v+audio+flux-context": 0.10,
+    "wan-2.7-i2v+seamless+flux-context": 0.10,
     // Fallback-Pfade — identischer Preis wie der fallbackete Provider,
     // Key-Unterscheidung nur fuer DB-Query-Debugging
     "wan-fallback-seedance": 0.102,
@@ -1133,7 +1212,10 @@ async function processClipTask(
   const providerName = usedProvider;
   const clipDurSec = hasAudio ? (scene.audioEndMs - scene.audioStartMs) / 1000 : scene.durationHint || 5;
   const actualDurationMs = Math.round(clipDurSec * 1000);
-  const estimatedCost = usedDurSec * (COST_PER_SEC[usedProvider] || 0.084);
+  // Per-Sekunde-Kosten vom Hauptprovider + einmalige Extras (z.B. Flux
+  // Kontext Pro Pre-Step bei Dialog, $0.04 one-time wenn dialogContextFrame
+  // verwendet wurde). Extras sind nicht mehrdimensional — einfach additiv.
+  const estimatedCost = usedDurSec * (COST_PER_SEC[usedProvider] || 0.084) + dialogContextExtraCost;
 
   // Save as Asset
   try {
