@@ -96,15 +96,28 @@ export async function POST(request: Request) {
     } catch { /* reference is optional */ }
   }
 
-  // Build consistency-focused prompt when reference image exists
-  // NOTE: Expression/emotion from traits OVERRIDES the reference — user may want a friendlier look
+  // Build consistency-focused prompt when reference image exists.
+  //
+  // WICHTIG (2026-04-19): "SAME art style as reference" ist RAUS. Problem war
+  // dass off-style Referenz-Portraits (z.B. photoreal statt Disney-2D) den
+  // Style fuer alle Folge-Angles festgenagelt haben. Jetzt: wir uebernehmen
+  // nur die IDENTITY (Spezies, Farben, Kleidung, Markierungen) — der Art-
+  // Style wird jedes Mal frisch aus `styleHint` erzwungen. So koennen wir
+  // einen falsch-gestyleten Char-Sheet-Durchlauf korrigieren ohne alle Refs
+  // neu zu generieren.
   const consistencyPrompt = imageInputs.length > 0
-    ? `This is the SAME character as in the reference image. Maintain visual consistency:
-- SAME species, SAME body proportions, SAME coloring/markings
-- SAME clothing and accessories
-- SAME art style and rendering quality
-BUT: The EXPRESSION and MOOD should match the description below, NOT the reference image.
-If the description says "friendly, laughing, warm" — make the character look FRIENDLY even if the reference looks angry.
+    ? `IDENTITY REFERENCE: The character in the attached reference image.
+Keep IDENTICAL from the reference:
+- SAME species, SAME body proportions, SAME coloring and markings
+- SAME clothing, accessories, and distinctive features
+- SAME character identity
+
+DO NOT copy from the reference:
+- Art style or rendering technique (use the art style from the prompt below instead)
+- Expression or mood (use the description below)
+- Pose or framing (use the angle from the prompt below)
+
+Render the SAME character fresh in the art style specified in the prompt:
 
 ${prompt}`
     : prompt;

@@ -15,8 +15,8 @@ export const VISUAL_STYLES: VisualStyle[] = [
   {
     id: "disney-2d",
     label: "2D Disney",
-    prompt: "2D Disney animation style, hand-drawn feel, vibrant watercolor backgrounds, expressive characters, warm soft lighting, classic fairy tale aesthetic.",
-    styleHint: "2D Disney animation style, vibrant colors, hand-drawn feel",
+    prompt: "Traditional 2D hand-drawn cel animation in the style of 1990s Walt Disney Animation Studios Renaissance — The Lion King, Aladdin, Beauty and the Beast, The Jungle Book. Bold clean black ink outlines, flat saturated color fills with soft cel shading (2-3 tone shadows, no gradients), expressive Disney-style large eyes with round highlights, painted watercolor backgrounds with visible brushwork, warm golden hour palette. CRITICAL: NOT photorealistic, NOT 3D CGI, NOT Pixar-style, NOT anime, NOT pencil sketch, NOT realistic fur textures. Flat cel-shaded traditional animation ONLY.",
+    styleHint: "Traditional 2D hand-drawn Disney cel animation, 1990s Disney Renaissance era (Lion King, Aladdin, Jungle Book look). Bold clean black ink outlines, flat saturated cel-shaded colors with 2-tone shadows (no gradients), large expressive Disney eyes, painted watercolor backgrounds. Explicitly NOT photorealistic, NOT 3D CGI, NOT Pixar, NOT realistic fur — flat hand-drawn cel animation ONLY.",
   },
   {
     id: "pixar-3d",

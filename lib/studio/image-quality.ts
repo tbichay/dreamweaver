@@ -84,6 +84,15 @@ const CATEGORY_GUIDELINES: Record<ImageCategory, string> = {
 /**
  * Enhance a user's image generation prompt using Claude Haiku.
  * Makes it more detailed, technically correct, and visually precise.
+ *
+ * Style-Handling (2026-04-19): Der Style wird als HARTER Sandwich um das
+ * enhanced-Ergebnis gelegt — "ART STYLE (MANDATORY)"-Prefix UND
+ * "Final render must strictly match"-Suffix. Grund: Claude's
+ * Enhancement-Pass erwaehnt den Stil oft nur beilaeufig oder streicht ihn
+ * ganz, was bei GPT-Image dazu fuehrt dass es in seine Default-Tendenz
+ * abkippt (photoreal / Pixar-3D statt "2D Disney"). Der Sandwich erzwingt
+ * Style-Dominanz am Prompt-Anfang und -Ende — beide Positionen die
+ * GPT-Image stark gewichtet.
  */
 export async function enhanceImagePrompt(
   userPrompt: string,
@@ -121,32 +130,41 @@ Rules:
 - Keep the user's core intent — don't change WHAT they want, improve HOW it's described
 - Add missing details: orientation, materials, lighting, composition
 - Fix anatomical/physical impossibilities
+- The Visual style above is MANDATORY — describe the character/scene AS IF drawn in that exact style
+- Do NOT add contradicting style descriptors (no "photorealistic" if style is 2D, no "3D CGI" if style is hand-drawn, etc.)
 - Add "No text, no watermarks, no logos" at the end
 - Reasoning and warnings in German`,
     }],
   });
 
+  let enhancedText = userPrompt;
+  let reasoning = "Prompt konnte nicht verbessert werden";
+  let warnings: string[] = [];
+
   try {
     const text = response.content[0].type === "text" ? response.content[0].text : "";
-    // Extract JSON from response (might have markdown code fences)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        original: userPrompt,
-        prompt: parsed.prompt || userPrompt,
-        reasoning: parsed.reasoning || "",
-        warnings: parsed.warnings || [],
-      };
+      enhancedText = parsed.prompt || userPrompt;
+      reasoning = parsed.reasoning || "";
+      warnings = parsed.warnings || [];
     }
-  } catch { /* fallback below */ }
+  } catch { /* fallback: use original */ }
 
-  // Fallback: return original prompt
+  // STYLE SANDWICH: wrap enhanced prompt with style at start AND end so
+  // GPT-Image can't drift. See Style-Handling-Kommentar im Funktions-Header.
+  let finalPrompt = enhancedText;
+  if (style) {
+    const trimmedStyle = style.trim();
+    finalPrompt = `ART STYLE (MANDATORY): ${trimmedStyle}\n\n${enhancedText}\n\nFinal render must strictly match this art style: ${trimmedStyle}`;
+  }
+
   return {
     original: userPrompt,
-    prompt: userPrompt,
-    reasoning: "Prompt konnte nicht verbessert werden",
-    warnings: [],
+    prompt: finalPrompt,
+    reasoning,
+    warnings,
   };
 }
 
