@@ -149,7 +149,14 @@ export function buildO3Prompt(options: {
 
 /** Negativ-Prompts pro Scene-Type — blockt die haeufigsten Wan-Regressions. */
 export const WAN_NEGATIVE_PROMPTS: Record<string, string> = {
-  dialog: "text, subtitles, captions, watermark, extra fingers, deformed hands, static frozen pose, speech bubble, mumbling",
+  // Dialog: aggressiv gegen schlechten Lip-Sync. Nach Prod-Test 2026-04-18
+  // um "closed mouth", "lips not moving", "out-of-sync lips", "frozen face"
+  // erweitert — die haeufigsten Regressions bei Koala-/Cartoon-Dialogen.
+  dialog:
+    "text, subtitles, captions, watermark, extra fingers, deformed hands, " +
+    "static frozen pose, speech bubble, mumbling, closed mouth, lips not moving, " +
+    "frozen face, stiff expression, out-of-sync lips, mouth asymmetry, " +
+    "blurry mouth, deformed mouth, missing teeth",
   landscape: "text, subtitles, captions, watermark, characters, people, humans, animals, birds, creatures, static frozen frame, unnatural motion, camera shake",
   transition: "text, subtitles, captions, watermark, hard cut, scene change, new location, character swap, jump cut, teleport",
   intro: "text, subtitles, captions, watermark, extra limbs, deformed hands, static frozen pose",
@@ -226,13 +233,11 @@ export function buildWanPrompt(options: {
     if (options.characterDescription) charLine += ` (${options.characterDescription})`;
     if (options.outfit) charLine += `, wearing ${options.outfit}`;
     if (options.traits) charLine += `, ${options.traits}`;
-    // Dialog scenes: Wan sees audio_url directly; prompt tells it HOW to speak.
+    // Dialog scenes: kurzer "speaking"-Cue auf der Character-Zeile. Der
+    // detaillierte Mouth-Sync-Block kommt als Dialog-Tail ganz ans Ende
+    // (siehe Schritt 9b) — so ueberlebt er Wan's Prompt-Expansion.
     if (options.isDialog) {
-      charLine +=
-        ", looking directly at the camera, " +
-        "speaking warmly and naturally to the viewer, " +
-        "expressive mouth with clear enunciation, " +
-        "natural lip movement synced to the audio";
+      charLine += ", looking directly at the camera, speaking warmly and naturally to the viewer";
     }
     parts.push(charLine + ".");
   }
@@ -272,6 +277,18 @@ export function buildWanPrompt(options: {
       "Subtle natural ambient motion: leaves gently swaying in a soft breeze, " +
       "dappled sunlight flickering through branches, tiny drifting particles " +
       "catching the light, distant foliage moving softly, atmospheric haze shifting.",
+    );
+  }
+
+  // 9b. DIALOG-FOCUS TAIL — muss so nah wie moeglich ans Prompt-Ende, damit
+  // Wan's Prompt-Expansion die Mouth-Sync-Cues nicht wegformuliert. Dieser
+  // Block replicirt das erfolgreiche Spike-Variant-A-Pattern (siehe
+  // app/api/studio/test-wan-spike/route.ts), wo der Mouth-Cue am Ende stand.
+  if (options.isDialog && options.characterName && !options.isLandscapeFromImage) {
+    parts.push(
+      "Expressive face with natural lip movement, " +
+      "clear articulate mouth shapes synced frame-by-frame to every syllable of the audio, " +
+      "distinct vowel and consonant shapes, mouth fully visible and front-facing.",
     );
   }
 

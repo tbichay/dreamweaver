@@ -630,8 +630,15 @@ async function processClipTask(
         prompt: wanPrompt,
         audioBuffer: dialogAudioBuffer,
         durationSeconds: wanDurSec,
-        resolution: quality === "premium" ? "1080p" : "720p",
+        // Dialog IMMER in 1080p — Wan ist $0.10/s flat, kein Aufpreis,
+        // und mehr Pixel = bessere Mund-/Lip-Sync-Detail (siehe
+        // Prod-Test 2026-04-18: 720p zu grob fuer Koala-Lip-Sync).
+        resolution: "1080p",
         negativePrompt: wanNegativePromptFor("dialog"),
+        // Prompt-Expansion ausschalten: fal.ai rewrited sonst den Prompt
+        // und verduennt unsere expliziten Mouth-Sync-Cues. Bei Dialog
+        // wollen wir EXAKT die Formulierung aus buildWanPrompt senden.
+        enablePromptExpansion: false,
       });
       videoUrl = r.url;
       usedProvider = prevFrame ? "wan-2.7-i2v+seamless" : "wan-2.7-i2v+audio";
