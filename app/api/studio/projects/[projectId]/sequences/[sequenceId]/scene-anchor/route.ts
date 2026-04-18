@@ -27,7 +27,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { put } from "@vercel/blob";
+import { put, get } from "@vercel/blob";
 import type { StudioScene } from "@/lib/studio/types";
 
 export const maxDuration = 120; // Nano Banana Pro Edit ~20-40s
@@ -169,13 +169,31 @@ export async function POST(
     );
   }
 
-  // Load reference buffers
+  // Load reference buffers.
+  // CRITICAL: Vercel-Blob private URLs sind per reinem fetch() NICHT ladbar —
+  // sie brauchen get(url, { access: "private" }) vom @vercel/blob-Package.
+  // Portraits/Landscapes liegen alle in private blobs → ohne diese Weiche
+  // wuerde jedes Load mit 401/403 silently fehlschlagen ("Portrait konnte
+  // nicht geladen werden"). Pattern kopiert aus process-studio-tasks/route.ts.
   const loadUrl = async (url: string): Promise<Buffer | undefined> => {
     try {
-      const res = await fetch(url);
-      if (!res.ok) return undefined;
-      return Buffer.from(await res.arrayBuffer());
-    } catch { return undefined; }
+      if (url.includes(".blob.vercel-storage.com")) {
+        const blob = await get(url, { access: "private" });
+        if (!blob?.stream) return undefined;
+        const reader = blob.stream.getReader();
+        const chunks: Uint8Array[] = [];
+        let chunk;
+        while (!(chunk = await reader.read()).done) chunks.push(chunk.value);
+        return Buffer.concat(chunks);
+      } else {
+        const res = await fetch(url);
+        if (!res.ok) return undefined;
+        return Buffer.from(await res.arrayBuffer());
+      }
+    } catch (err) {
+      console.warn(`[SceneAnchor] loadUrl failed for ${url.slice(0, 60)}...:`, err);
+      return undefined;
+    }
   };
 
   const imageBuffers: Buffer[] = [];
