@@ -66,8 +66,29 @@ export async function POST(request: Request) {
     return Response.json({ error: "Keiner der Actor-IDs existiert" }, { status: 400 });
   }
 
+  // Build a rich actor dossier for Claude. Each character's deeper dimensions
+  // (personality / speechStyle / catchphrases / backstory / relationships) are
+  // appended as sub-lines only when populated, so legacy seed actors without
+  // them still produce a compact single-line entry.
   const actorTable = actors
-    .map((a) => `- ${a.id} — ${a.displayName} (${a.species ?? "—"}), Rolle: ${a.role ?? "—"}, Expertise: [${a.expertise.join(", ")}], Tone: ${a.defaultTone ?? "—"}. ${a.description ?? ""}`)
+    .map((a) => {
+      const headline = `- ${a.id} — ${a.displayName} (${a.species ?? "—"}), Rolle: ${a.role ?? "—"}, Expertise: [${a.expertise.join(", ")}], Tone: ${a.defaultTone ?? "—"}. ${a.description ?? ""}`;
+      const extras: string[] = [];
+      if (a.personality) extras.push(`    Wesen: ${a.personality}`);
+      if (a.speechStyle) extras.push(`    Sprechweise: ${a.speechStyle}`);
+      if (a.catchphrases.length > 0) {
+        extras.push(`    Signature-Phrasen: ${a.catchphrases.map((p) => `"${p}"`).join(", ")}`);
+      }
+      if (a.backstory) extras.push(`    Hintergrund: ${a.backstory}`);
+      const rels = a.relationships as Record<string, string> | null;
+      if (rels && typeof rels === "object") {
+        const entries = Object.entries(rels)
+          .filter(([otherId]) => body.actorIds.includes(otherId))
+          .map(([otherId, desc]) => `${otherId}: ${desc}`);
+        if (entries.length > 0) extras.push(`    Beziehungen: ${entries.join("; ")}`);
+      }
+      return [headline, ...extras].join("\n");
+    })
     .join("\n");
 
   const templateTable = templates
@@ -88,10 +109,10 @@ REGELN:
 3. description: 2–3 Sätze, beschreibt Show-Konzept für Canzoia-User.
 4. category: genau einer von "kids"|"wellness"|"knowledge"|"other".
 5. ageBand: "3-5"|"6-8"|"9-12"|"13+" oder null (null = kategorie-agnostisch wie Wellness).
-6. brandVoice: Prompt-Overlay, 3–5 Sätze. Beschreibt Ton, Stil, Do's + Don'ts für alle Geschichten dieser Show. Wird bei JEDER Generation zusätzlich zum Fokus-Skeleton injiziert. Sei konkret — "warm, bildhaft, keine Gewalt, Tiere sprechen sanft". NICHT generisch.
+6. brandVoice: Prompt-Overlay, 3–5 Sätze. Beschreibt Ton, Stil, Do's + Don'ts für alle Geschichten dieser Show. Wird bei JEDER Generation zusätzlich zum Fokus-Skeleton injiziert. Sei konkret — "warm, bildhaft, keine Gewalt, Tiere sprechen sanft". NICHT generisch. Wenn die Actors eine ausgearbeitete Sprechweise / Signature-Phrasen / Beziehungen haben: weave diese gezielt ein, statt sie zu wiederholen.
 7. palette: { bg, ink, accent } als Hex. Passend zum Show-Ton.
 8. suggestedFokusTemplateIds: 2–6 Template-IDs aus der Liste oben, die zu dieser Show passen. Mehrere Foki sind OK und sogar gewollt (z.B. eine Wellness-Show hat Meditation + Affirmation + Reflexion).
-9. suggestedCastRoles: für JEDEN vom Admin gewählten Actor ein Eintrag mit { actorId, role, reasoning }. role ist semantisch auf Show-Ebene (z.B. "host", "side-kick", "guest-teacher"). reasoning 1 Satz.
+9. suggestedCastRoles: für JEDEN vom Admin gewählten Actor ein Eintrag mit { actorId, role, reasoning }. role ist semantisch auf Show-Ebene (z.B. "host", "side-kick", "guest-teacher"). reasoning 1 Satz — falls vorhanden: nutze personality/backstory als Argument statt nur Expertise.
 10. notesForAdmin: 1–3 Sätze mit Empfehlungen/Caveats (z.B. "Sage eher nicht für <6 Jahre").
 
 Antworte NUR mit einem JSON-Objekt, kein Markdown, kein Prosa. Schema:
