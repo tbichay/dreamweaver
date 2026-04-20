@@ -13,6 +13,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { TagInput } from "@/app/components/TagInput";
 
 interface Actor {
   id: string;
@@ -29,6 +30,11 @@ interface Actor {
   ageStyles: Record<string, string>;
   expertise: string[];
   defaultTone: string | null;
+  personality: string | null;
+  speechStyle: string | null;
+  catchphrases: string[];
+  backstory: string | null;
+  relationships: Record<string, string>;
   ownerUserId: string | null;
   _count: { shows: number };
 }
@@ -169,11 +175,37 @@ function ActorForm({
   const [description, setDescription] = useState(actor.description ?? "");
   const [persona, setPersona] = useState(actor.persona);
   const [defaultTone, setDefaultTone] = useState(actor.defaultTone ?? "");
-  const [expertiseText, setExpertiseText] = useState(actor.expertise.join(", "));
+  const [expertise, setExpertise] = useState<string[]>(actor.expertise);
   const [voiceId, setVoiceId] = useState(actor.voiceId);
   const [voiceSettingsText, setVoiceSettingsText] = useState(JSON.stringify(actor.voiceSettings, null, 2));
   const [ageStylesText, setAgeStylesText] = useState(JSON.stringify(actor.ageStyles, null, 2));
   const [portraitUrl, setPortraitUrl] = useState(actor.portraitUrl ?? "");
+
+  // A2-Felder
+  const [personality, setPersonality] = useState(actor.personality ?? "");
+  const [speechStyle, setSpeechStyle] = useState(actor.speechStyle ?? "");
+  const [catchphrases, setCatchphrases] = useState<string[]>(actor.catchphrases);
+  const [backstory, setBackstory] = useState(actor.backstory ?? "");
+  const [relationshipsText, setRelationshipsText] = useState(
+    JSON.stringify(actor.relationships ?? {}, null, 2)
+  );
+
+  // Autocomplete vocab (shared tag pool across all admin-visible actors)
+  const [tagSuggestions, setTagSuggestions] = useState<{
+    expertise: string[];
+    catchphrases: string[];
+  }>({ expertise: [], catchphrases: [] });
+
+  useEffect(() => {
+    fetch("/api/studio/shows/actors/tags")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.expertise && d.catchphrases) setTagSuggestions(d);
+      })
+      .catch(() => {
+        /* non-fatal — autocomplete gracefully degrades to manual entry */
+      });
+  }, []);
 
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -181,11 +213,13 @@ function ActorForm({
   async function saveAll() {
     let voiceSettings: Record<string, number>;
     let ageStyles: Record<string, string>;
+    let relationships: Record<string, string>;
     try {
       voiceSettings = JSON.parse(voiceSettingsText);
       ageStyles = JSON.parse(ageStylesText);
+      relationships = JSON.parse(relationshipsText || "{}");
     } catch {
-      alert("voiceSettings/ageStyles sind kein valides JSON.");
+      alert("voiceSettings / ageStyles / relationships ist kein valides JSON.");
       return;
     }
     onSave({
@@ -197,11 +231,16 @@ function ActorForm({
       description: description || null,
       persona,
       defaultTone: defaultTone || null,
-      expertise: expertiseText.split(",").map((s) => s.trim()).filter(Boolean),
+      expertise,
       voiceId,
       voiceSettings: voiceSettings as unknown as Record<string, number>,
       ageStyles,
       portraitUrl: portraitUrl || null,
+      personality: personality || null,
+      speechStyle: speechStyle || null,
+      catchphrases,
+      backstory: backstory || null,
+      relationships,
     });
   }
 
@@ -281,9 +320,66 @@ function ActorForm({
         <TextInput value={defaultTone} onChange={setDefaultTone} placeholder="warm-narrator, calm-coach…" />
       </Field>
 
-      <Field label="Expertise (kommasepariert)">
-        <TextInput value={expertiseText} onChange={setExpertiseText} placeholder="meditation, traumreisen, …" />
+      <Field
+        label="Expertise"
+        hint="Freie Tags — Enter oder Komma zum Hinzufuegen. Vorschlaege aus bereits verwendeten Tags."
+      >
+        <TagInput
+          value={expertise}
+          onChange={setExpertise}
+          suggestions={tagSuggestions.expertise}
+          placeholder="meditation, traumreisen, …"
+        />
       </Field>
+
+      {/* Deeper character dimensions */}
+      <div className="border-t border-white/10 pt-5 space-y-4">
+        <h3 className="text-xs font-medium text-white/60 uppercase tracking-wide">
+          Charakter-Tiefe
+        </h3>
+
+        <Field
+          label="Wesen / Persoenlichkeit"
+          hint="Kurze Adjektiv-Liste oder ein-zwei Saetze. Was macht diesen Charakter aus?"
+        >
+          <TextArea value={personality} onChange={setPersonality} rows={2} />
+        </Field>
+
+        <Field
+          label="Sprechweise"
+          hint="Wie redet die Figur? Satz-Laenge, typische Fuell-Laute, Dialekt-Hinweise."
+        >
+          <TextArea value={speechStyle} onChange={setSpeechStyle} rows={2} />
+        </Field>
+
+        <Field
+          label="Signature-Phrasen"
+          hint='Typische Saetze der Figur. z.B. "Na klar doch!", "Ohhh Mann."'
+        >
+          <TagInput
+            value={catchphrases}
+            onChange={setCatchphrases}
+            suggestions={tagSuggestions.catchphrases}
+            placeholder="Phrase eingeben + Enter"
+            maxChips={12}
+            allowDuplicates={false}
+          />
+        </Field>
+
+        <Field
+          label="Hintergrund / Backstory"
+          hint="Wo kommt die Figur her? Was treibt sie an? (Frei formuliert.)"
+        >
+          <TextArea value={backstory} onChange={setBackstory} rows={4} />
+        </Field>
+
+        <Field
+          label="Beziehungen (JSON)"
+          hint='Map von anderen Actor-IDs zu Beschreibung. Beispiel: { "koda": "beste Freundin", "kiki": "rivalisierend-spielerisch" }'
+        >
+          <TextArea value={relationshipsText} onChange={setRelationshipsText} rows={4} mono />
+        </Field>
+      </div>
 
       {/* Voice */}
       <div className="border-t border-white/10 pt-5 space-y-4">
