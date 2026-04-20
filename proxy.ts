@@ -18,6 +18,7 @@ const publicPaths = [
   "/api/account/check-email",
   "/api/avatars",
   "/api/cron",         // Vercel Cron Jobs (auth via CRON_SECRET header)
+  "/api/canzoia",      // Canzoia API (auth via HMAC, see lib/canzoia/signing.ts)
   "/api/invite",       // Invitation acceptance (public, auth checked in handler)
   "/api/admin/onboarding", // Onboarding status check
   "/api/generate-scene-clip", // SSE streaming — auth checked in handler
