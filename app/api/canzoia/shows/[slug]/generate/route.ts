@@ -193,7 +193,16 @@ export async function POST(request: Request, ctx: Ctx) {
   // tick. If this fetch fails (network blip, CRON_SECRET mismatch, dev
   // server down), the scheduled tick will still catch it — this is pure
   // latency optimisation, not reliability.
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  //
+  // Base URL resolution: VERCEL_URL is auto-set by Vercel on every deploy
+  // (no https:// prefix), NEXT_PUBLIC_APP_URL is our user-configured prod
+  // URL. We prefer VERCEL_URL because NEXT_PUBLIC_APP_URL can point to a
+  // different domain (aliased custom domain) and self-fetching across
+  // domains occasionally hits DNS/TLS edge cases — VERCEL_URL always
+  // matches the function's own deployment and resolves cleanly.
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret || process.env.NODE_ENV === "development") {
     // Intentional fire-and-forget: the cron handler awaits the full
@@ -202,9 +211,14 @@ export async function POST(request: Request, ctx: Ctx) {
     fetch(`${baseUrl}/api/cron/process-studio-tasks`, {
       method: "GET",
       headers: cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {},
-      // signal: AbortSignal.timeout(5_000), // don't block on the cron call itself
+      // Short timeout — if the platform-level self-fetch doesn't resolve
+      // in 5s, the scheduled tick is 55s away and will handle it. Prevents
+      // a hung fetch from keeping this function alive past the 202 flush.
+      signal: AbortSignal.timeout(5_000),
     }).catch((e) => {
-      console.warn(`[canzoia-gen] cron kick failed (non-fatal, scheduled tick will catch it): ${e}`);
+      console.warn(
+        `[canzoia-gen] cron kick failed (non-fatal, scheduled tick will catch it within 60s): ${e instanceof Error ? e.message : e}`,
+      );
     });
   }
 

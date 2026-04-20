@@ -501,12 +501,20 @@ export async function generateShowEpisode(params: {
       : 0;
 
     // Phase 4: Upload to Blob
+    //
+    // Store is configured as `private` — all other Koalatree upload paths
+    // (app/api/cron/process-queue/route.ts:104, lib/studio/voices/...) also
+    // write private. External consumers (Canzoia) get a signed URL via
+    // `getDownloadUrl()` at poll time — see app/api/canzoia/jobs/[jobId]/route.ts.
+    // We store the private blob URL here; the signed URL is minted per-request
+    // (1h TTL) so we never persist expired URLs. Planned R2 migration will
+    // remove this indirection — see Phase 2 todo.
     await setStatus("uploading", 85, "Audio wird gespeichert");
     const blob = await put(
       `shows/${input.showSlug}/${episode.id}.mp3`,
       Buffer.from(audioResult.wav),
       {
-        access: "public",
+        access: "private",
         contentType: "audio/mpeg",
         addRandomSuffix: true,
       }
@@ -536,6 +544,21 @@ export async function generateShowEpisode(params: {
       where: { id: episodeId },
       include: { show: { select: { slug: true } } },
     });
+
+    // Sign the audio URL for the webhook payload. Private Blob URLs aren't
+    // externally fetchable, so Canzoia would otherwise get 401 when trying
+    // to download. The signed URL has a ~1h TTL — if webhook delivery is
+    // delayed past that, Canzoia can fall back to the /jobs/[jobId] poll
+    // which mints a fresh signed URL on each call.
+    const { getDownloadUrl } = await import("@vercel/blob");
+    const storedUrl = final.audioUrl ?? blob.url;
+    let webhookAudioUrl = storedUrl;
+    try {
+      webhookAudioUrl = await getDownloadUrl(storedUrl);
+    } catch (e) {
+      console.warn(`[show-episode] Failed to sign webhook audioUrl (will send raw): ${e}`);
+    }
+
     deliverWebhookSafe({
       event: "generation.completed",
       deliveryId: randomUUID(),
@@ -547,7 +570,7 @@ export async function generateShowEpisode(params: {
       canzoiaProfileId: final.canzoiaProfileId,
       result: {
         title: final.title,
-        audioUrl: final.audioUrl ?? blob.url,
+        audioUrl: webhookAudioUrl,
         durationSec: final.durationSec,
         timeline: final.timeline,
       },
