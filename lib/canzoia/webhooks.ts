@@ -9,22 +9,25 @@
  *
  * Configuration:
  *   CANZOIA_WEBHOOK_URL   — Canzoia's /api/hooks/koalatree endpoint.
- *                           If unset, webhook delivery silently no-ops (useful
- *                           for local dev before Canzoia is running).
+ *                           If unset, webhook delivery silently no-ops
+ *                           (useful for local dev before Canzoia is running).
  *   KOALATREE_TO_CANZOIA_SECRET — HMAC secret; same on both sides.
  *
- * MVP delivery semantics: single-shot POST with 5s timeout. If it fails we
- * log and move on — Canzoia can always reconcile by polling GET /jobs/[id].
- * The full retry schedule (§5.3: +0s/+30s/+2m/+10m/+1h/+6h/+24h) requires a
- * persistent queue (Vercel Queues / cron) and is deferred.
+ * Delivery model (rewritten 2026-04-21 after we lost a production event
+ * to a Canzoia 500):
+ *   - completed / failed → enqueued in `WebhookDelivery`, delivered by
+ *     the `process-webhook-queue` cron with exponential backoff
+ *     (30s/2m/10m/1h/6h/24h). Survives Canzoia outages, signature
+ *     rotation, transient 5xx.
+ *   - progress → still fire-and-forget (stale within seconds, retrying
+ *     is useless; Canzoia can read live state via GET /jobs/[id]).
  *
- * Progress events are fire-and-forget (no await at call sites) so a slow or
- * dead webhook receiver cannot slow down generation.
+ * Call sites use `deliverWebhookSafe(event)` unchanged — same void-never-
+ * throws contract. The only visible behaviour change is that delivery
+ * now happens eventually instead of synchronously.
  */
 
-import { signOutgoingWebhook } from "./signing";
-
-const WEBHOOK_TIMEOUT_MS = 5_000;
+import { enqueueWebhook } from "./webhook-queue";
 
 type WebhookCommon = {
   deliveryId: string; // uuid — Canzoia dedupes on (event, jobId, deliveryId)
@@ -77,67 +80,17 @@ export type CanzoiaWebhookEvent =
   | GenerationFailedEvent
   | GenerationProgressEvent;
 
-async function postSigned(url: string, body: string, path: string): Promise<{ ok: boolean; status?: number; error?: string }> {
-  const signed = signOutgoingWebhook({ method: "POST", path, rawBody: body });
-  if (!signed) {
-    return { ok: false, error: "KOALATREE_TO_CANZOIA_SECRET missing" };
-  }
-
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), WEBHOOK_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: signed.headers,
-      body,
-      signal: ctrl.signal,
-    });
-    return { ok: res.ok, status: res.status };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-export async function deliverWebhook(event: CanzoiaWebhookEvent): Promise<void> {
-  const url = process.env.CANZOIA_WEBHOOK_URL;
-  if (!url) {
-    // No webhook configured (local dev, or Canzoia not wired yet).
-    // That's a legitimate state — silently skip.
-    return;
-  }
-
-  let path: string;
-  try {
-    path = new URL(url).pathname;
-  } catch {
-    console.warn("[webhook] CANZOIA_WEBHOOK_URL is not a valid URL:", url);
-    return;
-  }
-
-  const body = JSON.stringify(event);
-  const result = await postSigned(url, body, path);
-
-  if (!result.ok) {
-    // Log-and-move-on per MVP semantics. Canzoia can reconcile via polling.
-    console.warn(
-      `[webhook] ${event.event} → ${url}: failed`,
-      result.status ? `status=${result.status}` : result.error,
-      `deliveryId=${event.deliveryId}`
-    );
-    return;
-  }
-
-  console.log(
-    `[webhook] ${event.event} → ${url}: ok`,
-    `status=${result.status} deliveryId=${event.deliveryId}`
-  );
-}
-
-/** Fire-and-forget wrapper — never throws. Safe to call without await. */
+/**
+ * Fire-and-forget wrapper — never throws. Enqueues the event (or fires
+ * directly for progress). Safe to call without await.
+ *
+ * Kept as a function (not an async arrow) to preserve the old `void`
+ * return-type contract — existing call sites do `deliverWebhookSafe(e)`
+ * without `await`, so we don't want to leak a Promise that gets
+ * unhandled-rejection-logged.
+ */
 export function deliverWebhookSafe(event: CanzoiaWebhookEvent): void {
-  void deliverWebhook(event).catch((e) => {
-    console.error("[webhook] unexpected dispatch error:", e);
+  void enqueueWebhook(event).catch((e) => {
+    console.error("[webhook] unexpected enqueue error:", e);
   });
 }

@@ -884,3 +884,53 @@ model ShowEpisode {
   @@index([status])
   @@index([canzoiaProfileId])
 }
+
+/// Persistent outbound-webhook queue.
+///
+/// Replaces the old fire-and-forget `deliverWebhookSafe()` flow. When the
+/// episode generator has something to tell Canzoia, we INSERT a row here
+/// instead of POST-ing synchronously — the `process-webhook-queue` cron
+/// drains pending rows with exponential backoff, so a Canzoia outage or
+/// transient 5xx no longer silently loses the event.
+///
+/// Why this exists: on 2026-04-20 we lost a `generation.completed` because
+/// Canzoia's `koalatree_events` table hadn't been migrated yet → 500 →
+/// event vanished, episode never appeared in the user's library. The
+/// single-shot POST pattern makes that kind of failure mode invisible.
+///
+/// Retry schedule (seconds after the previous attempt): 30, 120, 600,
+/// 3600, 21600, 86400 → up to 7 total attempts, ~31h horizon. After the
+/// 7th failed attempt the row flips to `dead` — needs operator attention.
+///
+/// Only `generation.completed` and `generation.failed` go through here.
+/// `generation.progress` stays fire-and-forget (stale within seconds, no
+/// point retrying).
+model WebhookDelivery {
+  id            String    @id @default(cuid())
+  /// UUID that Canzoia dedupes on (its `koalatree_events.delivery_id` PK).
+  /// Unique here too so re-enqueueing the same event is a no-op.
+  deliveryId    String    @unique
+  event         String // "generation.completed" | "generation.failed"
+  /// canzoiaJobId — easy join back to ShowEpisode for debugging.
+  jobId         String?
+  /// CANZOIA_WEBHOOK_URL snapshot at enqueue time. Stored so a later
+  /// env change doesn't re-target old deliveries to a new URL.
+  url           String
+  /// The full signed-envelope body, JSON.stringify-ed at enqueue time.
+  /// Signature is re-minted on every delivery attempt (300s tolerance
+  /// makes re-use impossible across retries).
+  payload       Json
+  status        String    @default("pending") // pending | delivered | dead
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  /// Truncated to 500 chars — just enough to grep by.
+  lastError     String?
+  /// HTTP status on last attempt (null if fetch failed before receiving one).
+  lastStatus    Int?
+  deliveredAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([jobId])
+}
