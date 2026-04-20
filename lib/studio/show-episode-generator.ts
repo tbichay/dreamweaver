@@ -460,7 +460,7 @@ export async function generateShowEpisode(params: {
 
     // Phase 5: Finalize
     await prisma.showEpisode.update({
-      where: { id: episode.id },
+      where: { id: episodeId },
       data: {
         status: "completed",
         progressPct: 100,
@@ -471,6 +471,7 @@ export async function generateShowEpisode(params: {
         totalMinutesBilled: durationSec / 60,
         // timeline is the raw TimelineEntry[] — Prisma casts via JSON column
         timeline: audioResult.timeline as unknown as Prisma.InputJsonValue,
+        completedAt: new Date(),
       },
     });
 
