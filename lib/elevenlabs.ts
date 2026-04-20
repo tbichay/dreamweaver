@@ -27,6 +27,20 @@ const MAX_RETRIES = 1;              // Only 1 retry to avoid long waits (was 4 =
 const RETRY_BASE_DELAY = 1000;      // 1s base delay (was 2s)
 const RETRYABLE_CODES = [429, 500, 502, 503, 504]; // HTTP codes that trigger retry
 
+// --- Per-call Timeout ---
+//
+// Without this, a single hanging socket to ElevenLabs stalls the whole
+// generation indefinitely (Node's native fetch waits forever). We saw this
+// in prod (2026-04-20): Claude text + title completed, then a TTS call
+// never returned, generateMultiVoiceAudio never resolved, the Vercel
+// function got killed mid-hang without reaching the outer catch —
+// ShowEpisode rows stuck at `synthesizing 45%` with no errorMessage.
+//
+// 60s is generous: a typical TTS chunk for a paragraph takes 3–8s, an
+// SFX/ambience generation up to ~20s. 60s means something is genuinely
+// wrong (network stuck / ElevenLabs backend hang), not just slow.
+const PER_CALL_TIMEOUT_MS = 60_000;
+
 // --- Audio Result with Timeline ---
 export interface TimelineEntry {
   characterId: string;
@@ -60,16 +74,34 @@ async function fetchWithRetry(
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // Fresh AbortController per attempt — reusing one across retries would
+    // mean the second attempt fires with an already-aborted signal.
+    const ctrl = new AbortController();
+    // Merge with caller-supplied signal if present (currently none, but
+    // future-proof: if loadEpisodeInput ever gets cancelled upstream we
+    // don't want to swallow it).
+    const callerSignal = options.signal as AbortSignal | null | undefined;
+    if (callerSignal) {
+      if (callerSignal.aborted) ctrl.abort(callerSignal.reason);
+      else callerSignal.addEventListener("abort", () => ctrl.abort(callerSignal.reason), { once: true });
+    }
+    const timeoutHandle = setTimeout(
+      () => ctrl.abort(new Error(`${label}: timeout after ${PER_CALL_TIMEOUT_MS}ms`)),
+      PER_CALL_TIMEOUT_MS,
+    );
+
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, { ...options, signal: ctrl.signal });
 
       if (response.ok) {
+        clearTimeout(timeoutHandle);
         return response;
       }
 
       // Check if this is a retryable error
       if (RETRYABLE_CODES.includes(response.status) && attempt < MAX_RETRIES) {
         const errorBody = await response.text();
+        clearTimeout(timeoutHandle);
         const delay = RETRY_BASE_DELAY * Math.pow(2, attempt); // 2s, 4s, 8s, 16s
         const jitter = Math.random() * 1000; // Add up to 1s jitter
         console.warn(
@@ -81,21 +113,31 @@ async function fetchWithRetry(
 
       // Non-retryable error or out of retries
       const errorBody = await response.text();
+      clearTimeout(timeoutHandle);
       throw new Error(`ElevenLabs API Fehler: ${response.status} — ${errorBody}`);
     } catch (err) {
+      clearTimeout(timeoutHandle);
       if (err instanceof Error && err.message.startsWith("ElevenLabs API")) {
         throw err; // Don't retry our own thrown errors
       }
 
-      // Network errors are retryable
+      // AbortError from our own timeout counts as retryable — the socket
+      // might have been dead, next attempt opens a fresh connection.
+      const isAbort = err instanceof Error && (err.name === "AbortError" || /aborted|timeout/i.test(err.message));
       lastError = err instanceof Error ? err : new Error(String(err));
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_BASE_DELAY * Math.pow(2, attempt);
         console.warn(
-          `[Retry] ${label}: Network error (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms — ${lastError.message}`
+          `[Retry] ${label}: ${isAbort ? "Timeout/abort" : "Network error"} (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms — ${lastError.message}`
         );
         await sleep(delay);
         continue;
+      }
+      // Out of retries — make sure the final error is obviously an ElevenLabs
+      // failure so the outer catch in generateShowEpisode writes a useful
+      // errorMessage to the DB instead of a bare "AbortError".
+      if (isAbort) {
+        throw new Error(`ElevenLabs API Fehler: ${label} timed out/aborted after ${MAX_RETRIES + 1} attempts — ${lastError.message}`);
       }
     }
   }

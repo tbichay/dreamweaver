@@ -6,6 +6,8 @@
  */
 
 import { prisma } from "@/lib/db";
+import { recoverStuckShowEpisodes } from "@/lib/studio/show-episode-cleanup";
+import { generateShowEpisode } from "@/lib/studio/show-episode-generator";
 
 export const maxDuration = 800;
 
@@ -71,6 +73,18 @@ export async function GET(request: Request) {
       error: "Task war zu lange blockiert und wurde zurueckgesetzt",
     },
   });
+
+  // Backstop sweep for ShowEpisode rows that got orphaned by a dead
+  // generation process (fire-and-forget Promise lost). See
+  // lib/studio/show-episode-cleanup.ts for rationale.
+  try {
+    const recovery = await recoverStuckShowEpisodes();
+    if (recovery.swept > 0) {
+      console.log(`[cron] Recovered ${recovery.swept} stuck ShowEpisode(s): ${recovery.ids.join(", ")}`);
+    }
+  } catch (e) {
+    console.warn("[cron] ShowEpisode sweep failed (non-fatal):", e);
+  }
 
   // Pick next task (highest priority first, then oldest)
   const task = await prisma.studioTask.findFirst({
@@ -143,6 +157,15 @@ export async function GET(request: Request) {
         await updateProgress("Generiere Drehbuch...", 10);
         output = await processScreenplayTask(input, task.userId, updateProgress);
         actualCostCents = 5; // ~$0.05
+        break;
+      }
+      case "show-episode": {
+        // Canzoia-facing show-episode generation. All cost + progress
+        // tracking lives inside generateShowEpisode (it updates the
+        // ShowEpisode row directly); this handler is just the queue shim.
+        await updateProgress("Starte Show-Episode...", 5);
+        output = await processShowEpisodeTask(input, updateProgress);
+        actualCostCents = (output.estimatedCostCents as number) || 0;
         break;
       }
       default:
@@ -1635,4 +1658,99 @@ async function processScreenplayTask(
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Drehbuch-Generierung fehlgeschlagen");
   return data;
+}
+
+// ── Show-Episode Task (Canzoia-facing async generation) ──────────
+//
+// Thin wrapper around generateShowEpisode. The heavy lifting (Claude,
+// ElevenLabs TTS, Blob upload, DB writes, webhooks) all happens inside
+// generateShowEpisode, which manages its own ShowEpisode row status. We
+// bridge two observable concerns back up to StudioTask:
+//   1) Progress — mirror the coarse phases so /studio admin dashboards
+//      see sensible progressPct. Fine-grained stages are on ShowEpisode.
+//   2) Errors  — if generateShowEpisode throws, we let it bubble so the
+//      outer catch in this cron marks the StudioTask failed. The
+//      ShowEpisode row has *already* been marked failed inside the
+//      generator's own try/catch (see show-episode-generator.ts:561),
+//      so both surfaces agree.
+//
+// Retries: intentionally disabled at task-creation time (maxRetries=0 in
+// the POST /generate route) — re-running a Claude+TTS flow on transient
+// errors burns $$ for little benefit. Users can retry with a fresh
+// idempotencyKey if they want another shot.
+async function processShowEpisodeTask(
+  input: Record<string, unknown>,
+  updateProgress: (p: string, pct?: number) => Promise<void>,
+): Promise<Record<string, unknown>> {
+  const episodeId = input.episodeId as string | undefined;
+  if (!episodeId) {
+    throw new Error("show-episode task input missing episodeId");
+  }
+
+  // Load for cost estimation + sanity (generateShowEpisode loads again
+  // internally — slightly wasteful, but this cron handler is already O(1)
+  // per minute so not worth a refactor).
+  const episode = await prisma.showEpisode.findUnique({
+    where: { id: episodeId },
+    select: {
+      id: true,
+      status: true,
+      canzoiaJobId: true,
+      showFokus: { select: { targetDurationMin: true } },
+    },
+  });
+  if (!episode) {
+    throw new Error(`ShowEpisode ${episodeId} nicht gefunden — wurde sie gelöscht?`);
+  }
+  if (episode.status === "completed") {
+    // Idempotency safety: if the task got re-queued after completion
+    // (shouldn't happen given maxRetries=0, but defensive) — no-op.
+    return { episodeId, canzoiaJobId: episode.canzoiaJobId, skipped: "already-completed" };
+  }
+
+  await updateProgress(`Script + Audio (${episode.showFokus.targetDurationMin}min)`, 10);
+
+  await generateShowEpisode({ episodeId });
+
+  // Reload to surface the completion data into the StudioTask.output
+  // (admin dashboards read this; Canzoia reads the ShowEpisode directly).
+  const done = await prisma.showEpisode.findUniqueOrThrow({
+    where: { id: episodeId },
+    select: {
+      id: true,
+      canzoiaJobId: true,
+      title: true,
+      audioUrl: true,
+      durationSec: true,
+      ttsChars: true,
+      inputTokens: true,
+      outputTokens: true,
+      totalMinutesBilled: true,
+    },
+  });
+
+  // Rough internal cost estimate for StudioTask.actualCostCents (admin
+  // budget tracking). ElevenLabs payg ≈ $0.15 per 1000 chars, Claude
+  // sonnet-4 ≈ $3/$15 per 1M tokens in/out. These are order-of-magnitude
+  // figures — authoritative cost numbers live on ShowEpisode itself.
+  const elevenCents = Math.ceil(((done.ttsChars ?? 0) / 1000) * 15);
+  const claudeCents = Math.ceil(
+    ((done.inputTokens ?? 0) / 1_000_000) * 300 +
+      ((done.outputTokens ?? 0) / 1_000_000) * 1500
+  );
+  const estimatedCostCents = elevenCents + claudeCents;
+
+  await updateProgress("Fertig", 100);
+
+  return {
+    episodeId: done.id,
+    canzoiaJobId: done.canzoiaJobId,
+    title: done.title,
+    audioUrl: done.audioUrl,
+    durationSec: done.durationSec,
+    ttsChars: done.ttsChars,
+    inputTokens: done.inputTokens,
+    outputTokens: done.outputTokens,
+    estimatedCostCents,
+  };
 }
