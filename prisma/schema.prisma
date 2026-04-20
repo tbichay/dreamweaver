@@ -10,16 +10,16 @@ datasource db {
 // ── Auth.js Models ──
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  tosAcceptedAt     DateTime?  // AGB akzeptiert
-  privacyAcceptedAt DateTime?  // Datenschutz akzeptiert
-  createdAt     DateTime  @default(now())
-  accounts      Account[]
-  sessions      Session[]
+  id                String    @id @default(cuid())
+  name              String?
+  email             String    @unique
+  emailVerified     DateTime?
+  image             String?
+  tosAcceptedAt     DateTime? // AGB akzeptiert
+  privacyAcceptedAt DateTime? // Datenschutz akzeptiert
+  createdAt         DateTime  @default(now())
+  accounts          Account[]
+  sessions          Session[]
   // Relations zu HoererProfil/Geschichte werden nach userId-Migration aktiviert
   // hoererProfile HoererProfil[]
   // geschichten   Geschichte[]
@@ -62,28 +62,28 @@ model VerificationToken {
 // ── App Models ──
 
 model HoererProfil {
-  id                      String   @id @default(cuid())
-  userId                  String
-  name                    String
-  avatarUrl               String?
-  geburtsdatum            DateTime?  // NEU — Geburtsdatum statt festes Alter
-  alter                   Int?       // DEPRECATED — bleibt für Abwärtskompatibilität
-  geschlecht              String?
-  interessen              String[] // PostgreSQL array
-  lieblingsfarbe          String?
-  lieblingstier           String?
-  charaktereigenschaften  String[]
-  herausforderungen       String[]
-  tags                    String[]   // NEU — Freie Tags vom User
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  geschichten             Geschichte[]
-  events                  ProfilEvent[]
-  einladungen             ProfilEinladung[]
-  zugriffe                ProfilZugriff[]
+  id                     String            @id @default(cuid())
+  userId                 String
+  name                   String
+  avatarUrl              String?
+  geburtsdatum           DateTime? // NEU — Geburtsdatum statt festes Alter
+  alter                  Int? // DEPRECATED — bleibt für Abwärtskompatibilität
+  geschlecht             String?
+  interessen             String[] // PostgreSQL array
+  lieblingsfarbe         String?
+  lieblingstier          String?
+  charaktereigenschaften String[]
+  herausforderungen      String[]
+  tags                   String[] // NEU — Freie Tags vom User
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  geschichten            Geschichte[]
+  events                 ProfilEvent[]
+  einladungen            ProfilEinladung[]
+  zugriffe               ProfilZugriff[]
 
-  @@map("KindProfil")
   @@index([userId])
+  @@map("KindProfil")
 }
 
 // ── Profil-Sharing ──
@@ -100,16 +100,16 @@ enum ProfilRolle {
 }
 
 model ProfilEinladung {
-  id              String           @id @default(cuid())
+  id              String          @id @default(cuid())
   hoererProfilId  String
-  hoererProfil    HoererProfil     @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
+  hoererProfil    HoererProfil    @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
   eingeladenEmail String
-  eingeladenVon   String           // userId des Besitzers
-  status          EinladungStatus  @default(PENDING)
-  rolle           ProfilRolle      @default(ZUHOERER)
-  sichtbarkeit    String[]         // Konfigurierbar: ["interessen", "charaktereigenschaften"] etc.
-  token           String           @unique @default(cuid())
-  createdAt       DateTime         @default(now())
+  eingeladenVon   String // userId des Besitzers
+  status          EinladungStatus @default(PENDING)
+  rolle           ProfilRolle     @default(ZUHOERER)
+  sichtbarkeit    String[] // Konfigurierbar: ["interessen", "charaktereigenschaften"] etc.
+  token           String          @unique @default(cuid())
+  createdAt       DateTime        @default(now())
   acceptedAt      DateTime?
   acceptedById    String?
 
@@ -123,7 +123,7 @@ model ProfilZugriff {
   hoererProfil   HoererProfil @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
   userId         String
   rolle          ProfilRolle
-  sichtbarkeit   String[]     // Kopiert von Einladung bei Akzeptieren
+  sichtbarkeit   String[] // Kopiert von Einladung bei Akzeptieren
   createdAt      DateTime     @default(now())
 
   @@unique([hoererProfilId, userId])
@@ -131,37 +131,37 @@ model ProfilZugriff {
 }
 
 model ProfilEvent {
-  id              String       @id @default(cuid())
-  hoererProfilId  String
-  hoererProfil    HoererProfil @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
-  feld            String       // "interessen", "herausforderungen", "tags", "lieblingstier", etc.
-  aktion          String       // "added" | "removed" | "changed"
-  wert            String       // der Wert der hinzugefügt/entfernt/geändert wurde
-  alterWert       String?      // vorheriger Wert (nur bei "changed")
-  createdAt       DateTime     @default(now())
+  id             String       @id @default(cuid())
+  hoererProfilId String
+  hoererProfil   HoererProfil @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
+  feld           String // "interessen", "herausforderungen", "tags", "lieblingstier", etc.
+  aktion         String // "added" | "removed" | "changed"
+  wert           String // der Wert der hinzugefügt/entfernt/geändert wurde
+  alterWert      String? // vorheriger Wert (nur bei "changed")
+  createdAt      DateTime     @default(now())
 
   @@index([hoererProfilId, createdAt])
 }
 
 model Geschichte {
-  id              String        @id @default(cuid())
-  hoererProfilId  String        @map("kindProfilId")
-  hoererProfil    HoererProfil  @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
+  id              String         @id @default(cuid())
+  hoererProfilId  String         @map("kindProfilId")
+  hoererProfil    HoererProfil   @relation(fields: [hoererProfilId], references: [id], onDelete: Cascade)
   userId          String
   format          String
   ziel            String
   dauer           String
   besonderesThema String?
-  titel           String?     // KI-generierter Titel der Geschichte
+  titel           String? // KI-generierter Titel der Geschichte
   text            String
-  audioUrl        String?     // Vercel Blob URL
-  audioDauerSek   Float?      // Audio-Dauer in Sekunden — gespeichert bei Generierung, erspart preload
-  timeline        Json?       // Audio-Timeline: [{ characterId, startMs, endMs }] — wer spricht wann
-  zusammenfassung String?     // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
-  shareSlug       String?     @unique // Öffentlicher Share-Link Slug
-  videoUrl        String?     // Film-Video Vercel Blob URL
-  filmScenes      Json?       // Film-Szenen: FilmScene[] from video-director
-  createdAt       DateTime    @default(now())
+  audioUrl        String? // Vercel Blob URL
+  audioDauerSek   Float? // Audio-Dauer in Sekunden — gespeichert bei Generierung, erspart preload
+  timeline        Json? // Audio-Timeline: [{ characterId, startMs, endMs }] — wer spricht wann
+  zusammenfassung String? // KI-generierte Kurzzusammenfassung für Koala-Gedächtnis
+  shareSlug       String?        @unique // Öffentlicher Share-Link Slug
+  videoUrl        String? // Film-Video Vercel Blob URL
+  filmScenes      Json? // Film-Szenen: FilmScene[] from video-director
+  createdAt       DateTime       @default(now())
   generationJob   GenerationJob?
   filmJob         FilmJob?
 
@@ -179,16 +179,16 @@ enum GenerationStatus {
 }
 
 model GenerationJob {
-  id             String           @id @default(cuid())
-  geschichteId   String           @unique
-  geschichte     Geschichte       @relation(fields: [geschichteId], references: [id], onDelete: Cascade)
-  userId         String
-  status         GenerationStatus @default(PENDING)
-  error          String?          // Last error message
-  retryCount     Int              @default(0)
-  startedAt      DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime         @default(now())
+  id           String           @id @default(cuid())
+  geschichteId String           @unique
+  geschichte   Geschichte       @relation(fields: [geschichteId], references: [id], onDelete: Cascade)
+  userId       String
+  status       GenerationStatus @default(PENDING)
+  error        String? // Last error message
+  retryCount   Int              @default(0)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime         @default(now())
 
   @@index([status, createdAt])
   @@index([userId])
@@ -202,7 +202,7 @@ model FilmJob {
   geschichte     Geschichte       @relation(fields: [geschichteId], references: [id], onDelete: Cascade)
   userId         String
   status         GenerationStatus @default(PENDING)
-  progress       String?          // "Szene 3/12: Koda spricht..."
+  progress       String? // "Szene 3/12: Koda spricht..."
   scenesTotal    Int?
   scenesComplete Int              @default(0)
   error          String?
@@ -221,7 +221,7 @@ model FilmJob {
 
 model StudioSettings {
   id         String   @id @default("default")
-  references Json     @default("{}")  // ReferencesMap: Record<string, ReferenceEntry>
+  references Json     @default("{}") // ReferencesMap: Record<string, ReferenceEntry>
   updatedAt  DateTime @updatedAt
 }
 
@@ -232,14 +232,14 @@ model FilmProject {
   userId          String
   name            String
   description     String?
-  style           Json?    // { warmth, musicVolume, crossfade, quality }
-  stylePrompt     String?  // Editierbarer Stil-Prompt (Default: Disney 1994)
-  characters      Json?    // Character-Definitionen: Record<string, CharacterDef>
+  style           Json? // { warmth, musicVolume, crossfade, quality }
+  stylePrompt     String? // Editierbarer Stil-Prompt (Default: Disney 1994)
+  characters      Json? // Character-Definitionen: Record<string, CharacterDef>
   characterIds    String[] // Character IDs used (legacy, kept for backwards compat)
   landscapes      String[] // Blob paths of landscape assets
-  introVideoUrl   String?  // Reusable intro clip
-  outroVideoUrl   String?  // Reusable outro clip
-  referenceImages Json?    // Strukturierte Referenz-Map: Record<string, ReferenceEntry>
+  introVideoUrl   String? // Reusable intro clip
+  outroVideoUrl   String? // Reusable outro clip
+  referenceImages Json? // Strukturierte Referenz-Map: Record<string, ReferenceEntry>
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -252,47 +252,47 @@ model FilmProject {
 
 // A Studio Project — container for a complete film production
 model StudioProject {
-  id              String            @id @default(cuid())
-  userId          String
-  name            String
-  description     String?
+  id          String  @id @default(cuid())
+  userId      String
+  name        String
+  description String?
 
   // Story
-  storyText       String?           // Full story text with character markers
-  storySource     String?           // "generated" | "uploaded" | "typed"
-  language        String            @default("de")
+  storyText   String? // Full story text with character markers
+  storySource String? // "generated" | "uploaded" | "typed"
+  language    String  @default("de")
 
   // Style
-  stylePrompt     String?           // Visual style (Disney 2D, Pixar 3D, Anime...)
-  directingStyle  String?           // Directing preset ID
-  atmosphere      String?           // Default atmosphere for all sequences
-  format          String            @default("portrait") // portrait | wide | cinema
-  targetDurationSec Int?              // Target film duration in seconds (20=reel, 60=short, 300=medium, 1200=long)
+  stylePrompt       String? // Visual style (Disney 2D, Pixar 3D, Anime...)
+  directingStyle    String? // Directing preset ID
+  atmosphere        String? // Default atmosphere for all sequences
+  format            String  @default("portrait") // portrait | wide | cinema
+  targetDurationSec Int? // Target film duration in seconds (20=reel, 60=short, 300=medium, 1200=long)
 
   // Production state
-  status          String            @default("draft") // draft | screenplay | characters | production | completed
-  screenplay      Json?             // The full screenplay (acts → sequences → scenes)
-  basisStoryboard Json?             // Story beats (shared between audio + film rendering)
+  status          String @default("draft") // draft | screenplay | characters | production | completed
+  screenplay      Json? // The full screenplay (acts → sequences → scenes)
+  basisStoryboard Json? // Story beats (shared between audio + film rendering)
 
   // Output
-  audioUrl        String?           // Audio-only rendering (MP3)
-  videoUrl        String?           // Final assembled film (MP4)
-  audioDauerSek   Float?
+  audioUrl      String? // Audio-only rendering (MP3)
+  videoUrl      String? // Final assembled film (MP4)
+  audioDauerSek Float?
 
   // Selected Library Assets (persisted across sessions)
-  selectedAssets  Json?             // { locationIds: string[], propIds: string[], musicId: string | null }
+  selectedAssets Json? // { locationIds: string[], propIds: string[], musicId: string | null }
 
   // Budget
-  budgetLimitCents Int?             // Max budget in cents (null = unlimited)
-  currentCostCents Int              @default(0)
+  budgetLimitCents Int? // Max budget in cents (null = unlimited)
+  currentCostCents Int  @default(0)
 
   // Relations
-  characters      StudioCharacter[]
-  sequences       StudioSequence[]
-  tasks           StudioTask[]
+  characters StudioCharacter[]
+  sequences  StudioSequence[]
+  tasks      StudioTask[]
 
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([status])
@@ -300,37 +300,37 @@ model StudioProject {
 
 // A character in a Studio Project
 model StudioCharacter {
-  id              String          @id @default(cuid())
-  projectId       String
-  project         StudioProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String        @id @default(cuid())
+  projectId String
+  project   StudioProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  name            String          // "Koda"
-  markerId        String          // "[KODA]" — marker in story text
-  description     String?         // Visual description for AI prompts
-  personality     String?         // Personality/speaking style
-  species         String?         // "Koala", "Kookaburra" etc.
+  name        String // "Koda"
+  markerId    String // "[KODA]" — marker in story text
+  description String? // Visual description for AI prompts
+  personality String? // Personality/speaking style
+  species     String? // "Koala", "Kookaburra" etc.
 
   // Visual
-  portraitUrl     String?         // Reference portrait image URL
-  portraits       Json?           // Multiple reference images: ReferenceEntry
+  portraitUrl String? // Reference portrait image URL
+  portraits   Json? // Multiple reference images: ReferenceEntry
 
   // Voice
-  voiceId         String?         // ElevenLabs Voice ID
-  voiceSettings   Json?           // { stability, similarity_boost, style, speed }
+  voiceId       String? // ElevenLabs Voice ID
+  voiceSettings Json? // { stability, similarity_boost, style, speed }
 
   // Actor Casting
-  actorId         String?         // FK to DigitalActor (null = uncast)
-  actor           DigitalActor?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  castSnapshot    Json?           // { voiceId, voiceSettings, portraitUrl, syncedAt }
-  castHistory     Json?           // Array of past snapshots for version switching
+  actorId      String? // FK to DigitalActor (null = uncast)
+  actor        DigitalActor? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  castSnapshot Json? // { voiceId, voiceSettings, portraitUrl, syncedAt }
+  castHistory  Json? // Array of past snapshots for version switching
 
   // Metadata
-  role            String?         // "lead" | "supporting" | "narrator" | "minor"
-  color           String?         // Brand color hex
-  emoji           String?         // Display emoji
+  role  String? // "lead" | "supporting" | "narrator" | "minor"
+  color String? // Brand color hex
+  emoji String? // Display emoji
 
-  orderIndex      Int             @default(0)
-  createdAt       DateTime        @default(now())
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
 
   @@index([projectId])
   @@index([actorId])
@@ -338,47 +338,47 @@ model StudioCharacter {
 
 // A sequence in a Studio Project (= one location/atmosphere)
 model StudioSequence {
-  id              String          @id @default(cuid())
-  projectId       String
-  project         StudioProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String        @id @default(cuid())
+  projectId String
+  project   StudioProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  orderIndex      Int             // Position in the film
-  name            String          // "Am KoalaTree", "Am Meer"
+  orderIndex Int // Position in the film
+  name       String // "Am KoalaTree", "Am Meer"
 
   // Location & Atmosphere
-  location        String?         // Location description
-  atmosphereId    String?         // Atmosphere preset ID
-  atmosphereText  String?         // Custom atmosphere prompt
-  directingStyle  String?         // Override directing style (or inherit from project)
-  landscapeRefUrl String?         // Reference landscape image
+  location        String? // Location description
+  atmosphereId    String? // Atmosphere preset ID
+  atmosphereText  String? // Custom atmosphere prompt
+  directingStyle  String? // Override directing style (or inherit from project)
+  landscapeRefUrl String? // Reference landscape image
 
   // Story segment
-  storySegment    String?         // Portion of story text for this sequence
-  characterIds    String[]        // Characters in this sequence
+  storySegment String? // Portion of story text for this sequence
+  characterIds String[] // Characters in this sequence
 
   // Costumes — per-actor outfit overrides for this sequence
-  costumes        Json?           // { [characterId]: { description: string, imageUrl?: string } }
+  costumes Json? // { [characterId]: { description: string, imageUrl?: string } }
 
   // Storyboard & Scenes
-  scenes          Json?           // FilmScene[] (camera, transitions, timing)
-  sceneCount      Int?
+  scenes     Json? // FilmScene[] (camera, transitions, timing)
+  sceneCount Int?
 
   // Audio
-  audioUrl        String?         // Generated audio for this sequence
-  audioDauerSek   Float?
-  timeline        Json?           // Audio timeline entries
+  audioUrl      String? // Generated audio for this sequence
+  audioDauerSek Float?
+  timeline      Json? // Audio timeline entries
 
   // Video
-  videoUrl        String?         // Mastered sequence video
-  clipCount       Int             @default(0)
-  clipsCompleted  Int             @default(0)
+  videoUrl       String? // Mastered sequence video
+  clipCount      Int     @default(0)
+  clipsCompleted Int     @default(0)
 
   // State
-  status          String          @default("draft") // draft | storyboard | audio | clips | mastered
-  costCents       Int             @default(0)
+  status    String @default("draft") // draft | storyboard | audio | clips | mastered
+  costCents Int    @default(0)
 
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([projectId])
   @@index([orderIndex])
@@ -387,31 +387,31 @@ model StudioSequence {
 // ── Prompt Library ───────────────────────────────────────────────
 
 model PromptBlock {
-  id            String   @id @default(cuid())
-  slug          String   // "character:koda", "style:pixar-classic", "camera:close-up"
-  type          String   // character | style | camera | mood | format | rules | atmosphere | visual
-  name          String   // "Koda - Der Weise"
-  description   String?
+  id          String  @id @default(cuid())
+  slug        String // "character:koda", "style:pixar-classic", "camera:close-up"
+  type        String // character | style | camera | mood | format | rules | atmosphere | visual
+  name        String // "Koda - Der Weise"
+  description String?
 
   // Content
-  content       String   // Prompt text with {{variable}} placeholders
-  variables     Json     @default("{}") // JSON Schema for required variables
+  content   String // Prompt text with {{variable}} placeholders
+  variables Json   @default("{}") // JSON Schema for required variables
 
   // Versioning
-  version       Int      @default(1)
-  isProduction  Boolean  @default(false) // Only one version per slug+scope can be production
-  parentId      String?  // Previous version's ID
+  version      Int     @default(1)
+  isProduction Boolean @default(false) // Only one version per slug+scope can be production
+  parentId     String? // Previous version's ID
 
   // Ownership & Scope
-  scope         String   @default("system") // system | project:{id} | user:{id}
-  createdBy     String   // userId
+  scope     String @default("system") // system | project:{id} | user:{id}
+  createdBy String // userId
 
   // Metadata
-  modelHint     String?  // claude | gpt-image | kling | any
-  tags          String[]
+  modelHint String? // claude | gpt-image | kling | any
+  tags      String[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([slug, version, scope])
   @@index([type, scope, isProduction])
@@ -421,40 +421,40 @@ model PromptBlock {
 // ── Asset Library ────────────────────────────────────────────────
 
 model Asset {
-  id            String   @id @default(cuid())
+  id String @id @default(cuid())
 
   // Classification
-  type          String   // portrait | landscape | clip | sound | reference | music
-  name          String?  // Display name (e.g. "Verzauberter Wald bei Sonnenuntergang")
-  category      String?  // "character:koda" | "location:koalatree" | "sfx:nature"
-  tags          String[]
+  type     String // portrait | landscape | clip | sound | reference | music
+  name     String? // Display name (e.g. "Verzauberter Wald bei Sonnenuntergang")
+  category String? // "character:koda" | "location:koalatree" | "sfx:nature"
+  tags     String[]
 
   // Storage
-  blobUrl       String   // Vercel Blob URL
-  blobPath      String   // Blob storage path
-  mimeType      String   // "image/png" | "video/mp4" | "audio/mp3"
-  sizeBytes     Int      @default(0)
+  blobUrl   String // Vercel Blob URL
+  blobPath  String // Blob storage path
+  mimeType  String // "image/png" | "video/mp4" | "audio/mp3"
+  sizeBytes Int    @default(0)
 
   // Dimensions / Duration
-  width         Int?
-  height        Int?
-  durationSec   Float?
+  width       Int?
+  height      Int?
+  durationSec Float?
 
   // Provenance (which prompt + model produced this)
-  generatedBy   Json?    // { blocks: {slug: version}, model: "gpt-image-1", prompt: "..." }
-  modelId       String?  // Reference to AIModel.id
-  costCents     Int?     // Generation cost in cents
+  generatedBy Json? // { blocks: {slug: version}, model: "gpt-image-1", prompt: "..." }
+  modelId     String? // Reference to AIModel.id
+  costCents   Int? // Generation cost in cents
 
   // Versioning
-  parentId      String?  // Previous version of this asset
-  version       Int      @default(1)
-  isPrimary     Boolean  @default(false) // Active version?
+  parentId  String? // Previous version of this asset
+  version   Int     @default(1)
+  isPrimary Boolean @default(false) // Active version?
 
   // Ownership
-  projectId     String?
-  userId        String
+  projectId String?
+  userId    String
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([type, category, userId])
   @@index([projectId])
@@ -464,34 +464,34 @@ model Asset {
 // ── Digital Actors (Custom Voices + Persistent Characters) ──────
 
 model DigitalActor {
-  id              String   @id @default(cuid())
-  userId          String
-  name            String          // "Max Brenner"
-  description     String?         // "35, rough voice, F1 driver"
+  id          String  @id @default(cuid())
+  userId      String
+  name        String // "Max Brenner"
+  description String? // "35, rough voice, F1 driver"
 
   // Voice
-  voiceDescription String?        // "Deep male voice, warm, aged, slow storyteller" — for ElevenLabs voice design
-  voiceId         String?         // ElevenLabs permanent voice ID
-  voiceSettings   Json?           // stability, style, speed etc.
-  voicePreviewUrl String?         // Audio preview of the voice
+  voiceDescription String? // "Deep male voice, warm, aged, slow storyteller" — for ElevenLabs voice design
+  voiceId          String? // ElevenLabs permanent voice ID
+  voiceSettings    Json? // stability, style, speed etc.
+  voicePreviewUrl  String? // Audio preview of the voice
 
   // Appearance
-  portraitAssetId String?         // Primary portrait from Asset library
-  style           String?         // "realistic" | "animated" etc.
-  outfit          String?         // "Schwarze Lederjacke, weisses T-Shirt, Jeans"
-  traits          String?         // "Traegt runde Brille, Narbe ueber linkem Auge"
-  characterSheet  Json?           // { front?: url, profile?: url, fullBody?: url }
+  portraitAssetId String? // Primary portrait from Asset library
+  style           String? // "realistic" | "animated" etc.
+  outfit          String? // "Schwarze Lederjacke, weisses T-Shirt, Jeans"
+  traits          String? // "Traegt runde Brille, Narbe ueber linkem Auge"
+  characterSheet  Json? // { front?: url, profile?: url, fullBody?: url }
 
   // Metadata
-  tags            String[]        // ["actor", "male", "german", "action"]
+  tags String[] // ["actor", "male", "german", "action"]
 
   // Relations
-  characters      StudioCharacter[]
-  libraryVoiceId  String?         // FK to Voice library (shared voices)
-  libraryVoice    Voice?          @relation(fields: [libraryVoiceId], references: [id], onDelete: SetNull)
+  characters     StudioCharacter[]
+  libraryVoiceId String? // FK to Voice library (shared voices)
+  libraryVoice   Voice?            @relation(fields: [libraryVoiceId], references: [id], onDelete: SetNull)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
 }
@@ -499,23 +499,23 @@ model DigitalActor {
 // ── Voice Library (Shareable Voices) ─────────────────────────────
 
 model Voice {
-  id              String   @id @default(cuid())
-  userId          String
-  name            String          // "Weiser Erzaehler", "Freche Goere"
-  description     String?         // "Tiefe warme Stimme, ruhig, 65 Jahre"
+  id          String  @id @default(cuid())
+  userId      String
+  name        String // "Weiser Erzaehler", "Freche Goere"
+  description String? // "Tiefe warme Stimme, ruhig, 65 Jahre"
 
-  voiceId         String          // ElevenLabs permanent voice ID
-  voiceSettings   Json?           // { stability, similarity_boost, style, speed }
-  previewUrl      String?         // Audio preview blob URL
-  emotionSamples  Json?           // { neutral?: url, happy?: url, sad?: url, ... } cached samples
-  category        String?         // "narrator" | "character" | "child" | "custom"
-  tags            String[]        // ["maennlich", "warm", "deutsch", "alt"]
+  voiceId        String // ElevenLabs permanent voice ID
+  voiceSettings  Json? // { stability, similarity_boost, style, speed }
+  previewUrl     String? // Audio preview blob URL
+  emotionSamples Json? // { neutral?: url, happy?: url, sad?: url, ... } cached samples
+  category       String? // "narrator" | "character" | "child" | "custom"
+  tags           String[] // ["maennlich", "warm", "deutsch", "alt"]
 
   // Relations
-  actors          DigitalActor[]  // Actors using this voice
+  actors DigitalActor[] // Actors using this voice
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
 }
@@ -523,69 +523,69 @@ model Voice {
 // ── AI Model Registry ────────────────────────────────────────────
 
 model AIModel {
-  id            String   @id // "kling-avatar-v2-standard", "claude-sonnet-4"
-  provider      String   // fal.ai | google | openai | anthropic | elevenlabs | hedra
-  category      String   // video-lipsync | video-i2v | image-gen | text-gen | audio-tts | audio-sfx
-  name          String   // "Kling Avatar v2 Standard"
+  id       String @id // "kling-avatar-v2-standard", "claude-sonnet-4"
+  provider String // fal.ai | google | openai | anthropic | elevenlabs | hedra
+  category String // video-lipsync | video-i2v | image-gen | text-gen | audio-tts | audio-sfx
+  name     String // "Kling Avatar v2 Standard"
 
   // Pricing
-  costUnit      String   // per-second | per-image | per-1k-tokens | per-character
-  costAmount    Float    // 0.014
+  costUnit   String // per-second | per-image | per-1k-tokens | per-character
+  costAmount Float // 0.014
 
   // Capabilities
-  capabilities  Json     @default("{}") // { maxDuration: 15, lipsync: true, aspectRatios: [...] }
+  capabilities Json @default("{}") // { maxDuration: 15, lipsync: true, aspectRatios: [...] }
 
   // Status
-  isActive      Boolean  @default(true)
-  isDefault     Boolean  @default(false) // Default for its category
+  isActive  Boolean @default(true)
+  isDefault Boolean @default(false) // Default for its category
 
   // Metadata
-  apiEndpoint   String?
-  notes         String?
-  lastChecked   DateTime?
+  apiEndpoint String?
+  notes       String?
+  lastChecked DateTime?
 
-  updatedAt     DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 // ── Studio Task Queue (Background AI Generation) ─────────────────
 
 model StudioTask {
-  id              String    @id @default(cuid())
-  projectId       String?
-  project         StudioProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId          String
+  id        String         @id @default(cuid())
+  projectId String?
+  project   StudioProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
 
   // Task Definition
-  type            String    // story | screenplay | audio | clip | portrait | landscape | character-sheet | assemble
-  status          String    @default("pending") // pending | running | completed | failed | cancelled
-  priority        Int       @default(0) // Higher = processed first
+  type     String // story | screenplay | audio | clip | portrait | landscape | character-sheet | assemble
+  status   String @default("pending") // pending | running | completed | failed | cancelled
+  priority Int    @default(0) // Higher = processed first
 
   // Input/Output
-  input           Json      // Task-specific params
-  output          Json?     // Result data (urls, metadata)
+  input  Json // Task-specific params
+  output Json? // Result data (urls, metadata)
 
   // Progress
-  progress        String?   // Human-readable status text
-  progressPct     Int?      // 0-100 percent
+  progress    String? // Human-readable status text
+  progressPct Int? // 0-100 percent
 
   // Error Handling
-  error           String?
-  retryCount      Int       @default(0)
-  maxRetries      Int       @default(3)
+  error      String?
+  retryCount Int     @default(0)
+  maxRetries Int     @default(3)
 
   // Cost Tracking
   estimatedCostCents Int?
   actualCostCents    Int?
 
   // Quality Check
-  qualityScore    Int?      // 0-100 from AI review
-  qualityNotes    String?   // AI explanation of issues
-  qualityChecked  Boolean   @default(false)
+  qualityScore   Int? // 0-100 from AI review
+  qualityNotes   String? // AI explanation of issues
+  qualityChecked Boolean @default(false)
 
   // Timestamps
-  createdAt       DateTime  @default(now())
-  startedAt       DateTime?
-  completedAt     DateTime?
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
 
   @@index([projectId, status])
   @@index([userId, status])
@@ -595,16 +595,240 @@ model StudioTask {
 // ── Prompt Feedback (Quality Loop) ───────────────────────────────
 
 model PromptFeedback {
-  id              String   @id @default(cuid())
-  taskId          String
-  blockSlug       String?  // Which PromptBlock was used
-  originalPrompt  String   // The prompt that was sent
-  qualityScore    Int      // 0-100
-  qualityNotes    String   // AI analysis of what went wrong
-  improvedPrompt  String?  // AI-suggested improved prompt
-  improvement     String?  // What was changed and why
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  taskId         String
+  blockSlug      String? // Which PromptBlock was used
+  originalPrompt String // The prompt that was sent
+  qualityScore   Int // 0-100
+  qualityNotes   String // AI analysis of what went wrong
+  improvedPrompt String? // AI-suggested improved prompt
+  improvement    String? // What was changed and why
+  createdAt      DateTime @default(now())
 
   @@index([blockSlug, qualityScore])
   @@index([taskId])
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ── Shows System (Canzoia-Consumer-API Backend) ───────────────────
+// ══════════════════════════════════════════════════════════════════
+//
+// A "Show" is a branded container (e.g. "KoalaTree Kids") that offers
+// multiple "Foki" (episode types: traumreise, meditation, podcast...).
+// Canzoia consumers pick a Show + Fokus + provide inputs → we generate
+// an Episode using the existing Claude/ElevenLabs pipeline.
+//
+// System actors (Koda, Kiki, ...) and system Foki templates (traumreise,
+// meditation, ...) are seeded from lib/types.ts + lib/prompts.ts at
+// migration time. The Kids-App keeps using those constants directly —
+// this system parallels it rather than replacing it.
+
+/// Voice Actor — global (system) or user/org-scoped.
+/// System actors have ownerUserId=null AND ownerOrgId=null.
+model Actor {
+  id          String  @id // "koda","kiki",... or cuid for custom
+  displayName String // "Koda"
+  species     String? // "Koala"
+  role        String? // "Der Weise"
+  description String? // Short character blurb
+  emoji       String?
+  color       String? // Brand hex
+  portraitUrl String?
+
+  // Voice (ElevenLabs)
+  voiceProvider String @default("elevenlabs")
+  voiceId       String // ElevenLabs voice ID
+  voiceSettings Json // { stability, similarity_boost, style, use_speaker_boost, speed }
+
+  // Persona & Expertise
+  persona     String // Age-agnostic character prompt fragment
+  ageStyles   Json? // { "3-5": "...", "6-8": "...", "9-12": "...", "13+": "..." }
+  expertise   String[] @default([]) // ["storytelling","meditation","science-explainer"]
+  defaultTone String? // "warm-narrator","energetic","calm-coach"
+
+  // Scope (null = system/global, readable by all admins)
+  ownerUserId String?
+  ownerOrgId  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  shows ShowActor[]
+
+  @@index([ownerUserId])
+  @@index([ownerOrgId])
+}
+
+/// Reusable Fokus template (episode-type).
+/// System templates (traumreise, meditation, ...) have ownerUserId=null.
+model FokusTemplate {
+  id          String  @id // "traumreise","meditation",...
+  displayName String // "Traumreise"
+  description String?
+  emoji       String?
+
+  // Prompt skeleton — reusable base that Show.brandVoice + ShowFokus.showOverlay extend
+  systemPromptSkeleton String // Format-level instructions (from FORMAT_ANWEISUNGEN)
+  interactionStyle     String? // Dialog rules (from buildInteractionRules logic)
+
+  // Default cast roles (which roles the Fokus needs) — Show picks concrete Actors for each
+  defaultCastRoles Json // { lead: "role-hint", support: [...], minimal: [...] }
+
+  // Default input-schema — Show can customize per-instance
+  defaultUserInputSchema Json // { fields: [...], autoInject: [...] }
+
+  // Duration & Age
+  defaultDurationMin Int @default(5)
+  minAlter           Int @default(3)
+  maxAlter           Int @default(99)
+
+  // Scope
+  supportedCategories String[] @default([]) // ["kids","wellness","knowledge"]
+  ownerUserId         String? // null = system
+  ownerOrgId          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shows ShowFokus[]
+
+  @@index([ownerUserId])
+}
+
+/// A published Show — a brand/container offering multiple Foki.
+model Show {
+  id          String  @id @default(cuid())
+  slug        String  @unique // "kodas-traumreisen"
+  title       String // "Kodas Traumreisen"
+  subtitle    String?
+  description String
+  category    String // "kids","wellness","knowledge"
+
+  // Pedagogical framing
+  ageBand String? // "3-5"|"6-8"|"9-12"|"13+"|null (null for Wellness etc.)
+
+  // Brand
+  brandVoice      String  @default("") // Show-level prompt overlay (applied to all Foki)
+  palette         Json? // { bg, ink, accent } hex strings
+  coverUrl        String?
+  trailerAudioUrl String?
+
+  // Publishing
+  publishedAt         DateTime?
+  revisionHash        String // sha256(format+cast+overlays+schemas)[:12]
+  featuredShowFokusId String? // Optional default Fokus for Canzoia UI (points to ShowFokus.id)
+
+  // Budget/Tenant
+  budgetMinutes Int     @default(15)
+  ownerUserId   String
+  ownerOrgId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cast     ShowActor[]
+  foki     ShowFokus[]
+  episodes ShowEpisode[]
+
+  @@index([ownerUserId])
+  @@index([publishedAt])
+}
+
+/// Which Actors are cast in this Show + per-show overrides.
+model ShowActor {
+  id      String @id @default(cuid())
+  showId  String
+  show    Show   @relation(fields: [showId], references: [id], onDelete: Cascade)
+  actorId String
+  actor   Actor  @relation(fields: [actorId], references: [id])
+
+  role                  String? // "host","cohost","guest" (Show-level semantic)
+  styleOverride         String? // Show-specific tonal adjustment
+  voiceSettingsOverride Json?
+  orderIndex            Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([showId, actorId])
+  @@index([showId])
+  @@index([actorId])
+}
+
+/// Which Fokus-Templates this Show enables (+ customization).
+model ShowFokus {
+  id              String        @id @default(cuid())
+  showId          String
+  show            Show          @relation(fields: [showId], references: [id], onDelete: Cascade)
+  fokusTemplateId String
+  fokusTemplate   FokusTemplate @relation(fields: [fokusTemplateId], references: [id])
+
+  // Show-specific customization
+  showOverlay       String @default("") // Extra prompt injection for this show+fokus combo
+  userInputSchema   Json // Effective schema (template default + creator edits)
+  castRoles         Json // { lead: "luna", support: ["koda","kiki"] } — Actor-IDs
+  targetDurationMin Int
+
+  // Display
+  displayLabel String? // Override FokusTemplate.displayName for this show
+  orderIndex   Int     @default(0)
+  enabled      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  episodes ShowEpisode[]
+
+  @@unique([showId, fokusTemplateId])
+  @@index([showId])
+}
+
+/// A concrete generated episode for a Show+Fokus.
+/// Created when Canzoia calls POST /api/canzoia/shows/:slug/generate.
+model ShowEpisode {
+  id          String    @id @default(cuid())
+  showId      String
+  show        Show      @relation(fields: [showId], references: [id], onDelete: Cascade)
+  showFokusId String
+  showFokus   ShowFokus @relation(fields: [showFokusId], references: [id])
+
+  // Canzoia-side identifiers
+  idempotencyKey   String @unique // from Canzoia
+  canzoiaJobId     String @unique // our uuid
+  canzoiaProfileId String // Canzoia's GenerationProfile.profileId
+
+  // Snapshot of what was requested
+  showRevisionHash String // episode snapshot — belongs to this revision
+  userInputs       Json // { theme, lernziel, stimmung, ... }
+  profileSnapshot  Json // minimal profile used for personalization
+
+  // Status & Output
+  status        String  @default("queued") // queued|scripting|synthesizing|uploading|completed|failed
+  progressPct   Int     @default(0)
+  progressStage String?
+
+  title       String? // Generated by Claude
+  text        String?
+  audioUrl    String? // Vercel Blob URL (source — Canzoia re-uploads to own R2)
+  durationSec Int?
+  timeline    Json?
+
+  // Cost
+  inputTokens        Int?
+  outputTokens       Int?
+  ttsChars           Int?
+  totalMinutesBilled Float?
+
+  // Error
+  errorCode    String?
+  errorMessage String?
+
+  // Audit
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@index([showId, createdAt])
+  @@index([status])
+  @@index([canzoiaProfileId])
 }

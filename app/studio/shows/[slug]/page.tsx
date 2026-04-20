@@ -1,0 +1,826 @@
+"use client";
+
+/**
+ * Show-Detail mit Edit-Tabs: Grundlagen, Brand, Cast, Foki, Episoden, Gefahrenzone.
+ *
+ * Jeder Tab lädt dieselbe Show-Struktur (single GET /api/studio/shows/[slug])
+ * und PATCH-updated via entsprechende Nested-Routes. Jede Mutation bumpt
+ * die revisionHash server-seitig — UI muss sich darüber keine Gedanken machen.
+ */
+
+import { use, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+interface Actor {
+  id: string;
+  displayName: string;
+  emoji: string | null;
+  species: string | null;
+  role: string | null;
+  expertise: string[];
+}
+
+interface FokusTemplate {
+  id: string;
+  displayName: string;
+  emoji: string | null;
+  description: string | null;
+  minAlter: number;
+  maxAlter: number;
+}
+
+interface ShowActorRow {
+  id: string;
+  actorId: string;
+  role: string | null;
+  styleOverride: string | null;
+  orderIndex: number;
+  actor: Actor;
+}
+
+interface ShowFokusRow {
+  id: string;
+  fokusTemplateId: string;
+  showOverlay: string;
+  castRoles: Record<string, unknown>;
+  userInputSchema: Record<string, unknown>;
+  targetDurationMin: number;
+  displayLabel: string | null;
+  orderIndex: number;
+  enabled: boolean;
+  fokusTemplate: FokusTemplate;
+}
+
+interface EpisodeRow {
+  id: string;
+  title: string | null;
+  status: string;
+  progressPct: number;
+  canzoiaJobId: string;
+  createdAt: string;
+  durationSec: number | null;
+}
+
+interface Show {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  description: string;
+  category: string;
+  ageBand: string | null;
+  brandVoice: string;
+  palette: Record<string, string> | null;
+  coverUrl: string | null;
+  trailerAudioUrl: string | null;
+  publishedAt: string | null;
+  budgetMinutes: number;
+  featuredShowFokusId: string | null;
+  revisionHash: string;
+  updatedAt: string;
+  cast: ShowActorRow[];
+  foki: ShowFokusRow[];
+  episodes: EpisodeRow[];
+}
+
+type Tab = "grundlagen" | "brand" | "cast" | "foki" | "episoden" | "gefahrenzone";
+
+export default function ShowDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
+  const router = useRouter();
+  const [show, setShow] = useState<Show | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("grundlagen");
+  const [error, setError] = useState<string | null>(null);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  const loadShow = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/studio/shows/${slug}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Load fehlgeschlagen");
+      setShow(data.show);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    loadShow();
+  }, [loadShow]);
+
+  function flash(msg: string) {
+    setSaveMsg(msg);
+    setTimeout(() => setSaveMsg(null), 1800);
+  }
+
+  if (loading) return <div className="text-white/40 text-sm p-8">Lade Show…</div>;
+  if (error || !show) return <div className="text-red-400 text-sm p-8">{error ?? "Nicht gefunden"}</div>;
+
+  return (
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="mb-6">
+        <Link href="/studio/shows" className="text-white/40 hover:text-white/70 text-xs">
+          ← Shows
+        </Link>
+        <div className="flex items-center gap-3 mt-2">
+          <h1 className="text-xl font-bold text-[#f5eed6]">{show.title}</h1>
+          {show.publishedAt ? (
+            <span className="text-[9px] px-2 py-0.5 rounded bg-green-500/20 text-green-300">LIVE</span>
+          ) : (
+            <span className="text-[9px] px-2 py-0.5 rounded bg-white/10 text-white/50">DRAFT</span>
+          )}
+        </div>
+        {show.subtitle && <p className="text-sm text-white/50">{show.subtitle}</p>}
+        <p className="text-[10px] text-white/30 mt-1 font-mono">rev: {show.revisionHash}</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-white/10 overflow-x-auto">
+        {(
+          [
+            ["grundlagen", "Grundlagen"],
+            ["brand", "Brand"],
+            ["cast", `Cast (${show.cast.length})`],
+            ["foki", `Foki (${show.foki.length})`],
+            ["episoden", `Episoden (${show.episodes.length})`],
+            ["gefahrenzone", "Gefahrenzone"],
+          ] as Array<[Tab, string]>
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`px-4 py-2 text-xs transition ${
+              tab === id
+                ? "text-[#C8A97E] border-b-2 border-[#C8A97E] -mb-px"
+                : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {saveMsg && (
+        <div className="mb-4 text-xs text-green-300 bg-green-500/10 border border-green-500/20 rounded px-3 py-2">
+          ✓ {saveMsg}
+        </div>
+      )}
+
+      {tab === "grundlagen" && <GrundlagenTab show={show} onSaved={(m) => { loadShow(); flash(m); }} />}
+      {tab === "brand" && <BrandTab show={show} onSaved={(m) => { loadShow(); flash(m); }} />}
+      {tab === "cast" && <CastTab show={show} onChanged={(m) => { loadShow(); flash(m); }} />}
+      {tab === "foki" && <FokiTab show={show} onChanged={(m) => { loadShow(); flash(m); }} />}
+      {tab === "episoden" && <EpisodenTab show={show} />}
+      {tab === "gefahrenzone" && (
+        <GefahrenzoneTab
+          show={show}
+          onDeleted={() => router.push("/studio/shows")}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Grundlagen ─────────────────────────────────────────────────
+
+function GrundlagenTab({ show, onSaved }: { show: Show; onSaved: (msg: string) => void }) {
+  const [title, setTitle] = useState(show.title);
+  const [subtitle, setSubtitle] = useState(show.subtitle ?? "");
+  const [description, setDescription] = useState(show.description);
+  const [category, setCategory] = useState(show.category);
+  const [ageBand, setAgeBand] = useState(show.ageBand ?? "");
+  const [budgetMinutes, setBudgetMinutes] = useState(show.budgetMinutes);
+  const [publishedAt, setPublishedAt] = useState<string | null>(show.publishedAt);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    await fetch(`/api/studio/shows/${show.slug}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title,
+        subtitle: subtitle || null,
+        description,
+        category,
+        ageBand: ageBand || null,
+        budgetMinutes,
+      }),
+    });
+    setSaving(false);
+    onSaved("Grundlagen gespeichert");
+  }
+
+  async function togglePublished() {
+    const newVal = publishedAt ? null : new Date().toISOString();
+    setPublishedAt(newVal);
+    await fetch(`/api/studio/shows/${show.slug}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ publishedAt: newVal }),
+    });
+    onSaved(newVal ? "Publiziert" : "Depubliziert");
+  }
+
+  return (
+    <div className="space-y-5">
+      <Field label="Titel"><TextInput value={title} onChange={setTitle} /></Field>
+      <Field label="Untertitel"><TextInput value={subtitle} onChange={setSubtitle} /></Field>
+      <Field label="Beschreibung"><TextArea value={description} onChange={setDescription} rows={4} /></Field>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Kategorie"><TextInput value={category} onChange={setCategory} /></Field>
+        <Field label="AgeBand (z.B. 3-5, 6-8, null)"><TextInput value={ageBand} onChange={setAgeBand} /></Field>
+      </div>
+
+      <Field label="Budget-Minuten (pro Episode)">
+        <input
+          type="number"
+          value={budgetMinutes}
+          onChange={(e) => setBudgetMinutes(parseInt(e.target.value || "0"))}
+          className="bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 w-32"
+        />
+      </Field>
+
+      <div className="flex items-center gap-3 pt-4 border-t border-white/10">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="px-4 py-2 rounded-lg bg-[#C8A97E] text-[#141414] text-sm font-medium hover:bg-[#d4b88c] disabled:opacity-50"
+        >
+          {saving ? "Speichert…" : "Speichern"}
+        </button>
+        <button
+          onClick={togglePublished}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            publishedAt
+              ? "bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30"
+              : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
+          }`}
+        >
+          {publishedAt ? "Depublizieren" : "Publizieren"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Brand ──────────────────────────────────────────────────────
+
+function BrandTab({ show, onSaved }: { show: Show; onSaved: (msg: string) => void }) {
+  const [brandVoice, setBrandVoice] = useState(show.brandVoice);
+  const [palette, setPalette] = useState(show.palette ?? { bg: "#1A1A1A", ink: "#f5eed6", accent: "#C8A97E" });
+  const [coverUrl, setCoverUrl] = useState(show.coverUrl ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    await fetch(`/api/studio/shows/${show.slug}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ brandVoice, palette, coverUrl: coverUrl || null }),
+    });
+    setSaving(false);
+    onSaved("Brand gespeichert");
+  }
+
+  return (
+    <div className="space-y-5">
+      <Field
+        label="Brand-Voice"
+        hint="Prompt-Overlay. Wird bei JEDER Generation zusätzlich zum Fokus-Skeleton injiziert. Ton, Do's + Don'ts, Stilregeln."
+      >
+        <TextArea value={brandVoice} onChange={setBrandVoice} rows={6} />
+      </Field>
+
+      <Field label="Palette">
+        <div className="flex items-center gap-4">
+          {(["bg", "ink", "accent"] as const).map((key) => (
+            <div key={key} className="flex items-center gap-2">
+              <input
+                type="color"
+                value={(palette as Record<string, string>)[key] ?? "#000000"}
+                onChange={(e) => setPalette({ ...palette, [key]: e.target.value })}
+                className="w-10 h-10 rounded cursor-pointer border border-white/10"
+              />
+              <div>
+                <div className="text-[10px] text-white/50 uppercase">{key}</div>
+                <div className="text-[10px] font-mono text-white/70">{(palette as Record<string, string>)[key]}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Field>
+
+      <Field label="Cover-URL">
+        <TextInput value={coverUrl} onChange={setCoverUrl} placeholder="https://…" />
+      </Field>
+
+      <div className="pt-4 border-t border-white/10">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="px-4 py-2 rounded-lg bg-[#C8A97E] text-[#141414] text-sm font-medium hover:bg-[#d4b88c] disabled:opacity-50"
+        >
+          {saving ? "Speichert…" : "Speichern"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Cast ───────────────────────────────────────────────────────
+
+function CastTab({ show, onChanged }: { show: Show; onChanged: (msg: string) => void }) {
+  const [allActors, setAllActors] = useState<Actor[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/studio/shows/actors")
+      .then((r) => r.json())
+      .then((d) => setAllActors(d.actors || []));
+  }, []);
+
+  async function addActor(actorId: string) {
+    await fetch(`/api/studio/shows/${show.slug}/cast`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ actorId }),
+    });
+    setPickerOpen(false);
+    onChanged("Actor hinzugefügt");
+  }
+
+  async function removeActor(actorId: string) {
+    if (!confirm("Actor aus Cast entfernen?")) return;
+    await fetch(`/api/studio/shows/${show.slug}/cast?actorId=${actorId}`, { method: "DELETE" });
+    onChanged("Entfernt");
+  }
+
+  async function updateCastRole(actorId: string, role: string) {
+    // PATCH replaces whole cast — preserve others
+    const nextCast = show.cast.map((c) => ({
+      actorId: c.actorId,
+      role: c.actorId === actorId ? role : c.role,
+      styleOverride: c.styleOverride,
+      orderIndex: c.orderIndex,
+    }));
+    await fetch(`/api/studio/shows/${show.slug}/cast`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cast: nextCast }),
+    });
+    onChanged("Rolle aktualisiert");
+  }
+
+  const notInCast = allActors.filter((a) => !show.cast.some((c) => c.actorId === a.id));
+
+  return (
+    <div className="space-y-3">
+      {show.cast.length === 0 && (
+        <p className="text-white/40 text-sm">Noch kein Cast. Füge Actors hinzu.</p>
+      )}
+
+      {show.cast.map((entry) => (
+        <div key={entry.id} className="flex items-center gap-3 p-3 bg-[#1A1A1A] border border-white/10 rounded-lg">
+          <span className="text-2xl">{entry.actor.emoji}</span>
+          <div className="flex-1">
+            <div className="text-sm text-[#f5eed6] font-medium">{entry.actor.displayName}</div>
+            <div className="text-[10px] text-white/40">{entry.actor.role ?? entry.actor.species}</div>
+          </div>
+          <input
+            type="text"
+            defaultValue={entry.role ?? ""}
+            onBlur={(e) => {
+              if (e.target.value !== (entry.role ?? "")) updateCastRole(entry.actorId, e.target.value);
+            }}
+            placeholder="Rolle (host, gast…)"
+            className="bg-[#141414] border border-white/10 rounded px-2 py-1 text-xs text-white/80 w-40"
+          />
+          <button
+            onClick={() => removeActor(entry.actorId)}
+            className="text-red-400/60 hover:text-red-400 text-xs px-2"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+
+      <div className="pt-3">
+        {!pickerOpen ? (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="text-xs text-[#C8A97E] hover:text-[#d4b88c]"
+          >
+            + Actor hinzufügen
+          </button>
+        ) : (
+          <div className="p-3 bg-[#1A1A1A] border border-white/10 rounded-lg">
+            <div className="grid grid-cols-2 gap-2">
+              {notInCast.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => addActor(a.id)}
+                  className="flex items-center gap-2 p-2 rounded hover:bg-white/5 text-left"
+                >
+                  <span>{a.emoji}</span>
+                  <span className="text-xs text-[#f5eed6]">{a.displayName}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPickerOpen(false)}
+              className="mt-2 text-[10px] text-white/40 hover:text-white/70"
+            >
+              Abbrechen
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Foki ───────────────────────────────────────────────────────
+
+function FokiTab({ show, onChanged }: { show: Show; onChanged: (msg: string) => void }) {
+  const [templates, setTemplates] = useState<FokusTemplate[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [editingFokus, setEditingFokus] = useState<ShowFokusRow | null>(null);
+
+  useEffect(() => {
+    fetch("/api/studio/shows/fokus-templates")
+      .then((r) => r.json())
+      .then((d) => setTemplates(d.templates || []));
+  }, []);
+
+  async function addFokus(fokusTemplateId: string) {
+    await fetch(`/api/studio/shows/${show.slug}/foki`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fokusTemplateId }),
+    });
+    setPickerOpen(false);
+    onChanged("Fokus hinzugefügt");
+  }
+
+  async function removeFokus(showFokusId: string) {
+    if (!confirm("Fokus aus Show entfernen?")) return;
+    await fetch(`/api/studio/shows/${show.slug}/foki?showFokusId=${showFokusId}`, { method: "DELETE" });
+    onChanged("Entfernt");
+  }
+
+  async function toggleEnabled(showFokusId: string, enabled: boolean) {
+    await fetch(`/api/studio/shows/${show.slug}/foki/${showFokusId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    onChanged(enabled ? "Aktiviert" : "Deaktiviert");
+  }
+
+  const notInShow = templates.filter((t) => !show.foki.some((f) => f.fokusTemplateId === t.id));
+
+  return (
+    <div className="space-y-3">
+      {show.foki.length === 0 && (
+        <p className="text-white/40 text-sm">Noch keine Foki. Füge Fokus-Templates hinzu.</p>
+      )}
+
+      {show.foki.map((entry) => (
+        <div
+          key={entry.id}
+          className={`p-3 bg-[#1A1A1A] border rounded-lg ${
+            entry.enabled ? "border-white/10" : "border-white/5 opacity-50"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">{entry.fokusTemplate.emoji}</span>
+            <div className="flex-1">
+              <div className="text-sm text-[#f5eed6] font-medium">
+                {entry.displayLabel || entry.fokusTemplate.displayName}
+              </div>
+              <div className="text-[10px] text-white/40">
+                {entry.fokusTemplate.minAlter}+ · {entry.targetDurationMin} min
+                {entry.showOverlay && <span className="ml-2 text-[#C8A97E]/60">• Overlay aktiv</span>}
+              </div>
+            </div>
+            <button
+              onClick={() => toggleEnabled(entry.id, !entry.enabled)}
+              className="text-[10px] px-2 py-1 rounded bg-white/5 text-white/60 hover:bg-white/10"
+            >
+              {entry.enabled ? "An" : "Aus"}
+            </button>
+            <button
+              onClick={() => setEditingFokus(entry)}
+              className="text-[10px] px-2 py-1 rounded bg-[#C8A97E]/20 text-[#C8A97E] hover:bg-[#C8A97E]/30"
+            >
+              Bearbeiten
+            </button>
+            <button
+              onClick={() => removeFokus(entry.id)}
+              className="text-red-400/60 hover:text-red-400 text-xs px-2"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <div className="pt-3">
+        {!pickerOpen ? (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="text-xs text-[#C8A97E] hover:text-[#d4b88c]"
+          >
+            + Fokus hinzufügen
+          </button>
+        ) : (
+          <div className="p-3 bg-[#1A1A1A] border border-white/10 rounded-lg">
+            <div className="grid grid-cols-2 gap-2">
+              {notInShow.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => addFokus(t.id)}
+                  className="flex items-center gap-2 p-2 rounded hover:bg-white/5 text-left"
+                >
+                  <span>{t.emoji}</span>
+                  <span className="text-xs text-[#f5eed6]">{t.displayName}</span>
+                  <span className="text-[9px] text-white/30">{t.minAlter}+</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPickerOpen(false)}
+              className="mt-2 text-[10px] text-white/40 hover:text-white/70"
+            >
+              Abbrechen
+            </button>
+          </div>
+        )}
+      </div>
+
+      {editingFokus && (
+        <FokusEditModal
+          slug={show.slug}
+          fokus={editingFokus}
+          onClose={() => setEditingFokus(null)}
+          onSaved={() => {
+            setEditingFokus(null);
+            onChanged("Fokus aktualisiert");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function FokusEditModal({
+  slug,
+  fokus,
+  onClose,
+  onSaved,
+}: {
+  slug: string;
+  fokus: ShowFokusRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [showOverlay, setShowOverlay] = useState(fokus.showOverlay);
+  const [targetDurationMin, setTargetDurationMin] = useState(fokus.targetDurationMin);
+  const [displayLabel, setDisplayLabel] = useState(fokus.displayLabel ?? "");
+  const [castRolesText, setCastRolesText] = useState(JSON.stringify(fokus.castRoles, null, 2));
+  const [userInputSchemaText, setUserInputSchemaText] = useState(JSON.stringify(fokus.userInputSchema, null, 2));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const castRoles = JSON.parse(castRolesText);
+      const userInputSchema = JSON.parse(userInputSchemaText);
+      const res = await fetch(`/api/studio/shows/${slug}/foki/${fokus.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          showOverlay,
+          targetDurationMin,
+          displayLabel: displayLabel || null,
+          castRoles,
+          userInputSchema,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || "Save failed");
+      }
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+      <div className="bg-[#141414] border border-white/10 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-[#141414] border-b border-white/10 px-5 py-3 flex items-center justify-between">
+          <h3 className="text-[#f5eed6] text-sm font-semibold">
+            {fokus.fokusTemplate.emoji} {fokus.fokusTemplate.displayName} — fine-tuning
+          </h3>
+          <button onClick={onClose} className="text-white/40 hover:text-white/70 text-lg">
+            ✕
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <Field label="Display-Label (optional override)">
+            <TextInput value={displayLabel} onChange={setDisplayLabel} placeholder={fokus.fokusTemplate.displayName} />
+          </Field>
+
+          <Field label="Ziel-Dauer (Min)">
+            <input
+              type="number"
+              value={targetDurationMin}
+              onChange={(e) => setTargetDurationMin(parseInt(e.target.value || "0"))}
+              className="bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 w-32"
+            />
+          </Field>
+
+          <Field
+            label="Show-Overlay (zusätzlich zu Brand-Voice + Fokus-Skeleton)"
+            hint="Feinschliff-Prompt nur für dieses Fokus-in-dieser-Show. Bleibt leer = keine weitere Injektion."
+          >
+            <TextArea value={showOverlay} onChange={setShowOverlay} rows={4} />
+          </Field>
+
+          <Field label="Cast-Roles (JSON)" hint="Welche Actor-IDs welche Rolle pro Fokus haben (lead, support, …).">
+            <TextArea value={castRolesText} onChange={setCastRolesText} rows={6} mono />
+          </Field>
+
+          <Field label="User-Input-Schema (JSON)" hint="Effektives Schema für dieses Fokus.">
+            <TextArea value={userInputSchemaText} onChange={setUserInputSchemaText} rows={10} mono />
+          </Field>
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          <div className="flex gap-3 pt-3 border-t border-white/10">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-white/5 text-white/60 text-sm hover:bg-white/10">
+              Abbrechen
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="flex-1 px-4 py-2 rounded-lg bg-[#C8A97E] text-[#141414] text-sm font-medium hover:bg-[#d4b88c] disabled:opacity-50"
+            >
+              {saving ? "Speichert…" : "Speichern"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Episoden (read-only für jetzt) ─────────────────────────────
+
+function EpisodenTab({ show }: { show: Show }) {
+  if (show.episodes.length === 0) {
+    return (
+      <div className="text-white/40 text-sm p-6 border border-white/10 rounded-lg text-center">
+        Noch keine Episoden generiert. Sobald Canzoia-User via API Episoden generieren, erscheinen sie hier.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {show.episodes.map((ep) => (
+        <div key={ep.id} className="flex items-center gap-3 p-3 bg-[#1A1A1A] border border-white/10 rounded-lg">
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded ${
+              ep.status === "completed"
+                ? "bg-green-500/20 text-green-300"
+                : ep.status === "failed"
+                ? "bg-red-500/20 text-red-300"
+                : "bg-yellow-500/20 text-yellow-300"
+            }`}
+          >
+            {ep.status}
+          </span>
+          <div className="flex-1">
+            <div className="text-sm text-[#f5eed6]">{ep.title ?? "(kein Titel)"}</div>
+            <div className="text-[10px] text-white/40 font-mono">{ep.canzoiaJobId}</div>
+          </div>
+          <div className="text-[10px] text-white/40">
+            {ep.durationSec ? `${ep.durationSec}s` : `${ep.progressPct}%`}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Gefahrenzone ───────────────────────────────────────────────
+
+function GefahrenzoneTab({ show, onDeleted }: { show: Show; onDeleted: () => void }) {
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function doDelete() {
+    if (confirmText !== show.slug) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/studio/shows/${show.slug}`, { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || "Delete failed");
+      }
+      onDeleted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4 border border-red-500/20 rounded-lg p-5 bg-red-950/10">
+      <h3 className="text-red-300 font-semibold text-sm">Show löschen</h3>
+      <p className="text-xs text-white/60">
+        Unwiderruflich. Wenn Episoden existieren, blockiert der Server die Löschung. Bestätige mit dem Slug{" "}
+        <span className="font-mono text-[#C8A97E]">{show.slug}</span>.
+      </p>
+      <TextInput value={confirmText} onChange={setConfirmText} placeholder={show.slug} />
+      {error && <p className="text-red-400 text-xs">{error}</p>}
+      <button
+        onClick={doDelete}
+        disabled={deleting || confirmText !== show.slug}
+        className="px-4 py-2 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 text-sm disabled:opacity-40"
+      >
+        {deleting ? "Lösche…" : "Unwiderruflich löschen"}
+      </button>
+    </div>
+  );
+}
+
+// ── Shared inputs ──────────────────────────────────────────────
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-white/60 mb-2">{label}</label>
+      {children}
+      {hint && <p className="text-[10px] text-white/30 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+function TextInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 focus:border-[#C8A97E]/50 focus:outline-none"
+    />
+  );
+}
+
+function TextArea({
+  value,
+  onChange,
+  rows = 4,
+  mono,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  rows?: number;
+  mono?: boolean;
+}) {
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      rows={rows}
+      className={`w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 focus:border-[#C8A97E]/50 focus:outline-none resize-y ${
+        mono ? "font-mono text-[11px]" : ""
+      }`}
+    />
+  );
+}

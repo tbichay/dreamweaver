@@ -12,7 +12,7 @@ import { buildProfileEvolution, ProfilEventRow } from "./profile-diff";
 // CHARACTER STYLES — altersadaptiv für alle 6 Figuren
 // ═══════════════════════════════════════════════════
 
-const KODA_STIL = (alter: number) => {
+export const KODA_STIL = (alter: number) => {
   const SPRECHER_ANWEISUNG = `
 KODAS SPRECHWEISE (gilt für alle Altersstufen):
 Koda erzählt wie ein professioneller Hörspiel-Sprecher. Er passt sein Tempo dem Inhalt an:
@@ -49,7 +49,7 @@ Keine kindliche Sprache, aber immer warm und wohlwollend.
 ${SPRECHER_ANWEISUNG}`;
 };
 
-const KIKI_STIL = (alter: number) => {
+export const KIKI_STIL = (alter: number) => {
   if (alter <= 5) return `KIKIS STIL FÜR 3-5 JAHRE:
 Kiki ist albern und macht lustige Ausrufe. Kurze, begeisterte Sätze.
 "Hihi! Kuckuck!" / "Ohhh, das ist ja toll!" / "Boah, schau mal!"
@@ -71,7 +71,7 @@ Kiki ist schlagfertig und warmherzig-ironisch. Schnelle Kommentare.
 Sie bringt Leichtigkeit in ernste Momente, ohne sie zu entwerten.`;
 };
 
-const LUNA_STIL = (alter: number) => {
+export const LUNA_STIL = (alter: number) => {
   if (alter <= 8) return `LUNAS STIL FÜR 3-8 JAHRE:
 Luna spricht sanft aber LEBENDIG — wie eine liebevolle große Schwester die eine Gute-Nacht-Geschichte erzählt.
 WICHTIG: Luna ist NICHT monoton! Sie variiert ihr Tempo und ihre Betonung:
@@ -100,7 +100,7 @@ ABER: Nicht monoton! Ihre Stimme hat DYNAMIK:
 Poetisch aber nicht kitschig. Echte Tiefe, echte Ruhe, echte LEBENDIGKEIT.`;
 };
 
-const MIKA_STIL = (alter: number) => {
+export const MIKA_STIL = (alter: number) => {
   if (alter <= 5) return `MIKAS STIL FÜR 3-5 JAHRE:
 Mika ist aufgeregt und begeistert, aber nie beängstigend.
 "Los geht's! Komm mit!" / "Wow, schau mal da!" / "Wir schaffen das!"
@@ -125,7 +125,7 @@ Er kombiniert Action mit Tiefe. Mutig, aber auch verletzlich.
 Echte Herausforderungen, echte Triumphe.`;
 };
 
-const PIP_STIL = (alter: number) => {
+export const PIP_STIL = (alter: number) => {
   if (alter <= 5) return `PIPS STIL FÜR 3-5 JAHRE:
 Pip ist super neugierig und begeistert sich für ALLES.
 "Oh! Was ist DAS?!" / "Warum ist das so?" / "Schau mal, schau mal!"
@@ -151,7 +151,7 @@ Er verbindet Fakten mit Staunen. Neugier als Lebenshaltung.
 "Je mehr man weiß, desto mehr gibt es zu entdecken..."`;
 };
 
-const SAGE_STIL = (alter: number) => {
+export const SAGE_STIL = (alter: number) => {
   // Sage ist erst ab 13 aktiv (Reflexion), aber wir definieren auch jüngere Stile
   // falls er mal im Podcast für Jüngere vorkommt
   if (alter <= 8) return `SAGES STIL FÜR 3-8 JAHRE:
@@ -171,7 +171,7 @@ Er lässt Raum. Pausen sind Teil seiner Sprache. Er drängt nie.
 Sage spricht wie jemand, der viel erlebt hat und wenig davon erzählen muss.`;
 };
 
-const NUKI_STIL = (alter: number) => {
+export const NUKI_STIL = (alter: number) => {
   // Nuki hat einen einzigartigen Sprechstil OHNE Sprachfehler:
   // - Wörter verdoppeln vor Begeisterung: "wunderwunderschön!", "supersupertoll!"
   // - Eigene Ausrufe: "Hui!", "Hoppla!", "Oha!"
@@ -223,9 +223,9 @@ Hakuna Matata — Sorgen kommen und gehen, aber die Freude bleibt wenn man sie l
 // CHARACTER CAST per Format — wer spricht, wer führt
 // ═══════════════════════════════════════════════════
 
-type CharacterRole = "lead" | "support" | "minimal" | "excluded";
+export type CharacterRole = "lead" | "support" | "minimal" | "excluded";
 
-interface FormatCast {
+export interface FormatCast {
   koda: CharacterRole;
   kiki: CharacterRole;
   luna: CharacterRole;
@@ -235,7 +235,7 @@ interface FormatCast {
   nuki: CharacterRole;
 }
 
-const FORMAT_CAST: Record<StoryFormat, FormatCast> = {
+export const FORMAT_CAST: Record<StoryFormat, FormatCast> = {
   traumreise:   { koda: "support", kiki: "minimal", luna: "lead", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "excluded" },
   fabel:        { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "minimal" },
   held:         { koda: "lead", kiki: "support", luna: "excluded", mika: "excluded", pip: "excluded", sage: "excluded", nuki: "minimal" },
@@ -257,7 +257,7 @@ const FORMAT_CAST: Record<StoryFormat, FormatCast> = {
 // CHARACTER PROFILE BLOCKS — used in prompt
 // ═══════════════════════════════════════════════════
 
-const CHARACTER_PROFILES: Record<string, (alter: number, role: CharacterRole) => string> = {
+export const CHARACTER_PROFILES: Record<string, (alter: number, role: CharacterRole) => string> = {
   koda: (alter, role) => {
     const roleBeschreibung = role === "lead"
       ? "KODA ist der HAUPTERZÄHLER. Er startet und beendet die Geschichte."
@@ -428,7 +428,7 @@ const GESCHLECHT_PRONOMEN = (geschlecht?: "m" | "w" | "d") => {
 // FORMAT-ANWEISUNGEN — mit richtigen Charakter-Zuweisungen
 // ═══════════════════════════════════════════════════
 
-const FORMAT_ANWEISUNGEN: Record<StoryFormat, string> = {
+export const FORMAT_ANWEISUNGEN: Record<StoryFormat, string> = {
   traumreise: `FORMAT: TRAUMREISE (Luna führt)
 - Koda begrüßt den Hörer und stellt Luna vor: "Heute hat meine Freundin Luna etwas Besonderes..."
 - LUNA übernimmt und führt durch die Traumreise:

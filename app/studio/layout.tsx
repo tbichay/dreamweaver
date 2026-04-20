@@ -9,6 +9,7 @@ import { TaskBadge } from "@/app/components/TaskStatusBar";
 
 const ENGINE_NAV = [
   { href: "/studio/engine", label: "Engine", icon: "⬡" },
+  { href: "/studio/shows", label: "Shows", icon: "▣" },
   { href: "/studio/library", label: "Library", icon: "◫" },
   { href: "/studio/tasks", label: "Tasks", icon: "◎" },
   { href: "/studio/prompts", label: "Prompts", icon: "⎕" },
@@ -21,6 +22,7 @@ const ENGINE_NAV = [
 const LEGACY_NAV = [
   { href: "/studio", label: "Übersicht", emoji: "🏠", exact: true },
   { href: "/studio/engine", label: "Engine", emoji: "🎬" },
+  { href: "/studio/shows", label: "Shows", emoji: "📺" },
   { href: "/studio/library", label: "Library", emoji: "📁" },
   { href: "/studio/prompts", label: "Prompts", emoji: "📝" },
   { href: "/studio/models", label: "Models", emoji: "🤖" },
