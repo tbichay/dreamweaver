@@ -17,6 +17,7 @@
  * aus `lib/story-parser.ts` + `lib/elevenlabs.ts` 1:1 wiedernutzen können.
  */
 
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { createAnthropicClient } from "@/lib/ai-clients";
 import {
@@ -27,6 +28,7 @@ import {
 import { put } from "@vercel/blob";
 import type { Prisma } from "@prisma/client";
 import type { CharacterVoiceSettings } from "@/lib/types";
+import { deliverWebhookSafe } from "@/lib/canzoia/webhooks";
 
 const CLAUDE_MODEL = "claude-sonnet-4-20250514";
 const MAX_TOKENS = 8192;
@@ -382,13 +384,28 @@ export async function generateShowEpisode(params: {
     include: { show: true, showFokus: true },
   });
   if (!episode) throw new Error(`Episode ${params.episodeId} nicht gefunden`);
+  // Capture non-null primitives into locals so closures don't re-narrow.
   const episodeId = episode.id;
+  const canzoiaJobId = episode.canzoiaJobId;
 
   async function setStatus(status: ShowEpisodeStatus, progressPct: number, stage?: string) {
     await prisma.showEpisode.update({
       where: { id: episodeId },
       data: { status, progressPct, progressStage: stage ?? null },
     });
+    // Fire best-effort progress webhook (not retried if it fails — §5.3).
+    // Only fire for non-terminal statuses; completed/failed get their own
+    // richer payloads below.
+    if (status !== "completed" && status !== "failed") {
+      deliverWebhookSafe({
+        event: "generation.progress",
+        deliveryId: randomUUID(),
+        timestamp: new Date().toISOString(),
+        jobId: canzoiaJobId,
+        stage: stage ?? null,
+        progressPct,
+      });
+    }
   }
 
   try {
@@ -475,16 +492,60 @@ export async function generateShowEpisode(params: {
       },
     });
 
-    console.log(`[show-episode] ✓ ${episode.id} completed — ${durationSec}s, ${audioResult.wav.byteLength} bytes`);
+    console.log(`[show-episode] ✓ ${episodeId} completed — ${durationSec}s, ${audioResult.wav.byteLength} bytes`);
+
+    // Reload for up-to-date fields (title, cost) + dispatch completed webhook.
+    const final = await prisma.showEpisode.findUniqueOrThrow({
+      where: { id: episodeId },
+      include: { show: { select: { slug: true } } },
+    });
+    deliverWebhookSafe({
+      event: "generation.completed",
+      deliveryId: randomUUID(),
+      timestamp: new Date().toISOString(),
+      jobId: final.canzoiaJobId,
+      idempotencyKey: final.idempotencyKey,
+      showSlug: final.show.slug,
+      showFokusId: final.showFokusId,
+      canzoiaProfileId: final.canzoiaProfileId,
+      result: {
+        title: final.title,
+        audioUrl: final.audioUrl ?? blob.url,
+        durationSec: final.durationSec,
+        timeline: final.timeline,
+      },
+      cost: {
+        inputTokens: final.inputTokens,
+        outputTokens: final.outputTokens,
+        ttsChars: final.ttsChars,
+        totalMinutesBilled: final.totalMinutesBilled,
+      },
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[show-episode] ✗ ${episode.id} failed:`, msg);
+    const code = err instanceof Error ? err.name : "Error";
+    console.error(`[show-episode] ✗ ${episodeId} failed:`, msg);
     await prisma.showEpisode.update({
-      where: { id: episode.id },
+      where: { id: episodeId },
       data: {
         status: "failed",
         errorMessage: msg.slice(0, 2000),
-        errorCode: err instanceof Error ? err.name : "Error",
+        errorCode: code,
+        completedAt: new Date(),
+      },
+    });
+    deliverWebhookSafe({
+      event: "generation.failed",
+      deliveryId: randomUUID(),
+      timestamp: new Date().toISOString(),
+      jobId: episode.canzoiaJobId,
+      idempotencyKey: episode.idempotencyKey,
+      showSlug: episode.show.slug,
+      showFokusId: episode.showFokusId,
+      canzoiaProfileId: episode.canzoiaProfileId,
+      error: {
+        code,
+        message: msg.slice(0, 500),
       },
     });
     throw err;
