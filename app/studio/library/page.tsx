@@ -2542,13 +2542,44 @@ function LibraryPageInner() {
             </div>
           )}
 
+          {/* Deprecation-Banner (Unification Phase 3.5):
+              Die Library-Actors-Tab ist Legacy — DigitalActor-Pool der
+              Film-Maker-Pipeline. Seit Phase 2 sind alle DigitalActors in
+              den Unified `Actor`-Pool gespiegelt (`actorId`-Bridge).
+              Neue Actors bitte direkt ueber /studio/shows/actors anlegen,
+              damit sie sowohl in der Shows- als auch in der Film-Pipeline
+              sichtbar sind. Phase 4 kippt diese Tab komplett. */}
+          {!showNewActorForm && !selectedActor && (
+            <div className="mb-4 p-3 rounded-xl bg-[#C8A97E]/10 border border-[#C8A97E]/30">
+              <div className="flex items-start gap-3">
+                <span className="text-lg shrink-0">🔄</span>
+                <div className="flex-1">
+                  <p className="text-xs text-[#f5eed6] font-medium">Actors werden migriert in den Unified-Pool</p>
+                  <p className="text-[11px] text-white/60 mt-1">
+                    Neue Actors bitte direkt unter{" "}
+                    <a
+                      href="/studio/shows/actors"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#C8A97E] hover:underline"
+                    >
+                      /studio/shows/actors
+                    </a>{" "}
+                    anlegen — dann sind sie in Shows &amp; Film-Pipeline gleichzeitig verfügbar.
+                    Diese Legacy-Liste zeigt nur die {filteredActors.length} migrierten DigitalActors.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* New Actor Button */}
           {!showNewActorForm && (
             <button
               onClick={() => { setShowNewActorForm(true); setSelectedActorId(null); }}
               className="mb-4 px-4 py-2.5 rounded-xl bg-[#3d6b4a]/30 border border-[#3d6b4a]/40 text-[#a8d5b8] text-xs font-medium hover:bg-[#3d6b4a]/50 transition-all"
             >
-              + Neuer Schauspieler
+              + Neuer Schauspieler <span className="text-[9px] text-white/40">(legacy)</span>
             </button>
           )}
 
@@ -2626,6 +2657,21 @@ function LibraryPageInner() {
                     </div>
 
                     <p className="text-xs font-medium text-[#f5eed6] mt-2 text-center truncate">{actor.name}</p>
+
+                    {/* Unified-Bridge-Link (Phase 3.5): Wenn dieser DigitalActor
+                        bereits im Unified-Pool gespiegelt ist, kurzer Shortcut
+                        zum /studio/shows/actors/[actorId]-Edit. */}
+                    {actor.actorId && (
+                      <a
+                        href={`/studio/shows/actors/${actor.actorId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="block text-center mt-1 text-[9px] text-[#C8A97E]/70 hover:text-[#C8A97E] hover:underline"
+                      >
+                        ✎ in Unified-Pool editieren
+                      </a>
+                    )}
 
                     {actor.style && (
                       <p className="text-[7px] text-purple-300/40 text-center mt-0.5">{actor.style}</p>

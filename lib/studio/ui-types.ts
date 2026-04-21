@@ -34,5 +34,9 @@ export interface DigitalActor {
   createdAt?: string;
   libraryVoiceId?: string;
   libraryVoice?: { name: string };
+  // Unification-Bridge (Phase 2): gesetzt wenn DigitalActor bereits in den
+  // Unified `Actor`-Pool gespiegelt wurde. Library-UI nutzt das fuer einen
+  // "Neu editieren via /studio/shows/actors/[actorId]"-Link.
+  actorId?: string | null;
   _count?: { characters: number };
 }
