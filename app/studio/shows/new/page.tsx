@@ -86,6 +86,12 @@ export default function NewShowPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [selectedFokusIds, setSelectedFokusIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  // "Gleich Trailer?" default ON — billig und macht die Show im
+  // Studio-Katalog sofort horchbar. Fehler bei der Trailer-Generation
+  // brechen den Redirect NICHT ab; wir landen trotzdem auf der Detail-
+  // Seite und Admin kann dort manuell nachholen.
+  const [generateTrailer, setGenerateTrailer] = useState(true);
+  const [savePhase, setSavePhase] = useState<"idle" | "creating" | "trailer">("idle");
 
   useEffect(() => {
     Promise.all([
@@ -151,6 +157,7 @@ export default function NewShowPage() {
   async function onSave() {
     if (!draft) return;
     setSaving(true);
+    setSavePhase("creating");
     setError(null);
     try {
       // 1. Create Show
@@ -212,10 +219,30 @@ export default function NewShowPage() {
         });
       }
 
+      // 5. Optional: Trailer generieren (15-40s blockierend).
+      //    Fehler hier werden *nicht* fatal — wir redirecten trotzdem,
+      //    damit der Admin die Show sieht. Im BrandTab kann er den
+      //    Trailer dann manuell nachholen.
+      if (generateTrailer) {
+        setSavePhase("trailer");
+        try {
+          const trailerRes = await fetch(`/api/studio/shows/${slug}/trailer`, {
+            method: "POST",
+          });
+          if (!trailerRes.ok) {
+            const trailerData = await trailerRes.json().catch(() => ({}));
+            console.warn("[wizard] trailer failed:", trailerData.error || trailerRes.status);
+          }
+        } catch (trailerErr) {
+          console.warn("[wizard] trailer network error:", trailerErr);
+        }
+      }
+
       router.push(`/studio/shows/${slug}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSaving(false);
+      setSavePhase("idle");
     }
   }
 
@@ -596,6 +623,25 @@ export default function NewShowPage() {
           </div>
         </div>
 
+        {/* Trailer-Option */}
+        <label className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/10 cursor-pointer hover:bg-white/[0.05]">
+          <input
+            type="checkbox"
+            checked={generateTrailer}
+            onChange={(e) => setGenerateTrailer(e.target.checked)}
+            disabled={saving}
+            className="mt-0.5 accent-[#C8A97E]"
+          />
+          <div>
+            <div className="text-xs font-medium text-[#f5eed6]">
+              Direkt Trailer generieren
+            </div>
+            <div className="text-[11px] text-white/50 mt-0.5">
+              Claude schreibt ~20s Teaser-Script, ElevenLabs synthetisiert mit den Cast-Stimmen. Dauert 15-40s extra, kann im Brand-Tab spaeter nachgeholt/ersetzt werden.
+            </div>
+          </div>
+        </label>
+
         {error && (
           <p className="text-red-400 text-sm bg-red-950/30 border border-red-900/50 rounded-lg px-4 py-2">
             {error}
@@ -605,7 +651,8 @@ export default function NewShowPage() {
         <div className="flex gap-3 pt-4 border-t border-white/10">
           <button
             onClick={() => setStep("input")}
-            className="px-4 py-2 rounded-lg bg-white/5 text-white/60 text-sm hover:bg-white/10"
+            disabled={saving}
+            className="px-4 py-2 rounded-lg bg-white/5 text-white/60 text-sm hover:bg-white/10 disabled:opacity-50"
           >
             Zurück
           </button>
@@ -626,7 +673,13 @@ export default function NewShowPage() {
             }
             className="flex-1 px-5 py-2.5 rounded-lg bg-[#C8A97E] text-[#141414] font-medium text-sm hover:bg-[#d4b88c] disabled:opacity-50"
           >
-            {saving ? "Speichere…" : "Show anlegen"}
+            {savePhase === "creating"
+              ? "Show wird angelegt…"
+              : savePhase === "trailer"
+              ? "Trailer wird generiert…"
+              : generateTrailer
+              ? "Show anlegen + Trailer"
+              : "Show anlegen"}
           </button>
         </div>
       </div>
