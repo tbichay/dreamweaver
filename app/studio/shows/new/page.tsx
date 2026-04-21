@@ -3,9 +3,15 @@
 /**
  * Neue Show — 2-Schritt-Flow
  *
- * Step 1: Admin schreibt Beschreibung + wählt Actors → Claude-Bootstrap.
+ * Step 1: Admin schreibt Beschreibung. Zwei Cast-Modi:
+ *   - "Claude waehlen lassen" (autoCast=true): Admin pickert nix,
+ *     Claude schlaegt 2-4 Actors aus dem ganzen Pool vor — mit
+ *     Reasoning pro Actor (existierende Beziehungen bevorzugt).
+ *   - "Cast selbst waehlen" (Manual): klassischer Multi-Actor-Picker,
+ *     Claude baut Draft um diese Actors herum.
  * Step 2: Draft-Preview mit allen Feldern editierbar → Save erstellt die
  *         Show (inkl. Cast + Foki) und redirectet auf /studio/shows/[slug].
+ *         Auto-gewaehlte Actors koennen individuell rausgeworfen werden.
  *
  * Die Bootstrap-Antwort ist nur ein Vorschlag — alles kann vor dem Save
  * überschrieben werden. Suggested-Foki werden als Checkboxes angezeigt.
@@ -65,6 +71,11 @@ export default function NewShowPage() {
   const [actors, setActors] = useState<Actor[]>([]);
   const [templates, setTemplates] = useState<FokusTemplate[]>([]);
   const [beschreibung, setBeschreibung] = useState("");
+  // Cast-Mode: "auto" = Claude waehlt aus dem Pool, "manual" = Admin
+  // pickert selbst. Default "auto" — Wizard-Flow ist der neue Haupt-Pfad
+  // (Admin muss das Ensemble nicht auswendig kennen, um eine Show zu
+  // entwerfen).
+  const [castMode, setCastMode] = useState<"auto" | "manual">("auto");
   const [selectedActorIds, setSelectedActorIds] = useState<string[]>([]);
   const [category, setCategory] = useState("kids");
   const [ageBand, setAgeBand] = useState<string>("6-8");
@@ -98,19 +109,37 @@ export default function NewShowPage() {
 
   async function onBootstrap() {
     if (!beschreibung.trim()) return setError("Beschreibung fehlt.");
-    if (selectedActorIds.length === 0) return setError("Mindestens ein Actor wählen.");
+    if (castMode === "manual" && selectedActorIds.length === 0) {
+      return setError("Manueller Modus: mind. einen Actor waehlen.");
+    }
     setError(null);
     setBootstrapping(true);
     try {
       const res = await fetch("/api/studio/shows/bootstrap", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ beschreibung, actorIds: selectedActorIds, category, ageBand }),
+        body: JSON.stringify({
+          beschreibung,
+          actorIds: selectedActorIds,
+          autoCast: castMode === "auto",
+          category,
+          ageBand,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Fehler");
-      setDraft(data.draft as Draft);
-      setSelectedFokusIds(data.draft.suggestedFokusTemplateIds || []);
+      const returnedDraft = data.draft as Draft;
+      setDraft(returnedDraft);
+      setSelectedFokusIds(returnedDraft.suggestedFokusTemplateIds || []);
+      // autoCast-Mode: Claude hat selbst 2-4 Actor-IDs vorgeschlagen.
+      // Die uebernehmen wir als initial selectedActorIds, damit der
+      // Save-Flow unveraendert mit dem Array weiterarbeiten kann.
+      if (castMode === "auto") {
+        const claudePicked = (returnedDraft.suggestedCastRoles ?? [])
+          .map((c) => c.actorId)
+          .filter((id, i, a) => a.indexOf(id) === i); // dedupe
+        setSelectedActorIds(claudePicked);
+      }
       setStep("draft");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -269,37 +298,80 @@ export default function NewShowPage() {
             </div>
           </div>
 
-          {/* Actor-Picker */}
+          {/* Cast-Mode Toggle */}
           <div>
-            <label className="block text-xs font-medium text-white/60 mb-2">
-              Actors * ({selectedActorIds.length} gewählt)
-            </label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {actors.map((actor) => {
-                const selected = selectedActorIds.includes(actor.id);
-                return (
-                  <button
-                    key={actor.id}
-                    onClick={() => toggleActor(actor.id)}
-                    className={`text-left rounded-lg border p-3 transition ${
-                      selected
-                        ? "border-[#C8A97E] bg-[#C8A97E]/10"
-                        : "border-white/10 bg-[#1A1A1A] hover:border-white/20"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">{actor.emoji ?? "•"}</span>
-                      <span className="text-[#f5eed6] font-medium text-sm">{actor.displayName}</span>
-                    </div>
-                    <div className="text-[10px] text-white/50">{actor.role ?? actor.species ?? "—"}</div>
-                    <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
-                      {actor.expertise.slice(0, 3).join(" · ")}
-                    </div>
-                  </button>
-                );
-              })}
+            <label className="block text-xs font-medium text-white/60 mb-2">Cast</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCastMode("auto")}
+                className={`text-left rounded-lg border p-3 transition ${
+                  castMode === "auto"
+                    ? "border-[#C8A97E] bg-[#C8A97E]/10"
+                    : "border-white/10 bg-[#1A1A1A] hover:border-white/20"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm">🎯</span>
+                  <span className="text-[#f5eed6] text-sm font-medium">Claude waehlen lassen</span>
+                </div>
+                <div className="text-[10px] text-white/50">
+                  2-4 passende Actors aus dem Pool — mit Reasoning pro Actor.
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCastMode("manual")}
+                className={`text-left rounded-lg border p-3 transition ${
+                  castMode === "manual"
+                    ? "border-[#C8A97E] bg-[#C8A97E]/10"
+                    : "border-white/10 bg-[#1A1A1A] hover:border-white/20"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm">👤</span>
+                  <span className="text-[#f5eed6] text-sm font-medium">Cast selbst waehlen</span>
+                </div>
+                <div className="text-[10px] text-white/50">
+                  Ich weiss schon, wen ich dabei haben will.
+                </div>
+              </button>
             </div>
           </div>
+
+          {/* Actor-Picker nur im Manual-Mode */}
+          {castMode === "manual" && (
+            <div>
+              <label className="block text-xs font-medium text-white/60 mb-2">
+                Actors * ({selectedActorIds.length} gewaehlt)
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {actors.map((actor) => {
+                  const selected = selectedActorIds.includes(actor.id);
+                  return (
+                    <button
+                      key={actor.id}
+                      onClick={() => toggleActor(actor.id)}
+                      className={`text-left rounded-lg border p-3 transition ${
+                        selected
+                          ? "border-[#C8A97E] bg-[#C8A97E]/10"
+                          : "border-white/10 bg-[#1A1A1A] hover:border-white/20"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">{actor.emoji ?? "•"}</span>
+                        <span className="text-[#f5eed6] font-medium text-sm">{actor.displayName}</span>
+                      </div>
+                      <div className="text-[10px] text-white/50">{actor.role ?? actor.species ?? "—"}</div>
+                      <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
+                        {actor.expertise.slice(0, 3).join(" · ")}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="text-red-400 text-sm bg-red-950/30 border border-red-900/50 rounded-lg px-4 py-2">
@@ -309,10 +381,18 @@ export default function NewShowPage() {
 
           <button
             onClick={onBootstrap}
-            disabled={bootstrapping || !beschreibung.trim() || selectedActorIds.length === 0}
+            disabled={
+              bootstrapping ||
+              !beschreibung.trim() ||
+              (castMode === "manual" && selectedActorIds.length === 0)
+            }
             className="w-full px-5 py-3 rounded-lg bg-[#C8A97E] text-[#141414] font-medium hover:bg-[#d4b88c] disabled:opacity-50 transition"
           >
-            {bootstrapping ? "Claude generiert Draft…" : "Draft generieren"}
+            {bootstrapping
+              ? "Claude generiert Draft…"
+              : castMode === "auto"
+              ? "Claude soll Cast + Draft waehlen"
+              : "Draft generieren"}
           </button>
         </div>
       </div>
@@ -403,22 +483,83 @@ export default function NewShowPage() {
           </div>
         </div>
 
-        {/* Cast Roles */}
+        {/* Cast Roles — im autoCast-Mode kann man Vorschlaege wegwerfen
+            oder weitere Actors nachtraeglich ergaenzen. */}
         <div>
-          <label className="block text-xs font-medium text-white/60 mb-2">Cast-Rollen</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs font-medium text-white/60">
+              Cast-Rollen ({selectedActorIds.length})
+            </label>
+            {castMode === "auto" && (
+              <span className="text-[9px] text-yellow-300/80">★ von Claude vorgeschlagen</span>
+            )}
+          </div>
           <div className="space-y-2">
+            {selectedActors.length === 0 && (
+              <p className="text-[11px] text-white/40 italic">Kein Cast ausgewaehlt.</p>
+            )}
             {selectedActors.map((actor) => {
               const hint = draft.suggestedCastRoles.find((c) => c.actorId === actor.id);
               return (
-                <div key={actor.id} className="flex items-center gap-3 text-sm p-2 bg-[#1A1A1A] rounded-lg border border-white/10">
-                  <span className="text-lg">{actor.emoji}</span>
-                  <span className="text-[#f5eed6] font-medium w-24">{actor.displayName}</span>
-                  <span className="text-white/50">{hint?.role ?? "—"}</span>
-                  <span className="text-white/30 text-[11px] flex-1 truncate">{hint?.reasoning ?? ""}</span>
+                <div
+                  key={actor.id}
+                  className="flex items-start gap-3 text-sm p-2.5 bg-[#1A1A1A] rounded-lg border border-white/10"
+                >
+                  <span className="text-lg leading-none mt-0.5">{actor.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#f5eed6] font-medium">{actor.displayName}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-white/50">
+                        {hint?.role ?? "—"}
+                      </span>
+                    </div>
+                    {hint?.reasoning && (
+                      <p className="text-[11px] text-white/50 mt-1">{hint.reasoning}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleActor(actor.id)}
+                    className="text-[11px] px-2 py-1 rounded text-white/50 hover:text-red-300 hover:bg-red-500/10 transition shrink-0"
+                    title="Actor aus Cast entfernen"
+                  >
+                    ✕
+                  </button>
                 </div>
               );
             })}
           </div>
+
+          {/* Actor-Adder — wenn autoCast zu wenig gewaehlt hat oder der
+              Admin nachtraeglich jemanden dazu will. Nur die *nicht* schon
+              gewaehlten Actors zeigen. */}
+          {actors.filter((a) => !selectedActorIds.includes(a.id)).length > 0 && (
+            <details className="mt-3 rounded-lg border border-white/10 bg-[#1A1A1A] p-3">
+              <summary className="cursor-pointer text-[11px] text-white/50 hover:text-white/80">
+                Actor hinzufuegen
+              </summary>
+              <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+                {actors
+                  .filter((a) => !selectedActorIds.includes(a.id))
+                  .map((actor) => (
+                    <button
+                      key={actor.id}
+                      type="button"
+                      onClick={() => toggleActor(actor.id)}
+                      className="text-left rounded-lg border border-white/10 p-2 hover:border-[#C8A97E]/60 transition"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">{actor.emoji ?? "•"}</span>
+                        <span className="text-[#f5eed6] text-xs">{actor.displayName}</span>
+                      </div>
+                      <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
+                        {actor.role ?? actor.species ?? "—"}
+                      </div>
+                    </button>
+                  ))}
+              </div>
+            </details>
+          )}
         </div>
 
         {/* Foki-Auswahl */}
@@ -470,7 +611,19 @@ export default function NewShowPage() {
           </button>
           <button
             onClick={onSave}
-            disabled={saving || !draft.title || selectedFokusIds.length === 0}
+            disabled={
+              saving ||
+              !draft.title ||
+              selectedFokusIds.length === 0 ||
+              selectedActorIds.length === 0
+            }
+            title={
+              selectedActorIds.length === 0
+                ? "Mindestens einen Actor im Cast lassen oder hinzufuegen"
+                : selectedFokusIds.length === 0
+                ? "Mindestens einen Fokus auswaehlen"
+                : undefined
+            }
             className="flex-1 px-5 py-2.5 rounded-lg bg-[#C8A97E] text-[#141414] font-medium text-sm hover:bg-[#d4b88c] disabled:opacity-50"
           >
             {saving ? "Speichere…" : "Show anlegen"}

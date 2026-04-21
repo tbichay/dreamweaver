@@ -2,7 +2,8 @@
  * Show-Bootstrap — "One prompt → complete Show draft"
  *
  * Input:  user-written Beschreibung (what the show is about, who it's for)
- *        + selected Actor IDs (they're committed to be in the show)
+ *        + EITHER selected Actor IDs, OR autoCast=true to let Claude pick
+ *        from the full Actor pool.
  *
  * Output: a Show draft object (NOT persisted yet) that the admin reviews
  *         and either saves, edits, or discards. Persistence happens via a
@@ -10,6 +11,13 @@
  *
  * Why not create-and-show: the admin needs the chance to rename, rewrite
  * the brandVoice, pick a different set of Foki, etc. before committing.
+ *
+ * Auto-Cast (2026-04-21): admin can ueberspringen den Actor-Picker, indem
+ * `autoCast=true` gesendet wird — dann laedt Claude den kompletten Pool
+ * und sucht 2-4 passende Actors mit Begruendung. Use-Case: "neue Show,
+ * aber ich kenne den Pool noch nicht gut genug" bzw. onboarding fuer
+ * weniger erfahrene Admins. suggestedCastRoles enthaelt dann die
+ * Claude-Empfehlung, UI kann vor Save noch einzelne Actors rausnehmen.
  */
 
 import { requireAdmin, unauthorized } from "@/lib/studio/admin-auth";
@@ -37,7 +45,8 @@ export async function POST(request: Request) {
 
   const body = await request.json() as {
     beschreibung: string;
-    actorIds: string[];
+    actorIds?: string[];
+    autoCast?: boolean;
     category?: string; // "kids"|"wellness"|"knowledge"
     ageBand?: string;
   };
@@ -45,14 +54,23 @@ export async function POST(request: Request) {
   if (!body.beschreibung?.trim()) {
     return Response.json({ error: "Beschreibung fehlt" }, { status: 400 });
   }
-  if (!Array.isArray(body.actorIds) || body.actorIds.length === 0) {
-    return Response.json({ error: "Mindestens ein Actor auswählen" }, { status: 400 });
+
+  const autoCast = body.autoCast === true;
+  const manualActorIds = Array.isArray(body.actorIds) ? body.actorIds : [];
+  if (!autoCast && manualActorIds.length === 0) {
+    return Response.json(
+      { error: "Mindestens einen Actor auswaehlen oder 'Claude waehlen lassen' aktivieren" },
+      { status: 400 },
+    );
   }
 
-  // Load actors + templates so Claude has concrete IDs to reference
+  // Load actors + templates so Claude has concrete IDs to reference.
+  // autoCast-Modus: den KOMPLETTEN Pool laden, damit Claude echt waehlen
+  // kann. Ohne autoCast bleibt der pre-selected Satz wie gehabt.
   const [actors, templates] = await Promise.all([
     prisma.actor.findMany({
-      where: { id: { in: body.actorIds } },
+      where: autoCast ? undefined : { id: { in: manualActorIds } },
+      orderBy: autoCast ? { displayName: "asc" } : undefined,
     }),
     prisma.fokusTemplate.findMany({
       where: body.category
@@ -63,13 +81,17 @@ export async function POST(request: Request) {
   ]);
 
   if (actors.length === 0) {
-    return Response.json({ error: "Keiner der Actor-IDs existiert" }, { status: 400 });
+    return Response.json(
+      { error: autoCast ? "Actor-Pool ist leer — erst Actors anlegen." : "Keiner der Actor-IDs existiert" },
+      { status: 400 },
+    );
   }
 
   // Build a rich actor dossier for Claude. Each character's deeper dimensions
   // (personality / speechStyle / catchphrases / backstory / relationships) are
   // appended as sub-lines only when populated, so legacy seed actors without
   // them still produce a compact single-line entry.
+  const relationshipScope = autoCast ? actors.map((x) => x.id) : manualActorIds;
   const actorTable = actors
     .map((a) => {
       const headline = `- ${a.id} — ${a.displayName} (${a.species ?? "—"}), Rolle: ${a.role ?? "—"}, Expertise: [${a.expertise.join(", ")}], Tone: ${a.defaultTone ?? "—"}. ${a.description ?? ""}`;
@@ -82,8 +104,10 @@ export async function POST(request: Request) {
       if (a.backstory) extras.push(`    Hintergrund: ${a.backstory}`);
       const rels = a.relationships as Record<string, string> | null;
       if (rels && typeof rels === "object") {
+        // In autoCast-Mode: Scope = kompletter Pool (Claude soll die
+        // Dynamic wissen). Manual-Mode: nur pre-selected Actors.
         const entries = Object.entries(rels)
-          .filter(([otherId]) => body.actorIds.includes(otherId))
+          .filter(([otherId]) => relationshipScope.includes(otherId))
           .map(([otherId, desc]) => `${otherId}: ${desc}`);
         if (entries.length > 0) extras.push(`    Beziehungen: ${entries.join("; ")}`);
       }
@@ -95,7 +119,11 @@ export async function POST(request: Request) {
     .map((t) => `- ${t.id} — ${t.displayName} (${t.emoji ?? ""}), Alter ${t.minAlter}+, Kategorien [${t.supportedCategories.join(",")}]. ${t.description ?? ""}`)
     .join("\n");
 
-  const systemPrompt = `Du bist Show-Director für KoalaTree. Der Admin beschreibt eine neue Show und wählt Actors aus dem bestehenden Ensemble. Du erzeugst einen kompletten Show-Draft als JSON.
+  const castRule = autoCast
+    ? `9. suggestedCastRoles: waehle aus dem Actor-Pool oben GENAU 2-4 Actors, die am besten zur Show passen — kein weniger, kein mehr. Eintraege { actorId, role, reasoning }. role ist semantisch auf Show-Ebene (z.B. "host", "side-kick", "guest-teacher"). reasoning 1-2 Saetze, warum genau dieser Actor passt (nutze personality/backstory/speechStyle/catchphrases als Argumente, nicht bloss expertise). Kombiniere Actors so, dass sie ENSEMBLE-TAUGLICH sind — existierende Beziehungen bevorzugen, wenn sie zum Thema passen.`
+    : `9. suggestedCastRoles: fuer JEDEN vom Admin gewaehlten Actor ein Eintrag mit { actorId, role, reasoning }. role ist semantisch auf Show-Ebene (z.B. "host", "side-kick", "guest-teacher"). reasoning 1 Satz — falls vorhanden: nutze personality/backstory als Argument statt nur Expertise.`;
+
+  const systemPrompt = `Du bist Show-Director für KoalaTree. Der Admin beschreibt eine neue Show${autoCast ? " — du waehlst die Actors selbst aus dem Ensemble." : " und waehlt Actors aus dem bestehenden Ensemble."} Du erzeugst einen kompletten Show-Draft als JSON.
 
 VERFÜGBARE ACTORS (IDs sind fix, nutze sie exakt):
 ${actorTable}
@@ -112,7 +140,7 @@ REGELN:
 6. brandVoice: Prompt-Overlay, 3–5 Sätze. Beschreibt Ton, Stil, Do's + Don'ts für alle Geschichten dieser Show. Wird bei JEDER Generation zusätzlich zum Fokus-Skeleton injiziert. Sei konkret — "warm, bildhaft, keine Gewalt, Tiere sprechen sanft". NICHT generisch. Wenn die Actors eine ausgearbeitete Sprechweise / Signature-Phrasen / Beziehungen haben: weave diese gezielt ein, statt sie zu wiederholen.
 7. palette: { bg, ink, accent } als Hex. Passend zum Show-Ton.
 8. suggestedFokusTemplateIds: 2–6 Template-IDs aus der Liste oben, die zu dieser Show passen. Mehrere Foki sind OK und sogar gewollt (z.B. eine Wellness-Show hat Meditation + Affirmation + Reflexion).
-9. suggestedCastRoles: für JEDEN vom Admin gewählten Actor ein Eintrag mit { actorId, role, reasoning }. role ist semantisch auf Show-Ebene (z.B. "host", "side-kick", "guest-teacher"). reasoning 1 Satz — falls vorhanden: nutze personality/backstory als Argument statt nur Expertise.
+${castRule}
 10. notesForAdmin: 1–3 Sätze mit Empfehlungen/Caveats (z.B. "Sage eher nicht für <6 Jahre").
 
 Antworte NUR mit einem JSON-Objekt, kein Markdown, kein Prosa. Schema:
@@ -129,7 +157,9 @@ Antworte NUR mit einem JSON-Objekt, kein Markdown, kein Prosa. Schema:
   "notesForAdmin": "…"
 }`;
 
-  const userPrompt = `Admin-Beschreibung:\n"""\n${body.beschreibung.trim()}\n"""\n\nGewählte Actor-IDs: ${body.actorIds.join(", ")}\n${body.category ? `Kategorie-Hint: ${body.category}` : ""}\n${body.ageBand ? `AgeBand-Hint: ${body.ageBand}` : ""}`;
+  const userPrompt = `Admin-Beschreibung:\n"""\n${body.beschreibung.trim()}\n"""\n\n${autoCast
+    ? `Actor-Vorauswahl: AUTO — waehle 2-4 Actors aus dem Pool oben nach Regel #9.`
+    : `Gewaehlte Actor-IDs: ${manualActorIds.join(", ")}`}\n${body.category ? `Kategorie-Hint: ${body.category}` : ""}\n${body.ageBand ? `AgeBand-Hint: ${body.ageBand}` : ""}`;
 
   const client = createAnthropicClient();
   let draft: Draft;
