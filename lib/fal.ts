@@ -41,6 +41,41 @@ export async function uploadToFal(buffer: Buffer, filename: string, contentType:
   return url;
 }
 
+// ── Audio-Format-Detection (Magic-Bytes) ──────────────────────────
+//
+// ElevenLabs liefert standardmaessig MP3, aber der User kann WAV- oder
+// andere Formate via per-actor voiceSettings oder externen Audio-Uploads
+// reinbekommen. Wenn wir dann als "audio/mpeg" hochladen, droht ein
+// Mismatch zum tatsaechlichen Buffer-Inhalt — fal.ai laesst das teils
+// durch, teils quittiert Kling LipSync mit kryptischen Errors.
+//
+// Dieser Sniffer liest die ersten Magic-Bytes und waehlt das korrekte
+// Filename/MIME-Paar. Fallback ist MP3 (der haeufigste Fall).
+function detectAudioContentType(buf: Buffer): { ext: string; mime: string } {
+  if (buf.length >= 12 && buf.subarray(0, 4).toString("ascii") === "RIFF" && buf.subarray(8, 12).toString("ascii") === "WAVE") {
+    return { ext: "wav", mime: "audio/wav" };
+  }
+  if (buf.length >= 4 && buf.subarray(0, 4).toString("ascii") === "OggS") {
+    return { ext: "ogg", mime: "audio/ogg" };
+  }
+  if (buf.length >= 4 && buf.subarray(0, 4).toString("ascii") === "fLaC") {
+    return { ext: "flac", mime: "audio/flac" };
+  }
+  if (buf.length >= 8 && buf.subarray(4, 8).toString("ascii") === "ftyp") {
+    // MP4/M4A containers (ISO base media)
+    return { ext: "m4a", mime: "audio/mp4" };
+  }
+  if (buf.length >= 3 && buf.subarray(0, 3).toString("ascii") === "ID3") {
+    return { ext: "mp3", mime: "audio/mpeg" };
+  }
+  if (buf.length >= 2 && buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0) {
+    // MP3 frame sync without ID3 header
+    return { ext: "mp3", mime: "audio/mpeg" };
+  }
+  // Fallback: MP3 (ElevenLabs default — decken >95% der Falle ab)
+  return { ext: "mp3", mime: "audio/mpeg" };
+}
+
 // ── WAV Helper ─────────────────────────────────────────────────────
 
 function wrapAsWav(pcmData: Buffer, sampleRate: number, channels: number): Buffer {
@@ -110,7 +145,11 @@ export async function klingLipSync(
   console.log("[fal.ai] Kling LipSync: uploading video + audio...");
 
   const videoUrl = await uploadToFal(videoBuffer, "scene.mp4", "video/mp4");
-  const audioUrl = await uploadToFal(audioBuffer, "audio.mp3", "audio/mpeg");
+  // Audio kann MP3 (ElevenLabs default), WAV, M4A/OGG/FLAC sein. Sniff-Detection
+  // vermeidet MIME-Mismatch — vorher war das hardcoded "audio.mp3" / audio/mpeg,
+  // was bei WAV zu kryptischen Kling-Errors fuehrte.
+  const audioFmt = detectAudioContentType(audioBuffer);
+  const audioUrl = await uploadToFal(audioBuffer, `audio.${audioFmt.ext}`, audioFmt.mime);
 
   const result = await runFal<LipSyncResult>(
     "fal-ai/kling-video/lipsync/audio-to-video",
