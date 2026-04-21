@@ -11,15 +11,18 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  ActorPickerGrid,
+  resolveActorPortrait,
+  isActorIncomplete,
+  type PickerActor,
+} from "@/app/components/ActorPickerGrid";
 
-interface Actor {
-  id: string;
-  displayName: string;
-  emoji: string | null;
-  species: string | null;
-  role: string | null;
-  expertise: string[];
-}
+// Actor-Felder aus /api/studio/shows/actors — PickerActor-kompatibel, damit
+// wir den geteilten Picker (mit Dedup-Collapse + Filter) nutzen koennen.
+// Die Cast-Liste oben braucht nur displayName+emoji+species+role, aber wir
+// laden sowieso alles — der API-Roundtrip kostet nichts extra.
+type Actor = PickerActor;
 
 interface FokusTemplate {
   id: string;
@@ -685,30 +688,76 @@ function CastTab({ show, onChanged }: { show: Show; onChanged: (msg: string) => 
         <p className="text-white/40 text-sm">Noch kein Cast. Füge Actors hinzu.</p>
       )}
 
-      {show.cast.map((entry) => (
-        <div key={entry.id} className="flex items-center gap-3 p-3 bg-[#1A1A1A] border border-white/10 rounded-lg">
-          <span className="text-2xl">{entry.actor.emoji}</span>
-          <div className="flex-1">
-            <div className="text-sm text-[#f5eed6] font-medium">{entry.actor.displayName}</div>
-            <div className="text-[10px] text-white/40">{entry.actor.role ?? entry.actor.species}</div>
-          </div>
-          <input
-            type="text"
-            defaultValue={entry.role ?? ""}
-            onBlur={(e) => {
-              if (e.target.value !== (entry.role ?? "")) updateCastRole(entry.actorId, e.target.value);
-            }}
-            placeholder="Rolle (host, gast…)"
-            className="bg-[#141414] border border-white/10 rounded px-2 py-1 text-xs text-white/80 w-40"
-          />
-          <button
-            onClick={() => removeActor(entry.actorId)}
-            className="text-red-400/60 hover:text-red-400 text-xs px-2"
+      {show.cast.map((entry) => {
+        const portrait = resolveActorPortrait(entry.actor);
+        const incomplete = isActorIncomplete(entry.actor);
+        return (
+          <div
+            key={entry.id}
+            className={`flex items-center gap-3 p-3 border rounded-lg ${
+              incomplete
+                ? "bg-yellow-500/5 border-yellow-500/30"
+                : "bg-[#1A1A1A] border-white/10"
+            }`}
           >
-            ✕
-          </button>
-        </div>
-      ))}
+            {portrait ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={portrait}
+                alt={entry.actor.displayName}
+                className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0"
+              />
+            ) : (
+              <span className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-xl shrink-0">
+                {entry.actor.emoji ?? "•"}
+              </span>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-[#f5eed6] font-medium truncate">
+                  {entry.actor.displayName}
+                </span>
+                {incomplete && (
+                  <Link
+                    href={`/studio/shows/actors/${entry.actorId}`}
+                    target="_blank"
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-200/90 hover:bg-yellow-500/30 shrink-0"
+                    title="Voice oder Persona fehlt — zum Bearbeiten (öffnet neuen Tab)"
+                  >
+                    ⚠ unvollständig
+                  </Link>
+                )}
+              </div>
+              <div className="text-[10px] text-white/40 truncate">
+                {entry.actor.role ?? entry.actor.species ?? "—"}
+              </div>
+            </div>
+            <input
+              type="text"
+              defaultValue={entry.role ?? ""}
+              onBlur={(e) => {
+                if (e.target.value !== (entry.role ?? "")) updateCastRole(entry.actorId, e.target.value);
+              }}
+              placeholder="Rolle (host, gast…)"
+              className="bg-[#141414] border border-white/10 rounded px-2 py-1 text-xs text-white/80 w-40 shrink-0"
+            />
+            <Link
+              href={`/studio/shows/actors/${entry.actorId}`}
+              target="_blank"
+              className="text-white/30 hover:text-[#C8A97E] text-xs px-1.5 shrink-0"
+              title="Actor bearbeiten (neuer Tab)"
+            >
+              ✎
+            </Link>
+            <button
+              onClick={() => removeActor(entry.actorId)}
+              className="text-red-400/60 hover:text-red-400 text-xs px-2 shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
 
       <div className="pt-3">
         {!pickerOpen ? (
@@ -719,22 +768,21 @@ function CastTab({ show, onChanged }: { show: Show; onChanged: (msg: string) => 
             + Actor hinzufügen
           </button>
         ) : (
-          <div className="p-3 bg-[#1A1A1A] border border-white/10 rounded-lg">
-            <div className="grid grid-cols-2 gap-2">
-              {notInCast.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => addActor(a.id)}
-                  className="flex items-center gap-2 p-2 rounded hover:bg-white/5 text-left"
-                >
-                  <span>{a.emoji}</span>
-                  <span className="text-xs text-[#f5eed6]">{a.displayName}</span>
-                </button>
-              ))}
-            </div>
+          <div className="p-3 bg-[#1A1A1A] border border-white/10 rounded-lg space-y-2">
+            {/* ActorPickerGrid mit "Click = Add". selectedActorIds bleibt leer,
+                weil addActor() direkt POSTet und onChanged() den Cast neu laedt.
+                Die nicht-in-Cast-Filterung passiert oberhalb via `notInCast`.
+                Varianten-Dropdown: wenn Admin eine andere Dublette will, wird
+                ueber's Dropdown die passende ID gewaehlt und addActor mit ihr
+                aufgerufen. */}
+            <ActorPickerGrid
+              actors={notInCast}
+              selectedActorIds={[]}
+              onToggle={addActor}
+            />
             <button
               onClick={() => setPickerOpen(false)}
-              className="mt-2 text-[10px] text-white/40 hover:text-white/70"
+              className="text-[10px] text-white/40 hover:text-white/70"
             >
               Abbrechen
             </button>

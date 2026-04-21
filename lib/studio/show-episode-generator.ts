@@ -57,6 +57,10 @@ interface ResolvedEpisodeInput {
   fokusTemplateId: string;
   fokusSystemSkeleton: string;
   fokusInteractionStyle: string | null;
+  // "narrative" (Hoerspiel/Story), "meditation" (angeleitete Meditation),
+  // "affirmation" (Affirmationssequenz), "breathwork" (Atemuebung).
+  // Entscheidet ob der Prompt als Story gerahmt wird oder als Non-Narrative.
+  fokusFormatType: string;
   showOverlay: string;
   targetDurationMin: number;
   ageBand: string | null;
@@ -216,6 +220,7 @@ export async function loadEpisodeInput(params: {
     fokusTemplateId: fokus.fokusTemplateId,
     fokusSystemSkeleton: fokus.fokusTemplate.systemPromptSkeleton,
     fokusInteractionStyle: fokus.fokusTemplate.interactionStyle,
+    fokusFormatType: fokus.fokusTemplate.formatType,
     showOverlay: fokus.showOverlay ?? "",
     targetDurationMin: fokus.targetDurationMin,
     ageBand: show.ageBand,
@@ -379,9 +384,30 @@ export function buildShowEpisodePrompt(input: ResolvedEpisodeInput): {
   const leadMarker = `[${lead.actor.id.toUpperCase()}]`;
 
   const wordTarget = wordTargetForDuration(input.targetDurationMin);
-  const sfxCount =
-    input.targetDurationMin <= 3 ? "3-5" :
-    input.targetDurationMin <= 8 ? "5-8" : "8-14";
+  // Non-narrative Formate: SFX wuerden die Meditation/Atemuebung stoeren,
+  // also komplett unterdruecken. Ambience darf, die kommt separat.
+  // Wort-Target fuer non-narrative halbieren — Meditation lebt von Pausen,
+  // nicht von Text-Volumen (5min Meditation hat weniger Worte als 5min Story).
+  const isNarrative = (input.fokusFormatType || "narrative") === "narrative";
+  const sfxCount = !isNarrative
+    ? "0"
+    : input.targetDurationMin <= 3
+    ? "3-5"
+    : input.targetDurationMin <= 8
+    ? "5-8"
+    : "8-14";
+  // wordTarget ist ein String "lower-upper" (z.B. "650-850"). Fuer Meditation
+  // halbieren wir beide Endpoints — das Tempo ist langsamer, viele Pausen,
+  // weniger Text pro Minute. Wenn Parsing fehlschlaegt, Original behalten.
+  const effectiveWordTarget = isNarrative
+    ? wordTarget
+    : (() => {
+        const m = wordTarget.match(/^(\d+)-(\d+)$/);
+        if (!m) return wordTarget;
+        const lo = Math.round(Number(m[1]) * 0.55);
+        const hi = Math.round(Number(m[2]) * 0.55);
+        return `${lo}-${hi}`;
+      })();
 
   const profileName = typeof input.profileSnapshot.displayName === "string"
     ? (input.profileSnapshot.displayName as string)
@@ -426,14 +452,76 @@ Charakter-Beziehungen + etablierte Kernmotive sollen konsistent bleiben.
 `;
   }
 
-  const system = `Du produzierst eine Audio-Episode für eine KoalaTree-Show. Das ist ein lebendiges Hörspiel mit mehreren Charakteren.
+  // Format-Framing: ueberschreibt das Default-"Hoerspiel"-Framing fuer
+  // nicht-narrative Formate. Meditation/Affirmation/Breathwork brauchen
+  // eine diametral andere mentale Rahmung — keine Charaktere als Plot-
+  // Treiber, keine Konflikt-Spannung, kein SFX-Orchester. Wir behalten
+  // nur die Stimme des Lead-Actors als Anleiter (voice-of-a-guide).
+  const formatType = input.fokusFormatType || "narrative";
+  let formatPreamble: string;
+  let formatHardRules: string;
+  switch (formatType) {
+    case "meditation":
+      formatPreamble = `Du produzierst eine GEFÜHRTE MEDITATION für eine KoalaTree-Show. Das ist KEINE Geschichte und KEIN Hörspiel. Es ist eine echte, angeleitete Meditation — der Hörer wird in einen ruhigen Zustand geführt mit Atem-Cues, Körper-Reise und inneren Bildern.`;
+      formatHardRules = `
+═══════════════════════════
+MEDITATION — HARTE REGELN
+═══════════════════════════
+
+- KEINE Geschichte, KEIN Plot, KEINE Charakter-Entwicklung. Dies ist Anleitung, kein Hörspiel.
+- Der Lead-Actor ist NICHT Erzähler einer Story, sondern STIMME DER ANLEITUNG (wie ein Meditations-Lehrer).
+- Andere Charaktere sprechen nur minimal (wenn überhaupt) — Meditation ist monologisch. Support-Cast darf zu Beginn ein Wort der Einleitung sprechen, dann schweigt er.
+- Direkte Ansprache in du/dir-Form ("Atme tief ein", "Spüre deine Füße").
+- STRUKTUR: 1) Ankommen (Sitz/Liege-Position, erster Atemzug), 2) Körper-Scan (Füße → Kopf), 3) Atem-Fokus oder Visualisierung, 4) Kern-Intention (wenn thematisch), 5) Zurückkommen (Finger bewegen, Augen öffnen).
+- Tempo: LANGSAM. Viele [PAUSE] zwischen Instruktionen (alle 2-3 Sätze mindestens ein [PAUSE]).
+- Sätze kurz und einfach. Keine komplizierten Bilder. Keine Überraschungen.
+- KEINE [SFX:...] die den Hörer erschrecken könnten. Ambience darf, aber zart.
+`;
+      break;
+    case "affirmation":
+      formatPreamble = `Du produzierst eine AFFIRMATIONS-SEQUENZ für eine KoalaTree-Show. Das ist KEINE Geschichte. Es ist eine Abfolge positiver Ich-Botschaften, die der Hörer innerlich mitsprechen oder aufnehmen kann.`;
+      formatHardRules = `
+═══════════════════════════
+AFFIRMATION — HARTE REGELN
+═══════════════════════════
+
+- KEINE Geschichte. KEINE Plot-Entwicklung. Die Episode ist eine Sequenz von Affirmationen.
+- STRUKTUR: Kurzes Intro (1-2 Sätze: "Atme tief ein. Ich schenke dir jetzt sieben Affirmationen."), dann 5-9 Kern-Affirmationen, jede 2× in leicht variierter Formulierung wiederholt, mit [PAUSE] dazwischen. Abschluss: "Trage diese Worte mit dir."
+- Affirmationen in ERSTER PERSON ("Ich bin sicher", "Ich bin genug", "Ich darf fühlen").
+- Zwischen jeder Affirmation MINDESTENS ein [PAUSE].
+- Der Lead-Actor ist die Stimme. Support-Cast schweigt oder spricht höchstens ein echoing "Ja." nach einer Affirmation.
+- Tempo langsam, warm, verankert. Keine schnellen Wechsel.
+- KEINE [SFX:...] die ablenken. Sanfte Ambience okay.
+`;
+      break;
+    case "breathwork":
+      formatPreamble = `Du produzierst eine ANGELEITETE ATEMÜBUNG für eine KoalaTree-Show. Das ist KEINE Geschichte. Es ist eine strukturierte Atemarbeit (z.B. Box-Breathing, 4-7-8, Bauchatmung) mit klaren Zähl-Cues.`;
+      formatHardRules = `
+═══════════════════════════
+BREATHWORK — HARTE REGELN
+═══════════════════════════
+
+- KEINE Geschichte, KEIN Plot. Strukturierte Anleitung einer Atemtechnik.
+- STRUKTUR: 1) Erklärung der Technik (2-3 Sätze), 2) Einstieg (setzen, ankommen), 3) ANGELEITETE RUNDEN mit Zähl-Cues ("Einatmen... zwei... drei... vier... halten... zwei... drei..."), 4) Ausklang + Reflexion.
+- Runden müssen hörbar rhythmisch sein — die Pausen ZWISCHEN den Cues sind ESSENTIELL. Zwischen jedem Zähl-Zyklus [PAUSE] einbauen.
+- Der Lead-Actor zählt. Andere Charaktere schweigen.
+- Klare, knappe Sprache. Keine Metaphern mitten im Zählen.
+- KEINE [SFX:...] die stören. Ambience minimal.
+`;
+      break;
+    default:
+      formatPreamble = `Du produzierst eine Audio-Episode für eine KoalaTree-Show. Das ist ein lebendiges Hörspiel mit mehreren Charakteren.`;
+      formatHardRules = "";
+  }
+
+  const system = `${formatPreamble}
 
 ═══════════════════════════
 SHOW: ${input.showTitle}
 ═══════════════════════════
 
 ${input.brandVoice || "(Keine Show-Brand-Voice definiert.)"}
-
+${formatHardRules}
 ═══════════════════════════
 DIE CHARAKTERE
 ═══════════════════════════
@@ -461,8 +549,10 @@ Beispiele: [AMBIENCE:Peaceful forest at night with soft crickets]  /  [AMBIENCE:
 SOUNDEFFEKTE
 ═══════════════════════════
 
-Baue ${sfxCount} [SFX:...] Marker ein. Auf ENGLISCH, 3-8 Wörter, auf eigener Zeile, VOR dem zugehörigen Text.
-KEINE beängstigenden Sounds. Nach jedem [SFX:...] MUSS ein Charakter-Marker folgen — niemals zwei SFX hintereinander.
+${sfxCount === "0"
+  ? `KEINE [SFX:...] Marker in dieser Episode. Non-Narrative Formate (Meditation, Affirmation, Breathwork) dürfen nicht durch Soundeffekte gestört werden. Ambience am Anfang reicht aus.`
+  : `Baue ${sfxCount} [SFX:...] Marker ein. Auf ENGLISCH, 3-8 Wörter, auf eigener Zeile, VOR dem zugehörigen Text.
+KEINE beängstigenden Sounds. Nach jedem [SFX:...] MUSS ein Charakter-Marker folgen — niemals zwei SFX hintereinander.`}
 
 ═══════════════════════════
 NATÜRLICHE SPRACHE
@@ -502,7 +592,7 @@ WICHTIGE REGELN
 - NIEMALS angstauslösend
 - Ende positiv, sicher, ruhig
 - Baue den Namen natürlich ein (regelmäßig, aber nicht in jedem Satz)
-- LÄNGE: ~${wordTarget} Wörter (≈${input.targetDurationMin} Minuten).
+- LÄNGE: ~${effectiveWordTarget} Wörter (≈${input.targetDurationMin} Minuten).${!isNarrative ? `\n- Non-Narrative Format: Pausen und langsames Tempo sind wichtiger als Wort-Volumen.` : ""}
 
 Schreibe NUR die Episode — keine Titel, keine Meta-Kommentare. Beginne direkt mit [AMBIENCE:...] gefolgt von ${leadMarker} oder [SFX:...].`;
 

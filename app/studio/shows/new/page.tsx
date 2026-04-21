@@ -22,41 +22,18 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ToastProvider, useToast } from "@/app/components/Toasts";
 import { VoiceInputButton } from "@/app/components/VoiceInputButton";
+import {
+  ActorPickerGrid,
+  resolveActorPortrait,
+  isActorIncomplete,
+  type PickerActor,
+} from "@/app/components/ActorPickerGrid";
 
-interface Actor {
-  id: string;
-  displayName: string;
-  emoji: string | null;
-  species: string | null;
-  role: string | null;
-  expertise: string[];
+// Wizard-Actor = PickerActor + defaultTone (wird hier nicht gebraucht, kommt
+// aber aus /api/studio/shows/actors und wir schleppen's nicht weg). Strukturelles
+// Typing: Actor ist zuweisbar auf PickerActor, damit der Picker nichts weiss.
+interface Actor extends PickerActor {
   defaultTone: string | null;
-  ownerUserId: string | null;
-  // Portrait-Quelle: Actor.portraitUrl zuerst (legacy Shows-Actors wie Koda),
-  // dann characterSheet.front (migriert aus DigitalActor), dann portraitAssetId
-  // wenn's eine direkte URL ist. Alle optional.
-  portraitUrl: string | null;
-  characterSheet: { front?: string; profile?: string; fullBody?: string } | null;
-  portraitAssetId: string | null;
-  // Completeness-Check (Phase 3.6): Actor ist "incomplete" wenn Voice oder
-  // Persona fehlen. Der Inline-Create-Flow setzt voiceId="PENDING" als
-  // Platzhalter — die Shows-Pipeline filtert solche Actors naturgemaess raus,
-  // aber wir warnen im Cast-Picker bevor Admin die Show baut.
-  voiceId: string;
-  persona: string;
-}
-
-function resolveActorPortrait(a: Pick<Actor, "portraitUrl" | "characterSheet" | "portraitAssetId">): string | null {
-  if (a.portraitUrl) return a.portraitUrl;
-  if (a.characterSheet?.front) return a.characterSheet.front;
-  if (a.portraitAssetId?.startsWith("http")) return a.portraitAssetId;
-  return null;
-}
-
-function isActorIncomplete(a: Pick<Actor, "voiceId" | "persona">): boolean {
-  const voiceOk = !!a.voiceId && a.voiceId !== "PENDING";
-  const personaOk = !!a.persona && !a.persona.includes("wird auf der Edit-Seite gefuellt");
-  return !voiceOk || !personaOk;
 }
 
 interface FokusTemplate {
@@ -486,58 +463,26 @@ function NewShowPageInner() {
             </div>
           </div>
 
-          {/* Actor-Picker nur im Manual-Mode */}
+          {/* Actor-Picker nur im Manual-Mode — ActorPickerGrid uebernimmt
+              Portraits, Dedup-Collapse, Filter (Name/Species/Role/Complete)
+              und Edit-Shortcut. Die Varianten-Dubletten aus DigitalActor
+              (Koda-Pixar vs Koda-2D) werden hier visuell eingeklappt, so
+              dass der Admin nicht mehr durch 21 Zeilen scrollen muss um
+              die 7 "echten" Character zu sehen.
+
+              Kein onCreateNew hier — das Inline-Create-Modal lebt in Step 2
+              (nach Draft-Bootstrap). Im Step 1 schicken wir den Admin bei
+              Bedarf per Library-Link in die Actors-Seite. */}
           {castMode === "manual" && (
             <div>
               <label className="block text-xs font-medium text-white/60 mb-2">
                 Actors * ({selectedActorIds.length} gewaehlt)
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {actors.map((actor) => {
-                  const selected = selectedActorIds.includes(actor.id);
-                  const portrait = resolveActorPortrait(actor);
-                  const incomplete = isActorIncomplete(actor);
-                  return (
-                    <button
-                      key={actor.id}
-                      onClick={() => toggleActor(actor.id)}
-                      className={`text-left rounded-lg border p-3 transition ${
-                        selected
-                          ? "border-[#C8A97E] bg-[#C8A97E]/10"
-                          : "border-white/10 bg-[#1A1A1A] hover:border-white/20"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {portrait ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={portrait}
-                            alt={actor.displayName}
-                            className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
-                          />
-                        ) : (
-                          <span className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-lg shrink-0">
-                            {actor.emoji ?? "•"}
-                          </span>
-                        )}
-                        <span className="text-[#f5eed6] font-medium text-sm truncate">{actor.displayName}</span>
-                        {incomplete && (
-                          <span
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-200/80 shrink-0"
-                            title="Voice oder Persona fehlt — bitte auf der Edit-Seite ergänzen, bevor diese Show generiert wird."
-                          >
-                            ⚠
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-white/50">{actor.role ?? actor.species ?? "—"}</div>
-                      <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
-                        {actor.expertise.slice(0, 3).join(" · ")}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              <ActorPickerGrid
+                actors={actors}
+                selectedActorIds={selectedActorIds}
+                onToggle={toggleActor}
+              />
             </div>
           )}
 
@@ -819,54 +764,22 @@ function NewShowPageInner() {
             </div>
           )}
 
-          {/* Actor-Adder — wenn autoCast zu wenig gewaehlt hat oder der
-              Admin nachtraeglich jemanden dazu will. Nur die *nicht* schon
-              gewaehlten Actors zeigen. */}
-          {actors.filter((a) => !selectedActorIds.includes(a.id)).length > 0 && (
+          {/* Actor-Adder — ActorPickerGrid als aufklappbare Section.
+              Der Picker zeigt ALLE Actors (auch schon gewaehlte, die sind
+              bloss highlighted — so kann Admin aus dem Adder heraus auch
+              wieder toggle-off'en). Dedup + Filter wie in Step 1. */}
+          {actors.length > 0 && (
             <details className="mt-3 rounded-lg border border-white/10 bg-[#1A1A1A] p-3">
               <summary className="cursor-pointer text-[11px] text-white/50 hover:text-white/80">
-                Actor hinzufuegen
+                Actor hinzufuegen / wechseln
               </summary>
-              <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
-                {actors
-                  .filter((a) => !selectedActorIds.includes(a.id))
-                  .map((actor) => {
-                    const portrait = resolveActorPortrait(actor);
-                    const incomplete = isActorIncomplete(actor);
-                    return (
-                    <button
-                      key={actor.id}
-                      type="button"
-                      onClick={() => toggleActor(actor.id)}
-                      className="text-left rounded-lg border border-white/10 p-2 hover:border-[#C8A97E]/60 transition"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        {portrait ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={portrait}
-                            alt={actor.displayName}
-                            className="w-6 h-6 rounded-full object-cover border border-white/10 shrink-0"
-                          />
-                        ) : (
-                          <span className="text-sm">{actor.emoji ?? "•"}</span>
-                        )}
-                        <span className="text-[#f5eed6] text-xs truncate">{actor.displayName}</span>
-                        {incomplete && (
-                          <span
-                            className="text-[9px] text-yellow-300/80 shrink-0"
-                            title="Voice/Persona fehlt"
-                          >
-                            ⚠
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[9px] text-white/40 mt-1 line-clamp-1">
-                        {actor.role ?? actor.species ?? "—"}
-                      </div>
-                    </button>
-                    );
-                  })}
+              <div className="mt-3">
+                <ActorPickerGrid
+                  actors={actors}
+                  selectedActorIds={selectedActorIds}
+                  onToggle={toggleActor}
+                  justCreatedId={justCreatedId}
+                />
               </div>
             </details>
           )}

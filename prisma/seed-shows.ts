@@ -175,6 +175,29 @@ async function seedActors() {
 
 // ── Seed FokusTemplates ─────────────────────────────────────────
 
+// formatType entscheidet ob der Episode-Generator die Story-Framing
+// ueberschreibt (Meditation/Affirmation/Breathwork) oder im klassischen
+// Hoerspiel-Modus bleibt. Traumreise wird als Meditation gerahmt weil
+// es effektiv eine gefuehrte Einschlaf-Meditation ist (Luna fuehrt durch
+// Koerper-Reise → innere Bilder → Entspannung), nicht ein Plot-Hoerspiel.
+const FORMAT_TYPE_MAP: Record<StoryFormat, string> = {
+  traumreise: "meditation",
+  fabel: "narrative",
+  held: "narrative",
+  dankbarkeit: "narrative",
+  abenteuer: "narrative",
+  meditation: "meditation",
+  affirmation: "affirmation",
+  reflexion: "narrative",
+  gutenacht: "meditation",
+  podcast: "narrative",
+  quatsch: "narrative",
+  raetsel: "narrative",
+  wissen: "narrative",
+  brief: "narrative",
+  lebensfreude: "narrative",
+};
+
 async function seedFokusTemplates() {
   console.log("\n→ Seeding FokusTemplates (15)…");
   const formatKeys = Object.keys(STORY_FORMATE) as StoryFormat[];
@@ -183,6 +206,7 @@ async function seedFokusTemplates() {
     const info = STORY_FORMATE[format];
     const cast = FORMAT_CAST[format];
     const anweisung = FORMAT_ANWEISUNGEN[format];
+    const formatType = FORMAT_TYPE_MAP[format] ?? "narrative";
 
     // Translate FORMAT_CAST into structured role hints.
     // We store both raw (per-actor role map) and grouped (by role) for flexibility.
@@ -203,6 +227,7 @@ async function seedFokusTemplates() {
         displayName: info.label,
         description: info.beschreibung,
         emoji: info.emoji,
+        formatType,
         systemPromptSkeleton: anweisung,
         interactionStyle: null,
         defaultCastRoles,
@@ -218,6 +243,7 @@ async function seedFokusTemplates() {
         displayName: info.label,
         description: info.beschreibung,
         emoji: info.emoji,
+        formatType, // re-seed patches formatType auch auf existierende Templates
         systemPromptSkeleton: anweisung,
         defaultCastRoles,
         defaultUserInputSchema: buildDefaultUserInputSchema(format),
@@ -226,7 +252,7 @@ async function seedFokusTemplates() {
       },
     });
     const leadName = defaultCastRoles.lead[0]?.toUpperCase() ?? "—";
-    console.log(`  ✓ ${info.emoji} ${info.label.padEnd(24)} [lead: ${leadName.padEnd(5)}] (${info.minAlter}+)`);
+    console.log(`  ✓ ${info.emoji} ${info.label.padEnd(24)} [lead: ${leadName.padEnd(5)}, type: ${formatType}] (${info.minAlter}+)`);
   }
 }
 

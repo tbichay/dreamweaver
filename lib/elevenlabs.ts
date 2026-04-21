@@ -346,11 +346,20 @@ export async function generateMultiVoiceAudio(segments: StorySegment[]): Promise
     }
   }
 
+  // v2-Aera: ElevenLabs spuckte oft den Wortanfang des naechsten Wortes am
+  // Segmentende mit aus → 60ms Hard-Trim hat das rausgeputzt. v3 hat das
+  // Verhalten aber *nicht* mehr (sauberer End-of-Sentence-Cut), und der
+  // 60ms-Trim frisst bei kurzen Meditations-Segmenten ("Atme.", "Spüre.")
+  // bis zu 15% vom eigentlichen Audio → letzte Silbe wird abgeschnitten.
+  // Deshalb model-aware: v3 bekommt nur 10ms (Click-Protection), v2 behaelt
+  // die 60ms-Behandlung. Der Fade-Out von 50ms erledigt den Rest.
+  const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_v3";
+  const isV3Model = modelId === "eleven_v3";
+  const trimMs = isV3Model ? 10 : 60;
+  const trimSamples = Math.floor(24000 * (trimMs / 1000));
+
   for (let i = 0; i < mixedBuffers.length; i++) {
-    // Trim trailing partial words: cut last 60ms and apply fade-out (50ms)
-    // ElevenLabs sometimes starts the next word at segment end
     let trimmedBuffer = mixedBuffers[i];
-    const trimSamples = Math.floor(24000 * 0.06); // 60ms — enough to catch partial start, not full words
     if (trimmedBuffer.byteLength / 2 > trimSamples * 2) {
       trimmedBuffer = trimmedBuffer.slice(0, trimmedBuffer.byteLength - trimSamples * 2);
     }

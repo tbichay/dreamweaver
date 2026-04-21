@@ -686,6 +686,14 @@ model Actor {
   tags            String[] @default([]) // ["maennlich", "deutsch", "action"]
   portraitAssetId String? // FK to Asset library (primary portrait)
 
+  // visualVariants: alternative Visual-Styles desselben Character, die durch
+  // den Dedup-Merge-Endpoint eingesammelt wurden. Beim Merge werden die
+  // portraitUrl/characterSheet-Felder der non-primaries hier angehaengt,
+  // damit sie nicht verloren gehen und die Film-Pipeline spaeter per Style-
+  // Override (z.B. "pixar" vs "2d") zwischen ihnen waehlen kann.
+  // Shape: [{ style?: string, portraitUrl?: string, characterSheet?: object, ... }, ...]
+  visualVariants Json @default("[]")
+
   // Scope (null = system/global, readable by all admins)
   ownerUserId String?
   ownerOrgId  String?
@@ -712,6 +720,17 @@ model FokusTemplate {
   displayName String // "Traumreise"
   description String?
   emoji       String?
+
+  // formatType gatet das Prompt-Framing in buildShowEpisodePrompt:
+  // - "narrative" (default) = klassisches Hoerspiel mit Plot, Charakter-Wechseln
+  // - "meditation" = gefuehrte Meditation: Atem-Cues, Body-Scan, Pausen, KEIN Plot
+  // - "affirmation" = Affirmations-Sequenz (positiv, wiederholend, in 1. Person)
+  // - "breathwork" = angeleitete Atemuebung (Zaehlen, Rhythmus-Cues)
+  //
+  // Ohne das wuerde ein "Meditation"-Fokus trotz promptSkeleton als Story
+  // gerendert, weil der System-Prompt oben "Du produzierst ein Hörspiel"
+  // deklariert — das ueberschreibt die Skeleton-Anweisungen.
+  formatType String @default("narrative")
 
   // Prompt skeleton — reusable base that Show.brandVoice + ShowFokus.showOverlay extend
   systemPromptSkeleton String // Format-level instructions (from FORMAT_ANWEISUNGEN)

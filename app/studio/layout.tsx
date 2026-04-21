@@ -7,9 +7,14 @@ import { TaskBadge } from "@/app/components/TaskStatusBar";
 
 // ── Engine Navigation (koalatree.io) — Dark sidebar ──────────────
 
+// Reihenfolge = visuelle Anordnung. Actors direkt unter Shows weil die beiden
+// stark gekoppelt sind (Cast einer Show zeigt auf Actors). Der longest-prefix-
+// Match unten sorgt dafuer, dass /studio/shows/actors den Actors-Eintrag und
+// NICHT Shows markiert, obwohl beide Prefix matchen.
 const ENGINE_NAV = [
   { href: "/studio/engine", label: "Engine", icon: "⬡" },
   { href: "/studio/shows", label: "Shows", icon: "▣" },
+  { href: "/studio/shows/actors", label: "Actors", icon: "☻" },
   { href: "/studio/library", label: "Library", icon: "◫" },
   { href: "/studio/profile-fields", label: "Profile-Felder", icon: "☰" },
   { href: "/studio/tasks", label: "Tasks", icon: "◎" },
@@ -24,6 +29,7 @@ const LEGACY_NAV = [
   { href: "/studio", label: "Übersicht", emoji: "🏠", exact: true },
   { href: "/studio/engine", label: "Engine", emoji: "🎬" },
   { href: "/studio/shows", label: "Shows", emoji: "📺" },
+  { href: "/studio/shows/actors", label: "Actors", emoji: "🎭" },
   { href: "/studio/library", label: "Library", emoji: "📁" },
   { href: "/studio/profile-fields", label: "Profile-Felder", emoji: "🧩" },
   { href: "/studio/prompts", label: "Prompts", emoji: "📝" },
@@ -69,6 +75,24 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
     );
   }
 
+  // Longest-prefix-Active-Match: bei verschachtelten Routen (/studio/shows vs
+  // /studio/shows/actors) gewinnt der laengste Match, damit nur EIN Nav-Item
+  // als aktiv markiert wird. Ohne das wuerde /studio/shows/actors sowohl
+  // "Shows" als auch "Actors" aufleuchten lassen.
+  const engineActiveHref = ENGINE_NAV.reduce<string | null>((longest, item) => {
+    if (!pathname?.startsWith(item.href)) return longest;
+    if (longest === null) return item.href;
+    return item.href.length > longest.length ? item.href : longest;
+  }, null);
+  const legacyActiveHref = LEGACY_NAV.reduce<string | null>((longest, item) => {
+    if (item.exact) {
+      return pathname === item.href ? item.href : longest;
+    }
+    if (!pathname?.startsWith(item.href)) return longest;
+    if (longest === null) return item.href;
+    return item.href.length > longest.length ? item.href : longest;
+  }, null);
+
   // ── Engine Layout (koalatree.io) ──
   if (isEngine) {
     return (
@@ -94,7 +118,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           {/* Nav Items */}
           <div className="flex-1 py-3 space-y-0.5">
             {ENGINE_NAV.map((item) => {
-              const isActive = pathname?.startsWith(item.href);
+              const isActive = item.href === engineActiveHref;
               return (
                 <Link
                   key={item.href}
@@ -138,9 +162,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center gap-1 overflow-x-auto py-2" style={{ scrollbarWidth: "none" }}>
             {LEGACY_NAV.map((tool) => {
-              const isActive = tool.exact
-                ? pathname === tool.href
-                : pathname?.startsWith(tool.href);
+              const isActive = tool.href === legacyActiveHref;
 
               return (
                 <Link
