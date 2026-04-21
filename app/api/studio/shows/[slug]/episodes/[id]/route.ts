@@ -80,6 +80,18 @@ export async function GET(_request: Request, ctx: Ctx) {
       errorCode: episode.errorCode,
       errorMessage: episode.errorMessage,
 
+      // Review-Gate (Feature S3) + Continuity (Feature #4): Pilot-Episoden werden
+      // NACH der Generation im Studio inspiziert, der Admin approved oder rejected
+      // bevor der Canzoia-Webhook feuert. Topics werden fuer die naechste Episode
+      // (Continuity-Mode) als Context genutzt.
+      isPilot: episode.isPilot,
+      reviewStatus: episode.reviewStatus,
+      reviewedAt: episode.reviewedAt,
+      reviewedBy: episode.reviewedBy,
+      reviewNotes: episode.reviewNotes,
+      topics: episode.topics,
+      continuityNotes: episode.continuityNotes,
+
       createdAt: episode.createdAt,
       startedAt: episode.startedAt,
       completedAt: episode.completedAt,

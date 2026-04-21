@@ -79,6 +79,19 @@ interface ResolvedEpisodeInput {
   }>;
   userInputs: Record<string, unknown>;
   profileSnapshot: Record<string, unknown>;
+
+  // ── Continuity-Kontext (Feature #4) ─────────────────────────────
+  // Wenn Show.continuityMode=true ist, laedt loadEpisodeInput die letzten N
+  // abgeschlossenen Episoden und leitet sie hier durch. Der Prompt-Builder
+  // injiziert sie als "Vorherige Folgen"-Block, damit Claude Callbacks/Arcs
+  // fortfuehren kann. continuityMode=false → leer, Prompt bleibt unveraendert.
+  continuityMode: boolean;
+  priorEpisodes: Array<{
+    title: string;
+    topics: string[];
+    continuityNotes: string | null;
+    createdAt: Date;
+  }>;
 }
 
 // ── Load + resolve DB state for a generation request ──────────
@@ -163,6 +176,37 @@ export async function loadEpisodeInput(params: {
     throw new Error("Show hat keinen Cast — Actors zuerst in /studio/shows/[slug] (Cast-Tab) anlegen");
   }
 
+  // Continuity-Kontext (Feature #4): Wenn die Show continuityMode=true gesetzt
+  // hat, laden wir die letzten continuityDepth abgeschlossenen und NICHT-
+  // abgelehnten Episoden. Pilot-Episoden die noch auf Review warten zaehlen
+  // NICHT — ihre Topics koennten revidiert werden. Rejected ebenfalls nicht.
+  let priorEpisodes: ResolvedEpisodeInput["priorEpisodes"] = [];
+  if (show.continuityMode) {
+    const prior = await prisma.showEpisode.findMany({
+      where: {
+        showId: show.id,
+        status: "completed",
+        // Erlaubt: reviewStatus=null (kein Gate) oder "approved"
+        // Ausgeschlossen: "pending" (noch nicht abgesegnet), "rejected"
+        OR: [{ reviewStatus: null }, { reviewStatus: "approved" }],
+      },
+      orderBy: { createdAt: "desc" },
+      take: show.continuityDepth,
+      select: {
+        title: true,
+        topics: true,
+        continuityNotes: true,
+        createdAt: true,
+      },
+    });
+    priorEpisodes = prior.map((e) => ({
+      title: e.title ?? "(ohne Titel)",
+      topics: e.topics ?? [],
+      continuityNotes: e.continuityNotes,
+      createdAt: e.createdAt,
+    }));
+  }
+
   return {
     showId: show.id,
     showSlug: show.slug,
@@ -178,6 +222,8 @@ export async function loadEpisodeInput(params: {
     cast: resolvedCast,
     userInputs: params.userInputs,
     profileSnapshot: params.profileSnapshot,
+    continuityMode: show.continuityMode,
+    priorEpisodes,
   };
 }
 
@@ -351,6 +397,35 @@ export function buildShowEpisodePrompt(input: ResolvedEpisodeInput): {
   const theme = typeof input.userInputs.theme === "string" ? input.userInputs.theme : "";
   const lernziel = typeof input.userInputs.lernziel === "string" ? input.userInputs.lernziel : "";
 
+  // Continuity-Block: nur wenn Show.continuityMode + es tatsaechlich
+  // Vorepisoden gibt. Format bewusst knapp (nur Titel + bis zu 5 Topics)
+  // damit der Prompt nicht explodiert; Claude soll die Episoden nur als
+  // "was ist passiert"-Referenz nutzen, nicht wortwoertlich kopieren.
+  let continuityBlock = "";
+  if (input.continuityMode && input.priorEpisodes.length > 0) {
+    const entries = input.priorEpisodes
+      .map((ep, idx) => {
+        const rel = idx === 0 ? "letzte Folge" : `${idx + 1}. zurueck`;
+        const topicsLine =
+          ep.topics.length > 0 ? ep.topics.slice(0, 5).join(", ") : "—";
+        const notes = ep.continuityNotes ? `\n  Regie-Notiz: ${ep.continuityNotes}` : "";
+        return `• ${rel}: "${ep.title}"\n  Themen: ${topicsLine}${notes}`;
+      })
+      .join("\n");
+    continuityBlock = `
+═══════════════════════════
+VORHERIGE FOLGEN (Continuity)
+═══════════════════════════
+
+${entries}
+
+Diese Folge ist die naechste Episode dieser Show. Nutze die vorherigen
+Themen als lose Referenz — kleiner Callback ("Letztes Mal haben wir...")
+ist willkommen, aber wiederhole keine Plots und keine Woertlichkeiten.
+Charakter-Beziehungen + etablierte Kernmotive sollen konsistent bleiben.
+`;
+  }
+
   const system = `Du produzierst eine Audio-Episode für eine KoalaTree-Show. Das ist ein lebendiges Hörspiel mit mehreren Charakteren.
 
 ═══════════════════════════
@@ -365,7 +440,7 @@ DIE CHARAKTERE
 
 ${characterProfiles}
 
-═══════════════════════════
+${continuityBlock}═══════════════════════════
 HÖRSPIEL-DYNAMIK
 ═══════════════════════════
 
@@ -473,6 +548,51 @@ async function generateEpisodeText(
     inputTokens: res.usage.input_tokens ?? 0,
     outputTokens: res.usage.output_tokens ?? 0,
   };
+}
+
+// ── Topic extraction (separate small Claude call, continuity-fed-forward) ──
+//
+// Feed-forward fuer Continuity-Mode: wir extrahieren 3-5 Stichwort-Topics aus
+// der fertigen Episode. Diese werden in ShowEpisode.topics gespeichert und
+// bei der NAECHSTEN Episode (Show.continuityMode=true) als "vorherige
+// Themen"-Kontext in den System-Prompt injiziert.
+//
+// Bewusst NACH der Text-Gen (nicht Teil davon), weil Claude sonst dazu neigt
+// die Topics mit-ins-Skript-zu-schreiben und den Audio-Flow bricht. Billig
+// (~50 output tokens, 1 input token pro Wort der Episode).
+async function extractEpisodeTopics(episodeText: string): Promise<string[]> {
+  try {
+    const client = createAnthropicClient();
+    const res = await client.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 200,
+      system:
+        "Du extrahierst 3-5 praegnante Themen-Stichworte (Deutsch, max. 3 Woerter pro Stichwort) aus einer Audio-Episode. Antworte NUR mit einem JSON-Array, z.B. [\"Freundschaft\",\"Traumreise\",\"Koala\"].",
+      messages: [
+        {
+          role: "user",
+          content: `Episode-Auszug (bis 2000 Zeichen):\n\n${episodeText.slice(0, 2000)}\n\nTopics:`,
+        },
+      ],
+    });
+    const block = res.content.find((b) => b.type === "text");
+    if (!block || block.type !== "text") return [];
+    const raw = block.text.trim();
+    // Claude kann mit Markdown-Code-Fences antworten — entfernen.
+    const cleaned = raw.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((x): x is string => typeof x === "string")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && s.length < 40)
+      .slice(0, 5);
+  } catch (e) {
+    // Non-fatal: wenn Topic-Extraction fehlschlaegt, laeuft die Episode trotzdem
+    // durch — Continuity degradiert stillschweigend auf "ohne Vorepisoden-Context".
+    console.warn("[show-episode] Topic-Extraction fehlgeschlagen:", e);
+    return [];
+  }
 }
 
 // ── Title generation (separate short Claude call) ──────────────
@@ -603,16 +723,24 @@ export async function generateShowEpisode(params: {
         .catch((e) => console.warn(`[show-episode] heartbeat update failed: ${e}`));
     }, 5000);
 
-    let audioResult;
+    let audioResult: Awaited<ReturnType<typeof generateAudio>>;
     try {
-      const [titleResult, audio] = await Promise.all([
+      // Parallel: Title + Audio + (wenn continuityMode) Topics.
+      // Topics werden nur extrahiert wenn die Show serialisiert wird — bei
+      // Stand-alone-Shows lohnt der zusaetzliche Claude-Call nicht, das Feld
+      // bleibt leer und der continuity-Block im naechsten Prompt ebenfalls.
+      const [titleResult, audio, topicsResult] = await Promise.all([
         generateEpisodeTitle(input, text),
         generateAudio(text),
+        input.continuityMode ? extractEpisodeTopics(text) : Promise.resolve([] as string[]),
       ]);
       audioResult = audio;
       await prisma.showEpisode.update({
         where: { id: episode.id },
-        data: { title: titleResult },
+        data: {
+          title: titleResult,
+          ...(input.continuityMode ? { topics: topicsResult } : {}),
+        },
       });
     } finally {
       clearInterval(heartbeat);
@@ -648,6 +776,14 @@ export async function generateShowEpisode(params: {
     );
 
     // Phase 5: Finalize
+    //
+    // Review-Gate (Feature S3): Pilot-Episoden werden technisch fertig gebaut
+    // (Audio, Timeline, Blob) aber der Canzoia-Webhook wird NICHT gefeuert.
+    // Stattdessen setzen wir reviewStatus="pending". Der Admin hoert sich das
+    // Ergebnis im Studio an und ruft POST /approve oder /reject auf — approve
+    // feuert den aufgehobenen Webhook nach, reject markiert die Episode ohne
+    // Webhook. Dieser Mechanismus gilt nur wenn episode.isPilot=true.
+    const gateReview = episode.isPilot === true;
     await prisma.showEpisode.update({
       where: { id: episodeId },
       data: {
@@ -661,43 +797,27 @@ export async function generateShowEpisode(params: {
         // timeline is the raw TimelineEntry[] — Prisma casts via JSON column
         timeline: audioResult.timeline as unknown as Prisma.InputJsonValue,
         completedAt: new Date(),
+        ...(gateReview ? { reviewStatus: "pending" } : {}),
       },
     });
 
-    console.log(`[show-episode] ✓ ${episodeId} completed — ${durationSec}s, ${audioResult.wav.byteLength} bytes`);
+    console.log(
+      `[show-episode] ✓ ${episodeId} completed — ${durationSec}s, ${audioResult.wav.byteLength} bytes` +
+        (gateReview ? " [PILOT: waiting for review, webhook suppressed]" : ""),
+    );
 
     // Reload for up-to-date fields (title, cost) + dispatch completed webhook.
     const final = await prisma.showEpisode.findUniqueOrThrow({
       where: { id: episodeId },
       include: { show: { select: { slug: true } } },
     });
-    // Ship the proxy URL in the webhook (raw blob URL is private-403).
-    // Import lazily to keep the generator's direct deps light.
-    const { buildAudioProxyUrl } = await import("@/lib/canzoia/audio-token");
-    const proxyAudioUrl = buildAudioProxyUrl(final.canzoiaJobId);
 
-    deliverWebhookSafe({
-      event: "generation.completed",
-      deliveryId: randomUUID(),
-      timestamp: new Date().toISOString(),
-      jobId: final.canzoiaJobId,
-      idempotencyKey: final.idempotencyKey,
-      showSlug: final.show.slug,
-      showFokusId: final.showFokusId,
-      canzoiaProfileId: final.canzoiaProfileId,
-      result: {
-        title: final.title,
-        audioUrl: proxyAudioUrl,
-        durationSec: final.durationSec,
-        timeline: final.timeline,
-      },
-      cost: {
-        inputTokens: final.inputTokens,
-        outputTokens: final.outputTokens,
-        ttsChars: final.ttsChars,
-        totalMinutesBilled: final.totalMinutesBilled,
-      },
-    });
+    // Review-Gate: Pilot → webhook unterdruecken. /approve-Endpoint feuert ihn nach.
+    if (gateReview) {
+      return;
+    }
+
+    await dispatchCompletedWebhook(final.id);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const code = err instanceof Error ? err.name : "Error";
@@ -727,4 +847,55 @@ export async function generateShowEpisode(params: {
     });
     throw err;
   }
+}
+
+// ── Webhook-Dispatch (shared: generator + review-approve) ──────────────────
+//
+// Wird sowohl am Ende von generateShowEpisode() (Non-Pilot-Pfad) als auch vom
+// Review-Approve-Endpoint (Pilot-Pfad nach Freigabe) aufgerufen. Erwartet eine
+// Episode die technisch fertig (status=completed, audioUrl+durationSec+timeline
+// gesetzt) ist — liest die aktuellen Felder frisch aus der DB, baut die
+// Proxy-URL und feuert den generation.completed Webhook einmal ab.
+//
+// Kein Retry-Lock: deliverWebhookSafe() kuemmert sich um Zustellgarantien; ein
+// doppelter Call vom Approve-Endpoint ist in der Praxis harmlos (Canzoia
+// dedupliziert per idempotencyKey), wuerde aber 2 DB-Zeilen in WebhookDelivery
+// erzeugen. Der Approve-Endpoint muss deshalb reviewStatus "approved" erst
+// setzen und dann aufrufen; Doppelklicks auf den Button werden durch den
+// Status-Transition-Check im Endpoint abgefangen.
+export async function dispatchCompletedWebhook(episodeId: string): Promise<void> {
+  const ep = await prisma.showEpisode.findUniqueOrThrow({
+    where: { id: episodeId },
+    include: { show: { select: { slug: true } } },
+  });
+  if (ep.status !== "completed") {
+    throw new Error(
+      `dispatchCompletedWebhook: Episode ${episodeId} hat Status '${ep.status}', nicht 'completed'`,
+    );
+  }
+  const { buildAudioProxyUrl } = await import("@/lib/canzoia/audio-token");
+  const proxyAudioUrl = buildAudioProxyUrl(ep.canzoiaJobId);
+
+  deliverWebhookSafe({
+    event: "generation.completed",
+    deliveryId: randomUUID(),
+    timestamp: new Date().toISOString(),
+    jobId: ep.canzoiaJobId,
+    idempotencyKey: ep.idempotencyKey,
+    showSlug: ep.show.slug,
+    showFokusId: ep.showFokusId,
+    canzoiaProfileId: ep.canzoiaProfileId,
+    result: {
+      title: ep.title,
+      audioUrl: proxyAudioUrl,
+      durationSec: ep.durationSec,
+      timeline: ep.timeline,
+    },
+    cost: {
+      inputTokens: ep.inputTokens,
+      outputTokens: ep.outputTokens,
+      ttsChars: ep.ttsChars,
+      totalMinutesBilled: ep.totalMinutesBilled,
+    },
+  });
 }

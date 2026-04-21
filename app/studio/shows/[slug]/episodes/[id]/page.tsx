@@ -59,6 +59,16 @@ interface EpisodeDetail {
   errorCode: string | null;
   errorMessage: string | null;
 
+  // Feature S3: Pilot-Review-Gate
+  isPilot: boolean;
+  reviewStatus: string | null;  // null | "pending" | "approved" | "rejected"
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  reviewNotes: string | null;
+  // Feature #4: Continuity-Topics
+  topics: string[];
+  continuityNotes: string | null;
+
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -83,6 +93,12 @@ export default function EpisodeDetailPage({ params }: { params: Promise<Params> 
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryMessage, setRetryMessage] = useState<string | null>(null);
+
+  // Review-Gate State (Feature S3)
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [continuityNotes, setContinuityNotes] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -114,6 +130,54 @@ export default function EpisodeDetailPage({ params }: { params: Promise<Params> 
     const t = setInterval(() => void load(), 3000);
     return () => clearInterval(t);
   }, [episode, load]);
+
+  async function submitReview(action: "approve" | "reject") {
+    if (!episode || reviewing) return;
+    // Harter UI-Guard: nur reviewable wenn Pilot + pending + completed.
+    // Der Server prueft das nochmal, aber ein schnelles UX-Feedback
+    // spart einen Roundtrip + erklaert warum der Button grau ist.
+    if (!episode.isPilot || episode.reviewStatus !== "pending" || episode.status !== "completed") {
+      setReviewMessage("Review nicht moeglich in diesem Zustand.");
+      return;
+    }
+    setReviewing(true);
+    setReviewMessage(null);
+    try {
+      const res = await fetch(`/api/studio/shows/${slug}/episodes/${id}/review`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action,
+          reviewNotes: reviewNotes.trim() || null,
+          // continuityNotes NUR bei approve sinnvoll — rejected Episoden
+          // sind sowieso nicht als "Vorepisode" im Continuity-Loop, eine
+          // Regie-Notiz dazu waere totes Metadata.
+          ...(action === "approve" && continuityNotes.trim()
+            ? { continuityNotes: continuityNotes.trim() }
+            : {}),
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        setReviewMessage(`Fehler: ${d.error || `HTTP ${res.status}`}`);
+        return;
+      }
+      if (d.warning) {
+        setReviewMessage(`${action === "approve" ? "Approved" : "Abgelehnt"} — ${d.warning}`);
+      } else {
+        setReviewMessage(
+          action === "approve"
+            ? "Approved. Webhook an Canzoia raus."
+            : "Abgelehnt. Kein Webhook gefeuert.",
+        );
+      }
+      await load();
+    } catch (e) {
+      setReviewMessage(`Netzwerkfehler: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setReviewing(false);
+    }
+  }
 
   async function triggerRetry() {
     if (!episode || retrying) return;
@@ -187,6 +251,7 @@ export default function EpisodeDetailPage({ params }: { params: Promise<Params> 
             </h1>
             <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] text-white/50">
               <StatusBadge status={episode.status} />
+              {episode.isPilot && <PilotBadge reviewStatus={episode.reviewStatus} />}
               <span>•</span>
               <span>
                 {episode.showFokus.emoji ?? ""} {episode.showFokus.label}
@@ -261,6 +326,119 @@ export default function EpisodeDetailPage({ params }: { params: Promise<Params> 
             <a href={episode.audioUrl} target="_blank" rel="noreferrer" className="hover:text-white/70 truncate">
               {episode.audioUrl}
             </a>
+          </div>
+        </section>
+      )}
+
+      {/* Review-Gate Panel (Feature S3) — nur bei Pilot-Episoden */}
+      {episode.isPilot && (
+        <section className="rounded-lg border border-[#C8A97E]/30 bg-[#C8A97E]/5 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-[#f5eed6] font-semibold">Pilot-Review</span>
+            <PilotBadge reviewStatus={episode.reviewStatus} />
+          </div>
+          {episode.reviewStatus === "pending" && episode.status === "completed" && (
+            <>
+              <p className="text-[11px] text-white/60 leading-relaxed">
+                Diese Episode wartet auf Freigabe. Bei <strong>Approve</strong> geht der
+                generation.completed-Webhook raus und Canzoia erhaelt die Episode ganz
+                normal. Bei <strong>Reject</strong> kein Webhook — die Episode zaehlt
+                auch NICHT als "Vorepisode" fuer Continuity-Mode.
+              </p>
+              <div className="space-y-2">
+                <label className="block text-[10px] uppercase tracking-wide text-white/50">
+                  Review-Notizen (optional, intern)
+                </label>
+                <textarea
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  rows={2}
+                  className="w-full rounded bg-[#141414] border border-white/10 px-3 py-2 text-xs text-white/80 focus:border-[#C8A97E]/50 focus:outline-none"
+                  placeholder="z.B. 'Koda klingt zu neutral — Personality nachziehen' ..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] uppercase tracking-wide text-white/50">
+                  Regie-Notiz fuer naechste Folge (nur bei Approve)
+                </label>
+                <textarea
+                  value={continuityNotes}
+                  onChange={(e) => setContinuityNotes(e.target.value)}
+                  rows={2}
+                  className="w-full rounded bg-[#141414] border border-white/10 px-3 py-2 text-xs text-white/80 focus:border-[#C8A97E]/50 focus:outline-none"
+                  placeholder="z.B. 'Nala soll in der naechsten Folge ueber ihre Angst sprechen' ..."
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => void submitReview("approve")}
+                  disabled={reviewing}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-[#C8A97E] text-[#141414] font-medium hover:bg-[#d4b88c] disabled:opacity-50 transition"
+                >
+                  {reviewing ? "..." : "Approve + Webhook"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitReview("reject")}
+                  disabled={reviewing}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50 transition"
+                >
+                  {reviewing ? "..." : "Reject"}
+                </button>
+                {reviewMessage && (
+                  <span className="text-[11px] text-white/70">{reviewMessage}</span>
+                )}
+              </div>
+            </>
+          )}
+          {episode.reviewStatus === "pending" && episode.status !== "completed" && (
+            <p className="text-[11px] text-white/60">
+              Episode ist noch nicht fertig ({episode.status}) — Review erst nach
+              Completion moeglich.
+            </p>
+          )}
+          {(episode.reviewStatus === "approved" || episode.reviewStatus === "rejected") && (
+            <div className="text-[11px] text-white/60 space-y-1">
+              <div>
+                <strong className={episode.reviewStatus === "approved" ? "text-green-300" : "text-red-300"}>
+                  {episode.reviewStatus === "approved" ? "Approved" : "Rejected"}
+                </strong>
+                {episode.reviewedBy && <> von {episode.reviewedBy}</>}
+                {episode.reviewedAt && <> am {formatDateTime(episode.reviewedAt)}</>}
+              </div>
+              {episode.reviewNotes && (
+                <div className="mt-1 text-white/70 whitespace-pre-wrap">
+                  <span className="text-white/40">Notizen: </span>
+                  {episode.reviewNotes}
+                </div>
+              )}
+              {episode.continuityNotes && (
+                <div className="mt-1 text-white/70 whitespace-pre-wrap">
+                  <span className="text-white/40">Regie-Notiz naechste Folge: </span>
+                  {episode.continuityNotes}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Topics (Continuity-Mode, Feature #4) */}
+      {episode.topics.length > 0 && (
+        <section className="rounded-lg border border-white/10 bg-[#1A1A1A] p-4">
+          <h2 className="text-xs uppercase tracking-wide text-white/50 mb-2">
+            Themen (Continuity)
+          </h2>
+          <div className="flex flex-wrap gap-1.5">
+            {episode.topics.map((t) => (
+              <span
+                key={t}
+                className="text-[11px] px-2 py-0.5 rounded-full bg-white/5 text-white/70 border border-white/10"
+              >
+                {t}
+              </span>
+            ))}
           </div>
         </section>
       )}
@@ -405,6 +583,26 @@ export default function EpisodeDetailPage({ params }: { params: Promise<Params> 
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
+
+function PilotBadge({ reviewStatus }: { reviewStatus: string | null }) {
+  const palette: Record<string, string> = {
+    pending: "bg-[#C8A97E]/20 text-[#C8A97E] border-[#C8A97E]/40",
+    approved: "bg-green-500/20 text-green-300 border-green-500/30",
+    rejected: "bg-red-500/20 text-red-300 border-red-500/30",
+  };
+  const label =
+    reviewStatus === "pending"
+      ? "Pilot · Review faellig"
+      : reviewStatus === "approved"
+      ? "Pilot · Approved"
+      : reviewStatus === "rejected"
+      ? "Pilot · Rejected"
+      : "Pilot";
+  const cls = palette[reviewStatus ?? ""] ?? "bg-white/10 text-white/60 border-white/20";
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${cls}`}>{label}</span>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   const palette: Record<string, string> = {

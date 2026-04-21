@@ -38,6 +38,10 @@ export async function POST(request: Request, ctx: Ctx) {
     showFokusId?: string;
     userInputs?: Record<string, unknown>;
     profileSnapshot?: Record<string, unknown>;
+    // Feature S3: Pilot-Mode — Episode wird generiert, aber der Webhook an
+    // Canzoia wird suspendiert bis zum Admin-Approve via /review. Default
+    // false → normale Test-Episode ohne Gate (legacy behavior).
+    isPilot?: boolean;
   };
 
   if (!body.showFokusId) {
@@ -72,6 +76,7 @@ export async function POST(request: Request, ctx: Ctx) {
       status: "queued",
       progressPct: 0,
       startedAt: new Date(),
+      isPilot: body.isPilot === true,
     },
   });
 

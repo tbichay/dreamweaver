@@ -812,6 +812,18 @@ model Show {
   ownerUserId   String
   ownerOrgId    String?
 
+  // ── Continuity (S3/Phase-4-Serialisierung) ──────────────────────
+  // Wenn true, werden bei jeder Episoden-Generation die letzten N Episoden-
+  // Topics + Titles als Kontext in den Claude-Prompt injiziert. Zweck: die
+  // Folgen fuehlen sich zusammenhaengend an ("letztes Mal... diesmal...")
+  // anstatt komplett unabhaengig. Default false — bestehende Shows sind
+  // Anthologie-Format, kein Continuity-Rewrite.
+  continuityMode  Boolean @default(false)
+  // Wieviele rueckwaertige Episoden als Kontext einspeisen (nur wenn
+  // continuityMode=true). Default 3 — genug fuer "letzte Woche"-Callbacks
+  // ohne dass der Prompt zu lang wird.
+  continuityDepth Int     @default(3)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -919,6 +931,34 @@ model ShowEpisode {
   errorCode    String?
   errorMessage String?
 
+  // ── Pilot & Review-Gate (S3) ────────────────────────────────────
+  // isPilot=true markiert "erste" Episoden, die *vor* dem Canzoia-Webhook
+  // durch einen Admin-Review muessen. Der Shows-Wizard setzt das Flag bei
+  // der allerersten Episode automatisch; spaeter kann Admin es auch bei
+  // anderen Episoden setzen (z.B. fuer Staffel-Premieren).
+  isPilot      Boolean @default(false)
+  // reviewStatus:
+  //   null        → kein Review-Gate aktiv, Webhook feuert wie gehabt
+  //   "pending"   → Generation fertig, wartet auf Admin-Freigabe
+  //   "approved"  → Admin hat freigegeben, Webhook wurde gefeuert
+  //   "rejected"  → Admin hat verworfen, Episode bleibt in DB zur Referenz,
+  //                 Webhook feuert NIE
+  reviewStatus String?
+  reviewedAt   DateTime?
+  reviewedBy   String? // clerk userId des Admin der approved/rejected hat
+  reviewNotes  String?  // optionale Admin-Notiz bei Reject (Grund)
+
+  // ── Continuity-Output (wird fuer Folge-Episoden als Kontext genutzt) ──
+  // Topics werden von Claude als Teil des Episode-Outputs extrahiert (JSON-
+  // Response enthaelt ein "topics"-Array neben "title"+"text"). Bei der
+  // naechsten Episode dieser Show liest der Generator die letzten N Topics
+  // und injiziert sie in den System-Prompt ("Vorherige Episoden: ..."),
+  // damit Claude Callbacks + Arc-Consistency machen kann.
+  topics           String[] @default([])
+  // Optionale Admin-Notiz fuer die NAECHSTE Episode (z.B. "Koda erwaehnt
+  // dass Luna diesmal krank war"). Greift nur wenn Show.continuityMode=true.
+  continuityNotes  String?
+
   // Audit
   createdAt   DateTime  @default(now())
   startedAt   DateTime?
@@ -926,6 +966,7 @@ model ShowEpisode {
 
   @@index([showId, createdAt])
   @@index([status])
+  @@index([reviewStatus])
   @@index([canzoiaProfileId])
 }
 
