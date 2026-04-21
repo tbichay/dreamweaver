@@ -443,12 +443,18 @@ Beginne jetzt. Erster Marker: [AMBIENCE:...], dann [SFX:...] oder ${leadMarker}.
 
 // ── Claude call ────────────────────────────────────────────────
 
-async function generateEpisodeText(input: ResolvedEpisodeInput): Promise<{
+async function generateEpisodeText(
+  input: ResolvedEpisodeInput,
+  prebuiltPrompts?: { system: string; user: string },
+): Promise<{
   text: string;
   inputTokens: number;
   outputTokens: number;
 }> {
-  const { system, user } = buildShowEpisodePrompt(input);
+  // Caller kann vorgerenderte Prompts uebergeben (so wie die Full-Pipeline
+  // es tut, um sie vor dem Call zu persistieren). Ohne Parameter bleibt
+  // das Legacy-Verhalten — naemlich on-the-fly rendern.
+  const { system, user } = prebuiltPrompts ?? buildShowEpisodePrompt(input);
   const client = createAnthropicClient();
   const res = await client.messages.create({
     model: CLAUDE_MODEL,
@@ -540,8 +546,23 @@ export async function generateShowEpisode(params: {
     });
 
     // Phase 2: Claude text generation
+    //
+    // Prompts werden *vor* dem Claude-Call gespeichert, damit die
+    // Episode-Detail-UI auch bei einem 500er von Claude noch zeigen kann,
+    // was wirklich gesendet wurde. Ohne das mussten wir im Debugging-Fall
+    // den Prompt aus show + fokus + userInputs haendisch rekonstruieren
+    // — und der Prompt-Builder aendert sich oefter als man denkt.
     await setStatus("scripting", 15, "Script wird geschrieben");
-    const { text, inputTokens, outputTokens } = await generateEpisodeText(input);
+    const { system: promptSystem, user: promptUser } = buildShowEpisodePrompt(input);
+    await prisma.showEpisode.update({
+      where: { id: episode.id },
+      data: { promptSystem, promptUser },
+    });
+
+    const { text, inputTokens, outputTokens } = await generateEpisodeText(input, {
+      system: promptSystem,
+      user: promptUser,
+    });
 
     await prisma.showEpisode.update({
       where: { id: episode.id },

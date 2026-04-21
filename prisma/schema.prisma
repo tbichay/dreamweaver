@@ -865,6 +865,14 @@ model ShowEpisode {
   durationSec Int?
   timeline    Json?
 
+  // Rendered prompts — persisted BEFORE the Claude call so that when a
+  // generation fails, the admin Episode-Detail page can show exactly what
+  // was sent. Without this, debugging "why did my hero pick the wrong
+  // lernziel" required hand-rebuilding the prompt from show + fokus +
+  // userInputs, which drifts over time as prompt code changes.
+  promptSystem String? @db.Text
+  promptUser   String? @db.Text
+
   // Cost
   inputTokens        Int?
   outputTokens       Int?

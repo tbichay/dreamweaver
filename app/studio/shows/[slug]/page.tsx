@@ -1116,7 +1116,7 @@ function TestTab({ show, onComplete }: { show: Show; onComplete: () => void }) {
   );
 }
 
-// ── Episoden (read-only für jetzt) ─────────────────────────────
+// ── Episoden (Links zum Detail-Debug-View) ─────────────────────
 
 function EpisodenTab({ show }: { show: Show }) {
   if (show.episodes.length === 0) {
@@ -1129,7 +1129,13 @@ function EpisodenTab({ show }: { show: Show }) {
   return (
     <div className="space-y-2">
       {show.episodes.map((ep) => (
-        <div key={ep.id} className="flex items-center gap-3 p-3 bg-[#1A1A1A] border border-white/10 rounded-lg">
+        // Click → /studio/shows/[slug]/episodes/[id]: Prompts, Timeline,
+        // Audio, Retry — der Debug-Pfad fuer "warum hat das nicht geklappt".
+        <Link
+          key={ep.id}
+          href={`/studio/shows/${show.slug}/episodes/${ep.id}`}
+          className="flex items-center gap-3 p-3 bg-[#1A1A1A] border border-white/10 rounded-lg hover:border-[#C8A97E]/40 transition"
+        >
           <span
             className={`text-[10px] px-2 py-0.5 rounded ${
               ep.status === "completed"
@@ -1141,14 +1147,15 @@ function EpisodenTab({ show }: { show: Show }) {
           >
             {ep.status}
           </span>
-          <div className="flex-1">
-            <div className="text-sm text-[#f5eed6]">{ep.title ?? "(kein Titel)"}</div>
-            <div className="text-[10px] text-white/40 font-mono">{ep.canzoiaJobId}</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-[#f5eed6] truncate">{ep.title ?? "(kein Titel)"}</div>
+            <div className="text-[10px] text-white/40 font-mono truncate">{ep.canzoiaJobId}</div>
           </div>
-          <div className="text-[10px] text-white/40">
+          <div className="text-[10px] text-white/40 shrink-0">
             {ep.durationSec ? `${ep.durationSec}s` : `${ep.progressPct}%`}
           </div>
-        </div>
+          <span className="text-white/30 text-xs">→</span>
+        </Link>
       ))}
     </div>
   );
