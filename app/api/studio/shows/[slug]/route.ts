@@ -15,6 +15,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin, unauthorized } from "@/lib/studio/admin-auth";
 import { bumpRevisionHash } from "@/lib/studio/show-revision";
+import { computeShowReadiness } from "@/lib/studio/show-readiness";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -36,7 +37,11 @@ export async function GET(_request: Request, ctx: Ctx) {
   });
   if (!show) return Response.json({ error: "Nicht gefunden" }, { status: 404 });
 
-  return Response.json({ show });
+  // Inline readiness so the UI can render the Publish-Gates checklist
+  // without a second request. Cheap — same show, no extra joins.
+  const readiness = await computeShowReadiness(show.id);
+
+  return Response.json({ show, readiness });
 }
 
 export async function PATCH(request: Request, ctx: Ctx) {
@@ -61,6 +66,30 @@ export async function PATCH(request: Request, ctx: Ctx) {
 
   const existing = await prisma.show.findUnique({ where: { slug } });
   if (!existing) return Response.json({ error: "Nicht gefunden" }, { status: 404 });
+
+  // Publish-Gate: beim *Publish* (publishedAt wird von null→Datum) muss
+  // die Readiness-Check passen. Unpublish (→null) ist immer erlaubt —
+  // sonst koennte man eine kaputte Show nicht vom Markt nehmen.
+  const isPublishing =
+    body.publishedAt !== undefined &&
+    body.publishedAt !== null &&
+    !existing.publishedAt;
+  if (isPublishing) {
+    const readiness = await computeShowReadiness(existing.id);
+    if (!readiness.ready) {
+      const failing = readiness.checks
+        .filter((c) => c.severity === "blocking" && !c.ok)
+        .map((c) => c.label);
+      return Response.json(
+        {
+          error: "Show ist noch nicht publish-ready",
+          blocking: failing,
+          readiness,
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   const updated = await prisma.show.update({
     where: { slug },

@@ -84,12 +84,28 @@ interface Show {
   episodes: EpisodeRow[];
 }
 
+interface ReadinessCheck {
+  id: string;
+  label: string;
+  severity: "blocking" | "warning";
+  ok: boolean;
+  detail?: string;
+}
+
+interface ShowReadiness {
+  ready: boolean;
+  blockingFailures: number;
+  warningFailures: number;
+  checks: ReadinessCheck[];
+}
+
 type Tab = "grundlagen" | "brand" | "cast" | "foki" | "test" | "episoden" | "gefahrenzone";
 
 export default function ShowDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const router = useRouter();
   const [show, setShow] = useState<Show | null>(null);
+  const [readiness, setReadiness] = useState<ShowReadiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("grundlagen");
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +118,7 @@ export default function ShowDetailPage({ params }: { params: Promise<{ slug: str
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Load fehlgeschlagen");
       setShow(data.show);
+      setReadiness(data.readiness ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -172,7 +189,7 @@ export default function ShowDetailPage({ params }: { params: Promise<{ slug: str
         </div>
       )}
 
-      {tab === "grundlagen" && <GrundlagenTab show={show} onSaved={(m) => { loadShow(); flash(m); }} />}
+      {tab === "grundlagen" && <GrundlagenTab show={show} readiness={readiness} onSaved={(m) => { loadShow(); flash(m); }} />}
       {tab === "brand" && <BrandTab show={show} onSaved={(m) => { loadShow(); flash(m); }} />}
       {tab === "cast" && <CastTab show={show} onChanged={(m) => { loadShow(); flash(m); }} />}
       {tab === "foki" && <FokiTab show={show} onChanged={(m) => { loadShow(); flash(m); }} />}
@@ -190,7 +207,15 @@ export default function ShowDetailPage({ params }: { params: Promise<{ slug: str
 
 // ── Grundlagen ─────────────────────────────────────────────────
 
-function GrundlagenTab({ show, onSaved }: { show: Show; onSaved: (msg: string) => void }) {
+function GrundlagenTab({
+  show,
+  readiness,
+  onSaved,
+}: {
+  show: Show;
+  readiness: ShowReadiness | null;
+  onSaved: (msg: string) => void;
+}) {
   const [title, setTitle] = useState(show.title);
   const [subtitle, setSubtitle] = useState(show.subtitle ?? "");
   const [description, setDescription] = useState(show.description);
@@ -199,6 +224,7 @@ function GrundlagenTab({ show, onSaved }: { show: Show; onSaved: (msg: string) =
   const [budgetMinutes, setBudgetMinutes] = useState(show.budgetMinutes);
   const [publishedAt, setPublishedAt] = useState<string | null>(show.publishedAt);
   const [saving, setSaving] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   async function save() {
     setSaving(true);
@@ -219,15 +245,28 @@ function GrundlagenTab({ show, onSaved }: { show: Show; onSaved: (msg: string) =
   }
 
   async function togglePublished() {
+    setPublishError(null);
     const newVal = publishedAt ? null : new Date().toISOString();
-    setPublishedAt(newVal);
-    await fetch(`/api/studio/shows/${show.slug}`, {
+    const res = await fetch(`/api/studio/shows/${show.slug}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ publishedAt: newVal }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const blocking = Array.isArray(data.blocking) ? data.blocking.join(", ") : "";
+      setPublishError(
+        data.error ? `${data.error}${blocking ? ` — ${blocking}` : ""}` : "Publish fehlgeschlagen",
+      );
+      return;
+    }
+    setPublishedAt(newVal);
     onSaved(newVal ? "Publiziert" : "Depubliziert");
   }
+
+  // Publish nur blockieren wenn wir gerade *publishen wollen* (not
+  // already published) UND Readiness sagt nein. Depublish ist immer ok.
+  const publishDisabled = !publishedAt && readiness !== null && !readiness.ready;
 
   return (
     <div className="space-y-5">
@@ -249,6 +288,15 @@ function GrundlagenTab({ show, onSaved }: { show: Show; onSaved: (msg: string) =
         />
       </Field>
 
+      {/* Publish-Readiness Checklist */}
+      {readiness && <ReadinessPanel readiness={readiness} published={!!publishedAt} />}
+
+      {publishError && (
+        <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded px-3 py-2">
+          ✗ {publishError}
+        </div>
+      )}
+
       <div className="flex items-center gap-3 pt-4 border-t border-white/10">
         <button
           onClick={save}
@@ -259,7 +307,9 @@ function GrundlagenTab({ show, onSaved }: { show: Show; onSaved: (msg: string) =
         </button>
         <button
           onClick={togglePublished}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+          disabled={publishDisabled}
+          title={publishDisabled ? "Readiness-Checks noch offen" : undefined}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed ${
             publishedAt
               ? "bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30"
               : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
@@ -269,6 +319,69 @@ function GrundlagenTab({ show, onSaved }: { show: Show; onSaved: (msg: string) =
         </button>
       </div>
     </div>
+  );
+}
+
+// ── Readiness-Panel ──────────────────────────────────────────────
+
+function ReadinessPanel({
+  readiness,
+  published,
+}: {
+  readiness: ShowReadiness;
+  published: boolean;
+}) {
+  const blocking = readiness.checks.filter((c) => c.severity === "blocking");
+  const warnings = readiness.checks.filter((c) => c.severity === "warning");
+
+  const headline = readiness.ready
+    ? published
+      ? "Live — alle Pflicht-Checks bestanden"
+      : "Publish-bereit — alle Pflicht-Checks bestanden"
+    : `${readiness.blockingFailures} Pflicht-Check${readiness.blockingFailures === 1 ? "" : "s"} offen`;
+  const headlineColor = readiness.ready
+    ? "text-green-300"
+    : "text-red-300";
+
+  return (
+    <div className="pt-4 border-t border-white/10">
+      <div className={`text-xs font-medium mb-3 ${headlineColor}`}>
+        {headline}
+      </div>
+      <ul className="space-y-1.5">
+        {blocking.map((c) => <CheckRow key={c.id} check={c} />)}
+        {warnings.map((c) => <CheckRow key={c.id} check={c} />)}
+      </ul>
+    </div>
+  );
+}
+
+function CheckRow({ check }: { check: ReadinessCheck }) {
+  const icon = check.ok
+    ? "✓"
+    : check.severity === "blocking"
+      ? "✗"
+      : "!";
+  const iconColor = check.ok
+    ? "text-green-300"
+    : check.severity === "blocking"
+      ? "text-red-300"
+      : "text-yellow-300";
+  return (
+    <li className="flex items-start gap-2 text-xs">
+      <span className={`${iconColor} font-bold w-4 text-center flex-shrink-0`}>{icon}</span>
+      <div className="flex-1">
+        <div className="text-white/80">{check.label}</div>
+        {!check.ok && check.detail && (
+          <div className="text-white/40 text-[11px] mt-0.5">{check.detail}</div>
+        )}
+      </div>
+      {check.severity === "warning" && (
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400/70 flex-shrink-0">
+          OPTIONAL
+        </span>
+      )}
+    </li>
   );
 }
 
