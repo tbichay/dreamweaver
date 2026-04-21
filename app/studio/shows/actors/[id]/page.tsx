@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { TagInput } from "@/app/components/TagInput";
 import { STYLE_OPTIONS } from "@/lib/studio/visual-styles";
 import { ToastProvider, useToast } from "@/app/components/Toasts";
+import { VoiceInputButton } from "@/app/components/VoiceInputButton";
 
 interface Actor {
   id: string;
@@ -432,13 +433,14 @@ function ActorForm({
         <Field label="Rolle"><TextInput value={role} onChange={setRole} placeholder="Der Weise, Die Erzählerin…" /></Field>
       </div>
 
-      <Field label="Kurz-Beschreibung">
+      <Field label="Kurz-Beschreibung" voice={{ onAppend: makeAppender(setDescription) }}>
         <TextArea value={description} onChange={setDescription} rows={2} />
       </Field>
 
       <Field
         label="Persona (Prompt-Fragment)"
         hint="Age-agnostisch. Wird bei jeder Generation an den System-Prompt angehängt."
+        voice={{ onAppend: makeAppender(setPersona) }}
       >
         <TextArea value={persona} onChange={setPersona} rows={5} />
       </Field>
@@ -478,6 +480,7 @@ function ActorForm({
         <Field
           label="Wesen / Persoenlichkeit"
           hint="Kurze Adjektiv-Liste oder ein-zwei Saetze. Was macht diesen Charakter aus?"
+          voice={{ onAppend: makeAppender(setPersonality) }}
         >
           <TextArea value={personality} onChange={setPersonality} rows={2} />
         </Field>
@@ -485,6 +488,7 @@ function ActorForm({
         <Field
           label="Sprechweise"
           hint="Wie redet die Figur? Satz-Laenge, typische Fuell-Laute, Dialekt-Hinweise."
+          voice={{ onAppend: makeAppender(setSpeechStyle) }}
         >
           <TextArea value={speechStyle} onChange={setSpeechStyle} rows={2} />
         </Field>
@@ -506,6 +510,7 @@ function ActorForm({
         <Field
           label="Hintergrund / Backstory"
           hint="Wo kommt die Figur her? Was treibt sie an? (Frei formuliert.)"
+          voice={{ onAppend: makeAppender(setBackstory) }}
         >
           <TextArea value={backstory} onChange={setBackstory} rows={4} />
         </Field>
@@ -679,14 +684,37 @@ function ActorForm({
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+  voice,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+  // Optional: rendert einen VoiceInputButton neben dem Label. Wird nur fuer
+  // narrative Freitext-Felder verwendet (nicht fuer JSON / kurze Inputs).
+  voice?: { onAppend: (text: string) => void };
+}) {
   return (
     <div>
-      <label className="block text-xs font-medium text-white/60 mb-2">{label}</label>
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-xs font-medium text-white/60">{label}</label>
+        {voice && <VoiceInputButton size="sm" onTranscript={voice.onAppend} />}
+      </div>
       {children}
       {hint && <p className="text-[10px] text-white/30 mt-1">{hint}</p>}
     </div>
   );
+}
+
+// Kleine Helper: konsistentes "append with space" fuer alle Voice-Felder.
+// State-Setter via Closure, damit append idempotent gerufen werden kann.
+function makeAppender(
+  setter: React.Dispatch<React.SetStateAction<string>>,
+): (text: string) => void {
+  return (text: string) => setter((v) => (v ? `${v} ${text}` : text));
 }
 
 function TextInput({

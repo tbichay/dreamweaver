@@ -608,6 +608,7 @@ function NewShowPageInner() {
           value={draft.description}
           onChange={(v) => setDraft({ ...draft, description: v })}
           multiline
+          voice
         />
 
         <div className="grid grid-cols-2 gap-4">
@@ -630,6 +631,7 @@ function NewShowPageInner() {
           value={draft.brandVoice}
           onChange={(v) => setDraft({ ...draft, brandVoice: v })}
           multiline
+          voice
           hint="Wird bei jeder Generation zusätzlich zum Fokus-Skeleton injiziert."
         />
 
@@ -964,16 +966,28 @@ function DraftField({
   onChange,
   multiline,
   hint,
+  voice,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   multiline?: boolean;
   hint?: string;
+  // Optional: rendert VoiceInputButton neben dem Label. Nur fuer narrative
+  // Textfelder sinnvoll (Titel/Untertitel sind zu kurz fuer Diktat).
+  voice?: boolean;
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-white/60 mb-2">{label}</label>
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-xs font-medium text-white/60">{label}</label>
+        {voice && (
+          <VoiceInputButton
+            size="sm"
+            onTranscript={(text) => onChange(value ? `${value} ${text}` : text)}
+          />
+        )}
+      </div>
       {multiline ? (
         <textarea
           value={value}
