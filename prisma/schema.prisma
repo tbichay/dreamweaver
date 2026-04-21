@@ -490,10 +490,22 @@ model DigitalActor {
   libraryVoiceId String? // FK to Voice library (shared voices)
   libraryVoice   Voice?            @relation(fields: [libraryVoiceId], references: [id], onDelete: SetNull)
 
+  // Unification-Bridge (Phase 2 → 4): wenn dieser DigitalActor nach Actor
+  // migriert wurde, zeigt actorId auf den neuen Unified-Record. Solange
+  // StudioCharacter weiter auf DigitalActor.id referenziert, bleibt dieser
+  // Record bestehen; neue UIs lesen aber direkt via actorId.
+  //
+  // Nicht unique: mehrere DigitalActor-Rows (z.B. historische Test-Duplikate
+  // mit gleichem Namen) koennen auf denselben Unified-Actor zeigen — spaeter
+  // kann der Admin im UI die DigitalActor-Duplikate aufloesen.
+  actorId String?
+  actor   Actor?  @relation("ActorDigitalAlias", fields: [actorId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([actorId])
 }
 
 // ── Voice Library (Shareable Voices) ─────────────────────────────
@@ -512,7 +524,8 @@ model Voice {
   tags           String[] // ["maennlich", "warm", "deutsch", "alt"]
 
   // Relations
-  actors DigitalActor[] // Actors using this voice
+  actors             DigitalActor[] // Legacy DigitalActors using this voice
+  unifiedActors      Actor[] // Unified Actor-Pool using this voice (post-migration)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -639,6 +652,13 @@ model Actor {
   voiceProvider String @default("elevenlabs")
   voiceId       String // ElevenLabs voice ID
   voiceSettings Json // { stability, similarity_boost, style, use_speaker_boost, speed }
+  // Voice-Library-Integration (optional): link to shared Voice if the
+  // actor uses a voice from the library. `voiceId` bleibt primaer
+  // (Pipeline bleibt unveraendert), `libraryVoiceId` ist nur das
+  // "Elternteil" im UI fuer Voice-Switching + Sharing.
+  libraryVoiceId   String?
+  libraryVoice     Voice?  @relation(fields: [libraryVoiceId], references: [id], onDelete: SetNull)
+  voiceDescription String? // For ElevenLabs voice-design (custom voices)
 
   // Persona & Expertise
   persona     String // Age-agnostic character prompt fragment
@@ -655,6 +675,17 @@ model Actor {
   backstory     String? // Longer biographical / world-building blurb
   relationships Json? // { "koda": "beste Freundin", "kiki": "rivalisierend-spielerisch" }
 
+  // Video-Appearance (uniification with DigitalActor) — alle optional, damit
+  // Shows-only Actors (Koda, Kiki) weiter funktionieren ohne characterSheet.
+  // Film-Pipeline (StudioCharacter) liest diese Felder, wenn der Actor in
+  // einer Video-Szene genutzt wird.
+  characterSheet  Json? // { front?: url, profile?: url, fullBody?: url }
+  outfit          String? // "Schwarze Lederjacke, weisses T-Shirt, Jeans"
+  traits          String? // "Traegt runde Brille, Narbe ueber linkem Auge"
+  style           String? // "realistic" | "animated" etc.
+  tags            String[] @default([]) // ["maennlich", "deutsch", "action"]
+  portraitAssetId String? // FK to Asset library (primary portrait)
+
   // Scope (null = system/global, readable by all admins)
   ownerUserId String?
   ownerOrgId  String?
@@ -664,9 +695,14 @@ model Actor {
 
   // Relations
   shows ShowActor[]
+  // Schatten-Links zu DigitalActor — waehrend der Migrations-Uebergangsphase
+  // (Phase 2 → Phase 4) koexistieren beide Tabellen. Mehrere DigitalActor-
+  // Rows (Test-Duplikate) koennen auf denselben Unified-Actor zeigen.
+  digitalActorAliases DigitalActor[] @relation("ActorDigitalAlias")
 
   @@index([ownerUserId])
   @@index([ownerOrgId])
+  @@index([libraryVoiceId])
 }
 
 /// Reusable Fokus template (episode-type).
