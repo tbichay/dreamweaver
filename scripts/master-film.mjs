@@ -19,8 +19,10 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlink
 import { join } from "path";
 
 const geschichteId = process.argv[2];
+const introClipUrl = process.argv[3] || null;
+const outroClipUrl = process.argv[4] || null;
 if (!geschichteId) {
-  console.error("Usage: node scripts/master-film.mjs <geschichteId>");
+  console.error("Usage: node scripts/master-film.mjs <geschichteId> [introClipUrl] [outroClipUrl]");
   process.exit(1);
 }
 
