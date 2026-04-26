@@ -121,17 +121,34 @@ export async function POST(request: Request, ctx: Ctx) {
         "idempotencyKey already used with a different payload"
       );
     }
-    return Response.json(
-      {
-        jobId: existing.canzoiaJobId,
-        status: existing.status,
-        idempotencyKey: existing.idempotencyKey,
-        estimatedReadyAt: null,
-        pollAfterSec: 5,
-        replay: true,
-      },
-      { status: 202 }
-    );
+    // Failed-Replay: einen failed-Record als Idempotenz-Treffer zurueckzu-
+    // geben sperrt jeden Retry. Wir archivieren den alten Record (Suffix
+    // am idempotencyKey, damit der unique-Constraint frei wird) und lassen
+    // den Code unten einen frischen Job mit demselben Key starten. Audit-
+    // Trail bleibt erhalten; das Frontend kann ohne Key-Rotation retryen.
+    if (existing.status === "failed") {
+      const archivedKey = `${existing.idempotencyKey}__archived_${Date.now()}`;
+      await prisma.showEpisode.update({
+        where: { id: existing.id },
+        data: { idempotencyKey: archivedKey },
+      });
+      console.warn(
+        `[canzoia-gen] Archived failed episode ${existing.id} (errorCode=${existing.errorCode}) — allowing retry on key ${body.idempotencyKey}`,
+      );
+      // Fall through to fresh-job creation below.
+    } else {
+      return Response.json(
+        {
+          jobId: existing.canzoiaJobId,
+          status: existing.status,
+          idempotencyKey: existing.idempotencyKey,
+          estimatedReadyAt: null,
+          pollAfterSec: 5,
+          replay: true,
+        },
+        { status: 202 }
+      );
+    }
   }
 
   // ── Fokus + revision checks ────────────────────────────────
